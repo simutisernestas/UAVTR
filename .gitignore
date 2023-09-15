@@ -1,0 +1,12 @@
+onnxruntime
+__pycache__
+boat*
+build
+.vscode
+ptsynt
+*.onnx
+*.py
+!export.py
+!detr_demo.py
+run.sh
+video.mp4
