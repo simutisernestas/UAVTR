@@ -3,13 +3,13 @@
 #include <opencv2/tracking.hpp>
 #include <opencv2/dnn/dnn.hpp>
 #include <atomic>
-#include <deque>
 #include <thread>
 #include <cassert>
 #include <numeric>
 #include <onnxruntime_cxx_api.h>
 #include <iostream>
 #include <string.h>
+#include <boost/lockfree/spsc_queue.hpp>
 
 template <typename T>
 T vectorProduct(const std::vector<T> &v)
@@ -314,8 +314,8 @@ bool ObjDetertor::detect(const cv::Mat &frame)
 
     bbox.x = bb[0];
     bbox.y = bb[1];
-    bbox.width = (bb[2] - bb[0]) * 0.75f;
-    bbox.height = (bb[3] - bb[1]) * 0.75f;
+    bbox.width = (bb[2] - bb[0]) * 0.5f;
+    bbox.height = (bb[3] - bb[1]) * 0.5f;
 
     // save it for use in tracker
     _frame_id_bbox = std::make_pair(frame_id, bbox);
@@ -340,14 +340,15 @@ public:
 private:
     cv::Ptr<cv::Tracker> _tracker = nullptr;
     std::unique_ptr<ObjDetertor> _detector = nullptr;
-    std::mutex _mutex;
-    std::deque<cv::Mat> _frames;
+    boost::lockfree::spsc_queue<cv::Mat, boost::lockfree::capacity<100>> _frames;
     std::thread _obj_detector_thread;
     bool exit = false;
+    std::atomic<bool> _allowed_to_swap;
 };
 
 Tracker::Tracker()
 {
+    std::atomic_init(&_allowed_to_swap, true);
     _detector = std::make_unique<ObjDetertor>();
     _obj_detector_thread = std::thread([this]()
                                        {
@@ -362,14 +363,10 @@ Tracker::Tracker()
                 continue;
             }
 
-            auto frame = _frames.back().clone();
-            {
-                std::lock_guard<std::mutex> lock(_mutex);
-                _frames.clear();
-            }
+            auto frame = _frames.front().clone();
 
             // this will take long time and will need to catchup with new entries
-            bool success = _detector->detect(frame);
+            bool success = _detector->detect(_frames.front());
             if (success) {
                 this->catchup_reinit();
             }
@@ -378,13 +375,17 @@ Tracker::Tracker()
 
 bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox)
 {
-    std::lock_guard<std::mutex> lock(_mutex);
-    _frames.push_back(frame);
+    _frames.push(frame);
 
     if (_tracker == nullptr)
         return false;
 
+    _allowed_to_swap = false;
     bool located = _tracker->update(frame, bbox);
+    if (!located)
+        _tracker.reset();
+    _allowed_to_swap = true;
+
     return located;
 }
 
@@ -393,18 +394,28 @@ void Tracker::catchup_reinit()
     std::pair<uint64_t, cv::Rect> frame_id_bbox;
     _detector->get_latest_bbox(frame_id_bbox);
 
-    auto local_tracker = cv::TrackerKCF::create();
+    auto params = cv::TrackerKCF::Params();
+    params.resize = true;
+    auto local_tracker = cv::TrackerKCF::create(params);
     local_tracker->init(_frames.front(), frame_id_bbox.second);
+    _frames.pop();
     while (!_frames.empty())
     {
         bool track = local_tracker->update(_frames.front(), frame_id_bbox.second);
         if (!track)
             return;
-        std::lock_guard<std::mutex> lock(_mutex);
-        _frames.pop_front();
+
+        _frames.pop();
     }
-    std::lock_guard<std::mutex> lock(_mutex);
-    _tracker = local_tracker;
+    while (true)
+    {
+        if (_allowed_to_swap)
+        {
+            _tracker = local_tracker;
+            return;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 }
 
 #endif // TRACKER_H

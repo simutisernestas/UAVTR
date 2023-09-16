@@ -5,6 +5,7 @@
 #include <opencv2/dnn/dnn.hpp>
 #include <thread>
 #include <numeric>
+#include <atomic>
 
 int main()
 {
@@ -35,25 +36,19 @@ int main()
     {
         cv::Mat image = images[i];
         cv::Rect bbox{};
-        auto start = std::chrono::high_resolution_clock::now();
-        bool success = tracker.process(image, bbox);
-        auto end = std::chrono::high_resolution_clock::now();
+        auto start = std::chrono::system_clock::now();
+        tracker.process(image, bbox);
+        auto end = std::chrono::system_clock::now();
         worst_comp_time = std::max(worst_comp_time, std::chrono::duration<double>(end - start).count());
-        std::cout << "Comp time: " << std::chrono::duration<double>(end - start).count() * 1000 << " ms" << std::endl;
+        std::cout << "Comp time: " << std::chrono::duration<double>(end - start).count() * 1000 << " ms" << '\n';
 
         std::this_thread::sleep_for(std::chrono::milliseconds(33));
 
-        if (!success)
-        {
-            // std::cout << "Failed to track" << std::endl;
-            continue;
-        }
-
-        // cv::rectangle(image, bbox, cv::Scalar(0, 255, 0), 2, 1);
-        // cv::imshow("BBOX", image);
-        // cv::waitKey(1);
+        cv::rectangle(image, bbox, cv::Scalar(0, 255, 0), 2, 1);
+        cv::imshow("BBOX", image);
+        cv::waitKey(1);
     }
-    std::cout << "Worst comp time: " << worst_comp_time*1000 << " ms" << std::endl;
+    std::cout << "Worst comp time: " << worst_comp_time * 1000 << " ms" << '\n';
     // must go lower than 30, potentially way more
 
     // double sleep = n_images * (1000 / 30) / 1000;
