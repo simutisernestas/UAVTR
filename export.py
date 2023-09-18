@@ -8,13 +8,14 @@ from PIL import Image
 import os
 
 # Directory path containing the images
-image_dir = 'boat1'
+image_dir = 'images'
 
 # Get a list of image filenames in the directory
 image_filenames = sorted(
     [filename for filename in os.listdir(image_dir) if filename.endswith('.jpg')])
 
 file = image_filenames[0]
+print(file)
 
 # for file in image_filenames[200:]:
 # Read the next image
@@ -102,3 +103,5 @@ print(torch.allclose(np_probs, scores, rtol=1e-03, atol=1e-05))
 # ort_outs[0] = ort_outs[0][keep]
 # compare ONNX Runtime and PyTorch results
 # np.testing.assert_allclose(to_numpy(scores), ort_outs[0], rtol=1e-03, atol=1e-05)
+
+print(ort_outs[1][0, keep])

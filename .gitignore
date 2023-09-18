@@ -9,4 +9,5 @@ ptsynt
 !export.py
 !detr_demo.py
 run.sh
-video.mp4
+*.mp4
+images/

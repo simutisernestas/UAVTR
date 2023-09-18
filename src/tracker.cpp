@@ -7,8 +7,8 @@
 #include <cassert>
 #include <numeric>
 #include <onnxruntime_cxx_api.h>
-#include <iostream>
 #include <string.h>
+#include <iostream>
 #include <boost/lockfree/spsc_queue.hpp>
 
 template <typename T>
@@ -198,7 +198,7 @@ ObjDetertor::ObjDetertor()
     auto inputTensorInfo = inputTypeInfo.GetTensorTypeAndShapeInfo();
     _input_dims = inputTensorInfo.GetShape();
     size_t inputTensorSize = vectorProduct(_input_dims);
-    _input_image_values.reserve(inputTensorSize);
+    _input_image_values.resize(inputTensorSize);
 
     // logits output
     auto outputName0 = _session->GetOutputNameAllocated(0, _allocator);
@@ -206,7 +206,7 @@ ObjDetertor::ObjDetertor()
     auto outputTensorInfo = outputTypeInfo.GetTensorTypeAndShapeInfo();
     _out_logits_dims = outputTensorInfo.GetShape();
     size_t logitsTensorSize = vectorProduct(_out_logits_dims);
-    _out_logit_values.reserve(logitsTensorSize);
+    _out_logit_values.resize(logitsTensorSize);
 
     // bbox output
     auto outputName1 = _session->GetOutputNameAllocated(1, _allocator);
@@ -214,7 +214,7 @@ ObjDetertor::ObjDetertor()
     auto outputTensorInfo1 = outputTypeInfo1.GetTensorTypeAndShapeInfo();
     _out_bbox_dims = outputTensorInfo1.GetShape();
     size_t bboxTensorSize = vectorProduct(_out_bbox_dims);
-    _out_bbox_values.reserve(bboxTensorSize);
+    _out_bbox_values.resize(bboxTensorSize);
 
     size_t input_name_len = strlen(inputName.get());
     size_t output_name_len0 = strlen(outputName0.get());
@@ -249,59 +249,64 @@ ObjDetertor::ObjDetertor()
 bool ObjDetertor::detect(const cv::Mat &frame)
 {
     uint64_t frame_id = reinterpret_cast<uint64_t>(&frame);
-    cv::Rect bbox;
+    cv::Rect2f bbox;
 
+    // refactor using less local variables
     auto image = frame.clone();
-    cv::resize(image, image,
-               cv::Size(_input_dims.at(3), _input_dims.at(2)),
-               cv::InterpolationFlags::INTER_LINEAR);
-    cv::Scalar mean(0.485, 0.456, 0.406);
-    cv::Mat blob = cv::dnn::blobFromImage(image, 1.0 / 255.0,
-                                          cv::Size(_input_dims.at(3), _input_dims.at(2)),
-                                          mean, true);
-    cv::Scalar std(0.229, 0.224, 0.225);
-    blob /= std;
+    cv::resize(image, image, cv::Size(_input_dims.at(3), _input_dims.at(2)),
+               cv::InterpolationFlags::INTER_CUBIC);
+    cv::cvtColor(image, image, cv::ColorConversionCodes::COLOR_BGR2RGB);
+    image.convertTo(image, CV_32F, 1.0 / 255);
+    cv::Mat channels2[3];
+    cv::split(image, channels2);
+    channels2[0] = (channels2[0] - 0.485) / 0.229;
+    channels2[1] = (channels2[1] - 0.456) / 0.224;
+    channels2[2] = (channels2[2] - 0.406) / 0.225;
+    cv::merge(channels2, 3, image);
+    cv::dnn::blobFromImage(image, image);
 
-    std::copy(blob.begin<float>(),
-              blob.end<float>(),
+    std::copy(image.begin<float>(),
+              image.end<float>(),
               _input_image_values.begin());
 
     _session->Run(Ort::RunOptions{nullptr}, _input_names.data(),
                   _input_tensors.data(), 1 /*Number of inputs*/, _output_names.data(),
                   _output_tensors.data(), 2 /*Number of outputs*/);
 
+    static constexpr size_t BOAT_CLASS_ID = 9;
+    static constexpr size_t N_CLASSES = 92;
+
     float max_confidence = 0.0f;
     size_t good_bbox_id;
     for (size_t i = 0; i < 100; i++)
     {
         float rowmax = *std::max_element(
-            _out_logit_values.begin(), _out_logit_values.begin() + 92);
-        std::vector<float> y(92);
+            _out_logit_values.begin() + N_CLASSES * i,
+            _out_logit_values.begin() + N_CLASSES * i + N_CLASSES);
+        std::vector<float> y(N_CLASSES);
+        y.assign(N_CLASSES, 0.0f);
         float sum = 0.0f;
-        auto input = _out_logit_values.begin() + i * 92;
-        for (size_t j = 0; j != 92; ++j)
+        auto input = _out_logit_values.begin() + i * N_CLASSES;
+        for (size_t j = 0; j < N_CLASSES; ++j)
             sum += y[j] = std::exp(input[j] - rowmax);
-        size_t max_id = 0;
-        float confidence = 0.0f;
-        for (size_t j = 0; j != 92; ++j)
-        {
-            input[j] = y[j] / sum;
-            if (input[j] > confidence)
-            {
-                confidence = input[j];
-                max_id = j;
-            }
-        }
+        // for all classes
+        // for (size_t j = 0; j < N_CLASSES; ++j)
+        //     input[j] = y[j] / sum;
+
+        // only boat confidence level : )
+        input[BOAT_CLASS_ID] = y[BOAT_CLASS_ID] / sum;
+        float confidence = input[BOAT_CLASS_ID];
+
         assert(confidence <= 1.0f);
         assert(confidence >= 0.0f);
-        if (confidence >= max_confidence && max_id == 9)
+        if (confidence >= max_confidence)
         {
             good_bbox_id = i;
             max_confidence = confidence;
         }
     }
 
-    if (max_confidence < 0.7f)
+    if (max_confidence < 0.95f)
         return false;
 
     // TODO: remove this struct
@@ -310,12 +315,19 @@ bool ObjDetertor::detect(const cv::Mat &frame)
     out_bbox.y_c = _out_bbox_values[good_bbox_id * 4 + 1];
     out_bbox.w = _out_bbox_values[good_bbox_id * 4 + 2];
     out_bbox.h = _out_bbox_values[good_bbox_id * 4 + 3];
+
     auto bb = rescale_bboxes(out_bbox, {frame.cols, frame.rows});
 
     bbox.x = bb[0];
     bbox.y = bb[1];
-    bbox.width = (bb[2] - bb[0]) * 0.5f;
-    bbox.height = (bb[3] - bb[1]) * 0.5f;
+    bbox.width = (bb[2] - bb[0]) * 0.75f;
+    bbox.height = (bb[3] - bb[1]) * 0.75f;
+
+    // impose bound on width and height
+    bbox.width = std::min(bbox.width, 100.0f);
+    bbox.width = std::max(bbox.width, 10.0f);
+    bbox.height = std::min(bbox.height, 100.0f);
+    bbox.height = std::max(bbox.height, 10.0f);
 
     // save it for use in tracker
     _frame_id_bbox = std::make_pair(frame_id, bbox);
@@ -340,6 +352,7 @@ public:
 private:
     cv::Ptr<cv::Tracker> _tracker = nullptr;
     std::unique_ptr<ObjDetertor> _detector = nullptr;
+    // this is ~30 MB of data in memory
     boost::lockfree::spsc_queue<cv::Mat, boost::lockfree::capacity<100>> _frames;
     std::thread _obj_detector_thread;
     bool exit = false;
@@ -358,17 +371,14 @@ Tracker::Tracker()
                 return;
 
             if (_frames.empty())
-            {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
                 continue;
-            }
-
-            auto frame = _frames.front().clone();
 
             // this will take long time and will need to catchup with new entries
             bool success = _detector->detect(_frames.front());
             if (success) {
                 this->catchup_reinit();
+            } else {
+                _frames.pop();
             }
         } });
 }
@@ -391,15 +401,21 @@ bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox)
 
 void Tracker::catchup_reinit()
 {
+    std::cout << "Catching up" << std::endl;
     std::pair<uint64_t, cv::Rect> frame_id_bbox;
     _detector->get_latest_bbox(frame_id_bbox);
 
     auto params = cv::TrackerKCF::Params();
     params.resize = true;
+    params.detect_thresh = 0.7f;
+    // cv::TrackerDaSiamRPN::Params params;
+    // params.model = "/home/ernie/thesis/track/dasiamrpn_model.onnx";
+    // params.kernel_cls1 = "/home/ernie/thesis/track/dasiamrpn_kernel_cls1.onnx";
+    // params.kernel_r1 = "/home/ernie/thesis/track/dasiamrpn_kernel_r1.onnx";
     auto local_tracker = cv::TrackerKCF::create(params);
     local_tracker->init(_frames.front(), frame_id_bbox.second);
     _frames.pop();
-    while (!_frames.empty())
+    while (_frames.read_available() > 1)
     {
         bool track = local_tracker->update(_frames.front(), frame_id_bbox.second);
         if (!track)
@@ -414,7 +430,6 @@ void Tracker::catchup_reinit()
             _tracker = local_tracker;
             return;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 }
 

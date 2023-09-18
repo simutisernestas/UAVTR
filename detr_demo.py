@@ -26,6 +26,8 @@ from torch import nn
 from torchvision.models import resnet50
 import torchvision.transforms as T
 torch.set_grad_enabled(False);
+import matplotlib.pyplot as plt
+import numpy as np
 
 """## DETR
 Here is a minimal implementation of DETR:
@@ -109,22 +111,6 @@ Let's construct the model with 80 COCO output classes + 1 ⦰ "no object" class 
 The weights are saved in half precision to save bandwidth without hurting model accuracy.
 """
 
-detr = DETRdemo(num_classes=91)
-# def count_parameters(model):
-#     return sum(p.numel() for p in model.parameters() if p.requires_grad)
-# print(count_parameters(detr))
-# # print(detr)
-# exit()
-state_dict = torch.hub.load_state_dict_from_url(
-    url='https://dl.fbaipublicfiles.com/detr/detr_demo-da2a99e9.pth',
-    map_location='cpu', check_hash=True)
-# for name in state_dict.keys():
-#     print(name)
-#     exit(0)
-
-detr.load_state_dict(state_dict)
-detr.eval()
-
 """## Computing predictions with DETR
 
 The pre-trained DETR model that we have just loaded has been trained on the 80 COCO classes, with class indices ranging from 1 to 90 (that's why we considered 91 classes in the model construction).
@@ -180,6 +166,7 @@ def rescale_bboxes(out_bbox, size):
 def detect(im, model, transform):
     # mean-std normalize the input image (batch-size: 1)
     img = transform(im).unsqueeze(0)
+    print(img.shape)
 
     # demo model only support by default images with aspect ratio between 0.5 and 2
     # if you want to use images with an aspect ratio outside this range
@@ -189,12 +176,12 @@ def detect(im, model, transform):
     # propagate through the model
     outputs = model(img)
 
-    print(outputs.keys())
     # keep only predictions with 0.7+ confidence
     probas = outputs['pred_logits'].softmax(-1)[0, :, :-1]
     keep = probas.max(-1).values > 0.7
 
     # convert boxes from [0; 1] to image scales
+    print(outputs['pred_boxes'][0, keep])
     bboxes_scaled = rescale_bboxes(outputs['pred_boxes'][0, keep], im.size)
     return probas[keep], bboxes_scaled
 
@@ -202,33 +189,36 @@ def detect(im, model, transform):
 To try DETRdemo model on your own image just change the URL below.
 """
 
-detr.to(torch.device('cpu'))
+def plot_results(pil_img, prob, boxes):
+    # plt.figure(figsize=(16,10))
+    plt.imshow(pil_img)
+    ax = plt.gca()
+    for p, (xmin, ymin, xmax, ymax), c in zip(prob, boxes.tolist(), COLORS * 100):
+        ax.add_patch(plt.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
+                                   fill=False, color=c, linewidth=3))
+        cl = p.argmax()
+        text = f'{CLASSES[cl]}: {p[cl]:0.2f}'
+        ax.text(xmin, ymin, text, fontsize=15,
+                bbox=dict(facecolor='yellow', alpha=0.5))
+    plt.axis('off')
+    plt.show()
 
-# url = 'http://images.cocodataset.org/val2017/000000039769.jpg'
-# im = Image.open(requests.get(url, stream=True).raw)
-# read color image
-im = Image.open('ptsynt/Image00901.png', 'r').convert('RGB')
 
-# import time
-# start_time = time.time()
-# scores, boxes = detect(im, detr, transform)
-# end_time = time.time()
-# print("Time taken: ", end_time - start_time)
+if __name__ == "__main__":
+    detr = DETRdemo(num_classes=91)
+    state_dict = torch.hub.load_state_dict_from_url(
+        url='https://dl.fbaipublicfiles.com/detr/detr_demo-da2a99e9.pth',
+        map_location='cpu', check_hash=True)
+    detr.load_state_dict(state_dict)
+    detr.eval()
+    detr.to(torch.device('cpu'))
 
-"""Let's now visualize the model predictions"""
+    im = Image.open('boat1/000010.jpg', 'r').convert('RGB')
 
-# def plot_results(pil_img, prob, boxes):
-#     plt.figure(figsize=(16,10))
-#     plt.imshow(pil_img)
-#     ax = plt.gca()
-#     for p, (xmin, ymin, xmax, ymax), c in zip(prob, boxes.tolist(), COLORS * 100):
-#         ax.add_patch(plt.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
-#                                    fill=False, color=c, linewidth=3))
-#         cl = p.argmax()
-#         text = f'{CLASSES[cl]}: {p[cl]:0.2f}'
-#         ax.text(xmin, ymin, text, fontsize=15,
-#                 bbox=dict(facecolor='yellow', alpha=0.5))
-#     plt.axis('off')
-#     plt.show()
+    import time
+    start_time = time.time()
+    scores, boxes = detect(im, detr, transform)
+    end_time = time.time()
+    print("Time taken: ", end_time - start_time)
 
-# plot_results(im, scores, boxes)
+    plot_results(im, scores, boxes)

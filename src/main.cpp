@@ -9,18 +9,38 @@
 
 int main()
 {
+    // test detector
+
+    // ObjDetertor detector{};
+
     Tracker tracker{};
 
     std::string imageFilepath{};
     size_t n_images = 300;
-    // read all images up front
     std::vector<cv::Mat> images{};
-    for (size_t i = 1; i < n_images; i += 1)
+    // for (size_t i = 1; i < n_images; i += 1)
+    // {
+    //     std::string zero_pad = std::string(6 - std::to_string(i).length(), '0');
+    //     imageFilepath = "../boat1/" + zero_pad + std::to_string(i) + ".jpg";
+    //     // std::cout << "Image: " << imageFilepath << std::endl;
+    //     cv::Mat image = cv::imread(imageFilepath, cv::ImreadModes::IMREAD_COLOR);
+    //     if (image.empty())
+    //     {
+    //         std::cout << "Failed to read image" << std::endl;
+    //         return -1;
+    //     }
+    //     cv::resize(image, image, cv::Size(), 0.75, 0.75);
+    //     images.push_back(image);
+    // }
+    for (size_t i = 0; i < n_images; i += 1)
     {
-        std::string zero_pad = std::string(6 - std::to_string(i).length(), '0');
-        imageFilepath = "../boat1/" + zero_pad + std::to_string(i) + ".jpg";
+        imageFilepath = "../images/" + std::to_string(i) + ".jpg";
         // std::cout << "Image: " << imageFilepath << std::endl;
         cv::Mat image = cv::imread(imageFilepath, cv::ImreadModes::IMREAD_COLOR);
+        // resize
+        cv::resize(image, image, cv::Size(), 0.75, 0.75);
+        // convert to rgb
+        // cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
         if (image.empty())
         {
             std::cout << "Failed to read image" << std::endl;
@@ -28,6 +48,15 @@ int main()
         }
         images.push_back(image);
     }
+
+    // bool success = detector.detect(images[0]);
+    // std::cout << success << std::endl;
+
+    // std::pair<uint64_t, cv::Rect> bbox;
+    // detector.get_latest_bbox(bbox);
+    // cv::rectangle(images[0], bbox.second, cv::Scalar(0, 255, 0), 2, 1);
+    // cv::imshow("BBOX", images[0]);
+    // cv::waitKey(0);
 
     double worst_comp_time{0.0};
 
