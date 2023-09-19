@@ -11,3 +11,4 @@ ptsynt
 run.sh
 *.mp4
 images/
+*dataset*
