@@ -40,3 +40,6 @@ target_link_libraries(tracker_lib ${OpenCV_LIBS} onnxruntime)
 
 add_executable(tracker_app src/main.cpp)
 target_link_libraries(tracker_app ${OpenCV_LIBS} tracker_lib)
+
+add_executable(yolo src/yolo.cpp)
+target_link_libraries(yolo ${OpenCV_LIBS} onnxruntime)

@@ -13,41 +13,53 @@ int main()
 
     // ObjDetertor detector{};
 
+    // create a video
+
     Tracker tracker{};
 
     std::string imageFilepath{};
     size_t n_images = 300;
     std::vector<cv::Mat> images{};
-    // for (size_t i = 1; i < n_images; i += 1)
-    // {
-    //     std::string zero_pad = std::string(6 - std::to_string(i).length(), '0');
-    //     imageFilepath = "../boat1/" + zero_pad + std::to_string(i) + ".jpg";
-    //     // std::cout << "Image: " << imageFilepath << std::endl;
-    //     cv::Mat image = cv::imread(imageFilepath, cv::ImreadModes::IMREAD_COLOR);
-    //     if (image.empty())
-    //     {
-    //         std::cout << "Failed to read image" << std::endl;
-    //         return -1;
-    //     }
-    //     cv::resize(image, image, cv::Size(), 0.75, 0.75);
-    //     images.push_back(image);
-    // }
-    for (size_t i = 0; i < n_images; i += 1)
+    int frame_width;
+    int frame_height;
+    for (size_t i = 1; i < n_images; i += 1)
     {
-        imageFilepath = "../images/" + std::to_string(i) + ".jpg";
+        std::string zero_pad = std::string(6 - std::to_string(i).length(), '0');
+        imageFilepath = "../boat1/" + zero_pad + std::to_string(i) + ".jpg";
         // std::cout << "Image: " << imageFilepath << std::endl;
         cv::Mat image = cv::imread(imageFilepath, cv::ImreadModes::IMREAD_COLOR);
-        // resize
-        cv::resize(image, image, cv::Size(), 0.75, 0.75);
-        // convert to rgb
-        // cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
         if (image.empty())
         {
             std::cout << "Failed to read image" << std::endl;
             return -1;
         }
+        cv::resize(image, image, cv::Size(), 0.75, 0.75);
+        frame_height = image.rows;
+        frame_width = image.cols;
         images.push_back(image);
     }
+    cv::VideoWriter video("outcpp_real.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, cv::Size(frame_width, frame_height));
+
+    // for (size_t i = 0; i < n_images; i += 1)
+    // {
+    //     imageFilepath = "../images/" + std::to_string(i) + ".jpg";
+    //     // std::cout << "Image: " << imageFilepath << std::endl;
+    //     cv::Mat image = cv::imread(imageFilepath, cv::ImreadModes::IMREAD_COLOR);
+    //     // resize
+    //     cv::resize(image, image, cv::Size(), 0.75, 0.75);
+
+    //     frame_height = image.rows;
+    //     frame_width = image.cols;
+    //     // convert to rgb
+    //     // cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
+    //     if (image.empty())
+    //     {
+    //         std::cout << "Failed to read image" << std::endl;
+    //         return -1;
+    //     }
+    //     images.push_back(image);
+    // }
+    // cv::VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, cv::Size(frame_width, frame_height));
 
     // bool success = detector.detect(images[0]);
     // std::cout << success << std::endl;
@@ -76,9 +88,13 @@ int main()
         cv::rectangle(image, bbox, cv::Scalar(0, 255, 0), 2, 1);
         cv::imshow("BBOX", image);
         cv::waitKey(1);
+
+        video.write(image);
     }
     std::cout << "Worst comp time: " << worst_comp_time * 1000 << " ms" << '\n';
     // must go lower than 30, potentially way more
+
+    video.release();
 
     // double sleep = n_images * (1000 / 30) / 1000;
     // // percentage of time spent computing
