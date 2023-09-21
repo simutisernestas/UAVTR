@@ -22,53 +22,56 @@ int main()
     std::vector<cv::Mat> images{};
     int frame_width;
     int frame_height;
-    for (size_t i = 1; i < n_images; i += 1)
-    {
-        std::string zero_pad = std::string(6 - std::to_string(i).length(), '0');
-        imageFilepath = "../boat1/" + zero_pad + std::to_string(i) + ".jpg";
-        // std::cout << "Image: " << imageFilepath << std::endl;
-        cv::Mat image = cv::imread(imageFilepath, cv::ImreadModes::IMREAD_COLOR);
-        if (image.empty())
-        {
-            std::cout << "Failed to read image" << std::endl;
-            return -1;
-        }
-        cv::resize(image, image, cv::Size(), 0.75, 0.75);
-        frame_height = image.rows;
-        frame_width = image.cols;
-        images.push_back(image);
-    }
-    cv::VideoWriter video("outcpp_real.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, cv::Size(frame_width, frame_height));
-
-    // for (size_t i = 0; i < n_images; i += 1)
+    // for (size_t i = 1; i < n_images; i += 1)
     // {
-    //     imageFilepath = "../images/" + std::to_string(i) + ".jpg";
+    //     std::string zero_pad = std::string(6 - std::to_string(i).length(), '0');
+    //     imageFilepath = "../boat1/" + zero_pad + std::to_string(i) + ".jpg";
     //     // std::cout << "Image: " << imageFilepath << std::endl;
     //     cv::Mat image = cv::imread(imageFilepath, cv::ImreadModes::IMREAD_COLOR);
-    //     // resize
-    //     cv::resize(image, image, cv::Size(), 0.75, 0.75);
-
-    //     frame_height = image.rows;
-    //     frame_width = image.cols;
-    //     // convert to rgb
-    //     // cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
     //     if (image.empty())
     //     {
     //         std::cout << "Failed to read image" << std::endl;
     //         return -1;
     //     }
+    //     cv::resize(image, image, cv::Size(), 0.75, 0.75);
+    //     frame_height = image.rows;
+    //     frame_width = image.cols;
     //     images.push_back(image);
     // }
-    // cv::VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, cv::Size(frame_width, frame_height));
+    // cv::VideoWriter video("outcpp_real.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, cv::Size(frame_width, frame_height));
+
+    for (size_t i = 0; i < n_images; i += 1)
+    {
+        imageFilepath = "../images/" + std::to_string(i) + ".jpg";
+        // std::cout << "Image: " << imageFilepath << std::endl;
+        cv::Mat image = cv::imread(imageFilepath, cv::ImreadModes::IMREAD_COLOR);
+        // resize
+        cv::resize(image, image, cv::Size(), 0.75, 0.75);
+
+        frame_height = image.rows;
+        frame_width = image.cols;
+        // convert to rgb
+        // cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
+        if (image.empty())
+        {
+            std::cout << "Failed to read image" << std::endl;
+            return -1;
+        }
+        images.push_back(image);
+    }
+    cv::VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, cv::Size(frame_width, frame_height));
 
     // bool success = detector.detect(images[0]);
     // std::cout << success << std::endl;
 
-    // std::pair<uint64_t, cv::Rect> bbox;
+    // cv::Rect bbox;
     // detector.get_latest_bbox(bbox);
-    // cv::rectangle(images[0], bbox.second, cv::Scalar(0, 255, 0), 2, 1);
+    // // cv::rectangle(images[0], points[0], points[1], cv::Scalar(0, 255, 0), 2, 1);
+    // cv::rectangle(images[0], bbox, cv::Scalar(0, 255, 0), 2, 1);
     // cv::imshow("BBOX", images[0]);
     // cv::waitKey(0);
+
+    // return 0;
 
     double worst_comp_time{0.0};
 

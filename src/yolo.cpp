@@ -165,7 +165,9 @@ int main()
 
     std::cout << std::endl;
 
-    cv::Mat image = cv::imread("../boat2/000100.jpg");
+    cv::Mat image = cv::imread("../boat1/000100.jpg");
+    // resize
+    cv::resize(image, image, cv::Size(), 0.75, 0.75);
 
     std::vector<int64_t> inputDims = session.GetInputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
 

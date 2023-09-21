@@ -79,6 +79,8 @@ std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Val
 
     std::vector<Result> resultVector;
 
+    std::cout << outputShape[0] << " " << outputShape[1] << std::endl;
+
     for (int i = 0; i < outputShape[0]; i++)
     {
 
@@ -284,10 +286,15 @@ public:
     {
         bbox = _latest_bbox;
     }
+    inline void get_points(std::array<cv::Point, 2> &points)
+    {
+        points = _latest_bbox_points;
+    }
 
 private:
     // TODO: convert this to only bbox
     cv::Rect _latest_bbox{};
+    std::array<cv::Point, 2> _latest_bbox_points{};
 
     Ort::Env _env;
     std::unique_ptr<Ort::Session> _session;
@@ -365,7 +372,7 @@ ObjDetertor::ObjDetertor()
 
 bool ObjDetertor::detect(const cv::Mat &frame)
 {
-    cv::Rect2f bbox;
+    cv::Rect2f bbox{};
 
 #if MODEL == 0
     // refactor using less local variables
@@ -458,7 +465,7 @@ bool ObjDetertor::detect(const cv::Mat &frame)
                                                           _input_names.data(), _input_tensors.data(), _input_names.size(),
                                                           _output_names.data(), _output_names.size());
 
-    std::vector<Result> resultVector = postprocess(image.size(), outputTensors);
+    std::vector<Result> resultVector = postprocess(frame.size(), outputTensors);
 
     bool found = false;
     float max_accuracy = 0.0f;
@@ -466,20 +473,19 @@ bool ObjDetertor::detect(const cv::Mat &frame)
     {
         if (classNames.at(result.obj_id) != "boat")
             continue;
-        if (result.accuracy < 0.75f && result.accuracy < max_accuracy)
+        if (result.accuracy < 0.9f && result.accuracy < max_accuracy)
             continue;
         found = true;
         max_accuracy = result.accuracy;
 
         cv::Point p1(result.x1, result.y1);
         cv::Point p2(result.x2, result.y2);
-        cv::Point center = (p1 + p2) / 2;
-        bbox.x = center.x;
-        bbox.y = center.y;
-        bbox.width = std::abs(p2.x - p1.x);
-        bbox.height = std::abs(p2.y - p1.y);
-        // TODO: smth is wrong with the calculation of these coords!
+        bbox.x = result.x1;
+        bbox.y = result.y1;
+        bbox.width = (result.x2 - result.x1);
+        bbox.height = (result.y2 - result.y1);
     }
+
     if (found == false)
         return false;
 
@@ -533,7 +539,7 @@ Tracker::Tracker()
             bool success = _detector->detect(_frames.front());
             if (success) {
                 this->catchup_reinit();
-                return;
+                // return;
             } else {
                 _frames.pop();
             }
