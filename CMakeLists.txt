@@ -43,3 +43,9 @@ target_link_libraries(tracker_app ${OpenCV_LIBS} tracker_lib)
 
 add_executable(yolo src/yolo.cpp)
 target_link_libraries(yolo ${OpenCV_LIBS} onnxruntime)
+
+if (TEST)
+    find_package(GTest REQUIRED)
+    add_executable(test_tracker test/test_tracker.cpp)
+    target_link_libraries(test_tracker ${OpenCV_LIBS} ${GTEST_BOTH_LIBRARIES} tracker_lib)
+endif()
