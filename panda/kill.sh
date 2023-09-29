@@ -1,0 +1,1 @@
+pkill -f /opt/ros/humble/bin/ros2
