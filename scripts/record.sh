@@ -1,3 +1,4 @@
+sros
 MicroXRCEAgent serial --dev /dev/ttyUSB0 -b 921600 &
 
 ros2 bag record --compression-mode message --compression-format zstd -d 120 \
