@@ -55,7 +55,7 @@ class SensorTransformsPublisher(Node):
         altimeter_tf = TransformStamped()
         altimeter_tf.header.stamp = self.get_clock().now().to_msg()
         altimeter_tf.header.frame_id = 'base_link'
-        altimeter_tf.child_frame_id = 'altimeter_link'
+        altimeter_tf.child_frame_id = 'teraranger_evo_40m'
         altimeter_tf.transform.translation.x = -0.133
         altimeter_tf.transform.translation.y = 0.029
         altimeter_tf.transform.translation.z = -0.070

@@ -148,7 +148,8 @@ class TestTopicReception(unittest.TestCase):
             "camera_imu_frame",
             "camera_imu_optical_frame",
             "camera_link",
-            "gps_link"
+            "gps_link",
+            "teraranger_evo_40m"
         ]
         self.assertCountEqual(frames, expected_frames, frames)
 
