@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, ExecuteProcess
+from launch.actions import IncludeLaunchDescription, ExecuteProcess, TimerAction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
@@ -52,7 +52,7 @@ def generate_launch_description():
     #     /fmu/out/timesync_status
 
     rec_cmd = '''
-        ros2 bag record --compression-mode message --compression-format zstd -d 120
+        ros2 bag record --compression-mode message --compression-format zstd
             /camera/accel/sample
             /camera/color/camera_info
             /camera/color/image_raw
@@ -80,7 +80,6 @@ def generate_launch_description():
         xrce_agent,
         sensor_tfs,
         altimeter_node,
-        record_process,
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 PathJoinSubstitution([
@@ -88,5 +87,6 @@ def generate_launch_description():
                     "rs_launch.py"
                 ])
             ]),
-        )
+        ),
+        TimerAction(period=10.0, actions=[record_process]),
     ])

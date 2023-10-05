@@ -9,3 +9,4 @@ run.sh
 *dataset*
 data/
 **rosbag*
+metadata.yaml

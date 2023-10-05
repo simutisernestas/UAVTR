@@ -35,7 +35,7 @@ configurable_parameters = [{'name': 'camera_name',                  'default': '
                            {'name': 'enable_color',                 'default': 'true', 'description': 'enable color stream'},
                            {'name': 'rgb_camera.profile',           'default': '640x480x30', 'description': 'color image width'},
                            {'name': 'rgb_camera.color_format',      'default': 'RGB8', 'description': 'color stream format'},
-                           {'name': 'rgb_camera.enable_auto_exposure', 'default': 'false', 'description': 'enable/disable auto exposure for color image'},
+                           {'name': 'rgb_camera.enable_auto_exposure', 'default': 'true', 'description': 'enable/disable auto exposure for color image'},
                            {'name': 'enable_depth',                 'default': 'false', 'description': 'enable depth stream'},
                            {'name': 'enable_infra',                 'default': 'false', 'description': 'enable infra0 stream'},
                            {'name': 'enable_infra1',                'default': 'false', 'description': 'enable infra1 stream'},
