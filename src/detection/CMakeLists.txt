@@ -44,6 +44,15 @@ target_link_libraries(tracker_app ${OpenCV_LIBS} tracker_lib)
 add_executable(yolo src/yolo.cpp)
 target_link_libraries(yolo ${OpenCV_LIBS} onnxruntime)
 
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(vision_msgs REQUIRED)
+
+add_executable(tracking_ros_node src/ros_node.cpp)
+target_link_libraries(tracking_ros_node ${OpenCV_LIBS} tracker_lib)
+ament_target_dependencies(tracking_ros_node rclcpp sensor_msgs cv_bridge vision_msgs)
+
 if (TEST)
     find_package(GTest REQUIRED)
     add_executable(test_tracker test/test_tracker.cpp)

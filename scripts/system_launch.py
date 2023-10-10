@@ -67,6 +67,7 @@ def generate_launch_description():
             /fmu/out/vehicle_odometry
             /fmu/out/vehicle_gps_position
             /fmu/out/vehicle_magnetometer
+            /fmu/out/vehicle_air_data
             /tf_static
             /teraranger_evo_40m
             /fmu/out/timesync_status

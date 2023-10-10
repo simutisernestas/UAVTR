@@ -1,0 +1,1 @@
+scp * $panda:~/ros2_ws/scripts/

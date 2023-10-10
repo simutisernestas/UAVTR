@@ -314,6 +314,13 @@ private:
 
 ObjDetertor::ObjDetertor()
 {
+    auto providers =
+        Ort::GetAvailableProviders();
+    for (auto &&provider : providers)
+    {
+        std::cout << provider << std::endl;
+    }
+
     // initialize ONNX environment and session
     _env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_WARNING, "inference-engine");
     Ort::SessionOptions sessionOptions;
@@ -321,9 +328,9 @@ ObjDetertor::ObjDetertor()
     sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
     sessionOptions.SetIntraOpNumThreads(4);
 #if MODEL == 0
-    _session = std::make_unique<Ort::Session>(_env, "../detr.onnx", sessionOptions);
+    _session = std::make_unique<Ort::Session>(_env, "../weights/detr.onnx", sessionOptions);
 #else
-    _session = std::make_unique<Ort::Session>(_env, "../yolov7.onnx", sessionOptions);
+    _session = std::make_unique<Ort::Session>(_env, "../weights/yolov7.onnx", sessionOptions);
 #endif
     _memory_info = std::make_unique<Ort::MemoryInfo>(Ort::MemoryInfo::CreateCpu(
         OrtArenaAllocator, OrtMemTypeDefault));
@@ -471,7 +478,7 @@ bool ObjDetertor::detect(const cv::Mat &frame)
     float max_accuracy = 0.0f;
     for (const auto &result : resultVector)
     {
-        if (classNames.at(result.obj_id) != "boat")
+        if (classNames.at(result.obj_id) != "dining table")
             continue;
         if (result.accuracy < 0.9f && result.accuracy < max_accuracy)
             continue;
