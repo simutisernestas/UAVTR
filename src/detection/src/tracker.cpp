@@ -79,8 +79,6 @@ std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Val
 
     std::vector<Result> resultVector;
 
-    std::cout << outputShape[0] << " " << outputShape[1] << std::endl;
-
     for (int i = 0; i < outputShape[0]; i++)
     {
 
@@ -94,9 +92,9 @@ std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Val
 
         (void)confidence;
 
-        std::cout << "Class Name: " << classNames.at(classPrediction) << std::endl;
-        std::cout << "Coords: Top Left (" << x1 << ", " << y1 << "), Bottom Right (" << x2 << ", " << y2 << ")" << std::endl;
-        std::cout << "Accuracy: " << accuracy << std::endl;
+        std::cout << "Class Name: " << classNames.at(classPrediction) << '\n';
+        std::cout << "Coords: Top Left (" << x1 << ", " << y1 << "), Bottom Right (" << x2 << ", " << y2 << ")" << '\n';
+        std::cout << "Accuracy: " << accuracy << '\n';
 
         // Coords should be scaled to the original image. The coords from the model are relative to the model's input height and width.
         x1 = (x1 / model_input_width) * originalImageSize.width;
@@ -108,7 +106,7 @@ std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Val
 
         resultVector.push_back(result);
 
-        std::cout << std::endl;
+        std::cout << '\n';
     }
 
     return resultVector;
@@ -318,7 +316,7 @@ ObjDetertor::ObjDetertor()
         Ort::GetAvailableProviders();
     for (auto &&provider : providers)
     {
-        std::cout << provider << std::endl;
+        std::cout << provider << '\n';
     }
 
     // initialize ONNX environment and session
@@ -517,6 +515,7 @@ public:
     bool process(const cv::Mat &frame, cv::Rect &bbox);
     void reinit(const cv::Mat &frame, const cv::Rect &bbox);
     void catchup_reinit();
+    void hard_reset_bbox(const cv::Rect &bbox);
 
 private:
     cv::Ptr<cv::Tracker> _tracker = nullptr;
@@ -526,6 +525,7 @@ private:
     std::thread _obj_detector_thread;
     bool exit = false;
     std::atomic<bool> _allowed_to_swap;
+    uint8_t failure_count_ = 0;
 };
 
 Tracker::Tracker()
@@ -563,10 +563,32 @@ bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox)
     _allowed_to_swap = false;
     bool located = _tracker->update(frame, bbox);
     if (!located)
+        ++failure_count_;
+    if (failure_count_ > 5)
+    {
         _tracker.reset();
+        failure_count_ = 0;
+    }
     _allowed_to_swap = true;
 
     return located;
+}
+
+void Tracker::hard_reset_bbox(const cv::Rect &bbox)
+{
+    auto params = cv::TrackerKCF::Params();
+    params.resize = true;
+    params.detect_thresh = 0.7f;
+    auto local_tracker = cv::TrackerKCF::create(params);
+    local_tracker->init(_frames.front(), bbox);
+    while (true)
+    {
+        if (_allowed_to_swap)
+        {
+            _tracker = local_tracker;
+            return;
+        }
+    }
 }
 
 void Tracker::catchup_reinit()

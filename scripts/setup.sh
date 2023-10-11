@@ -1,8 +1,6 @@
 # Install packages
 sudo apt update
-sudo apt-get install -y curl gnupg git wget lsb-release software-properties-common tmux unzip zip gcc g++ cmake python3-pip
-
-sudo apt-get clean all
+sudo apt-get install -y openssh-server curl gnupg git wget lsb-release software-properties-common tmux unzip zip gcc g++ cmake python3-pip
 
 # Locale
 locale  # check for UTF-8
@@ -57,27 +55,16 @@ cd ..
 colcon build
 echo 'source ~/ros2_ws/install/local_setup.bash' | sudo tee --append ~/.profile
 
-# Gazebo
-# sudo wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
-# echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
-# sudo apt-get update
-# sudo apt-get install gz-garden
-
-
 sudo mkdir -p /etc/apt/keyrings
 curl -sSf https://librealsense.intel.com/Debian/librealsense.pgp | sudo tee /etc/apt/keyrings/librealsense.pgp > /dev/null
 echo "deb [signed-by=/etc/apt/keyrings/librealsense.pgp] https://librealsense.intel.com/Debian/apt-repo `lsb_release -cs` main" | \
 sudo tee /etc/apt/sources.list.d/librealsense.list
 sudo apt-get update
-sudo apt-get install -y librealsense2-dkms
-sudo apt-get install -y librealsense2-utils
+sudo apt-get install -y ros-humble-librealsense2*
 sudo apt install -y ros-humble-realsense2-*
-
-# for teraranger
 sudo apt install -y ros-humble-serial-driver
+sudo apt-get clean all
 
 sudo usermod -a -G dialout $USER
 
 pip install parameterized
-
-
