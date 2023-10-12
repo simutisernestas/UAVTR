@@ -35,7 +35,7 @@ def generate_launch_description():
     # ros2 bag record --compression-mode message --compression-format zstd \
     #     /camera/accel/sample \
     #     /camera/color/camera_info \
-    #     /camera/color/image_raw \
+    #     /camera/color/image_raw/compressed \
     #     /camera/gyro/sample \
     #     /camera/imu \
     #     /fmu/out/sensor_baro \
@@ -55,7 +55,7 @@ def generate_launch_description():
         ros2 bag record --compression-mode message --compression-format zstd
             /camera/accel/sample
             /camera/color/camera_info
-            /camera/color/image_raw
+            /camera/color/image_raw/compressed
             /camera/gyro/sample
             /camera/imu
             /fmu/out/sensor_baro

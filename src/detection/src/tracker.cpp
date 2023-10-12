@@ -515,6 +515,7 @@ public:
     bool process(const cv::Mat &frame, cv::Rect &bbox);
     void reinit(const cv::Mat &frame, const cv::Rect &bbox);
     void catchup_reinit();
+    // not safe, use with caution : )
     void hard_reset_bbox(const cv::Rect &bbox);
 
 private:
@@ -574,6 +575,7 @@ bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox)
     return located;
 }
 
+// not safe, use with caution : )
 void Tracker::hard_reset_bbox(const cv::Rect &bbox)
 {
     auto params = cv::TrackerKCF::Params();

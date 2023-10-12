@@ -52,10 +52,13 @@ private:
             return;
         if (cam_info_.k.size() < 9)
             return;
-        if (!image_tf_)
+        if (!image_tf_ || !base_link_enu_ || !tera_tf_)
             return;
 
-        auto T = tf_msg_to_affine(*image_tf_);
+        auto cam_T_base = tf_msg_to_affine(*image_tf_);
+        // this has zero translation, just aling with enu/ned not sure
+        auto base_T_odom = tf_msg_to_affine(*base_link_enu_);
+        auto tera_T_base = tf_msg_to_affine(*tera_tf_);
 
         Eigen::Matrix<double, 3, 3> K;
         for (int i = 0; i < 9; i++)
@@ -70,6 +73,9 @@ private:
             bbox_.bbox.center.position.y + bbox_.bbox.size_y / 2;
         uv_points[2] << bbox_.bbox.center.position.x - bbox_.bbox.size_x / 2,
             bbox_.bbox.center.position.y - bbox_.bbox.size_y / 2;
+        Eigen::Vector3d H_vec;
+        H_vec << 0, 0, height_;
+        H_vec = base_T_odom * tera_T_base * H_vec;
         for (size_t i = 0; auto &uv : uv_points)
         {
             // TODO: missing the orientation in ENU
@@ -80,13 +86,13 @@ private:
             Eigen::Vector3d ls = Pc / norm;
             Eigen::Vector3d lr;
             lr << 0, 0, -1;
-            double d = height_ / (lr.transpose() * ls);
+            double d = H_vec[2] / (lr.transpose() * ls);
             Eigen::Vector3d Pt = ls * d;
-            xyz_points[i] = T * Pt;
+            xyz_points[i] = base_T_odom * cam_T_base * Pt;
             ++i;
         }
-        RCLCPP_INFO(this->get_logger(), "xyz: %f %f %f; norm: %f", 
-            xyz_points[0][0], xyz_points[0][1], xyz_points[0][2], xyz_points[0].norm());
+        RCLCPP_INFO(this->get_logger(), "xyz: %f %f %f; norm: %f",
+                    xyz_points[0][0], xyz_points[0][1], xyz_points[0][2], xyz_points[0].norm());
     }
 
     void range_callback(const sensor_msgs::msg::Range::SharedPtr msg)
@@ -114,6 +120,7 @@ private:
 
     void tf_callback()
     {
+        // tf_lookup_helper(image_tf, "base_link", "camera_color_optical_frame");
         geometry_msgs::msg::TransformStamped image_tf;
         image_tf.transform.translation.x = -0.059;
         image_tf.transform.translation.y = 0.031;
@@ -123,7 +130,8 @@ private:
         image_tf.transform.rotation.z = 0.271;
         image_tf.transform.rotation.w = 0.272;
         image_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>(image_tf);
-        // tf_lookup_helper(image_tf, "base_link", "camera_color_optical_frame");
+
+        // tf_lookup_helper(tera_tf, "base_link", "teraranger_evo_40m");
         geometry_msgs::msg::TransformStamped tera_tf;
         tera_tf.transform.translation.x = -0.133;
         tera_tf.transform.translation.y = 0.029;
@@ -132,9 +140,11 @@ private:
         tera_tf.transform.rotation.y = 0.0;
         tera_tf.transform.rotation.z = 0.0;
         tera_tf.transform.rotation.w = 1.0;
-        // tf_lookup_helper(tera_tf, "base_link", "teraranger_evo_40m");
+        tera_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>(tera_tf);
+
         geometry_msgs::msg::TransformStamped base_link_enu;
         tf_lookup_helper(base_link_enu, "base_link", "odom");
+        base_link_enu_ = std::make_unique<geometry_msgs::msg::TransformStamped>(base_link_enu);
     }
 
     Eigen::Transform<double, 3, Eigen::Affine> tf_msg_to_affine(const geometry_msgs::msg::TransformStamped &tf_stamp)

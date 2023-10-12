@@ -2,7 +2,7 @@
 
 # /camera/accel/sample [sensor_msgs/msg/Imu]
 # /camera/color/camera_info [sensor_msgs/msg/CameraInfo]
-# /camera/color/image_raw [sensor_msgs/msg/Image]
+# /camera/color/image_raw/compressed [sensor_msgs/msg/Image]
 # /camera/gyro/sample [sensor_msgs/msg/Imu]
 # /camera/imu [sensor_msgs/msg/Imu]
 # /fmu/out/sensor_baro [px4_msgs/msg/SensorBaro]
@@ -56,7 +56,7 @@ class TestTopicReception(unittest.TestCase):
         ["/camera/gyro/sample", Imu],
         ["/camera/imu", Imu],
         ["/camera/color/camera_info", CameraInfo],
-        ["/camera/color/image_raw", Image],
+        ["/camera/color/image_raw/compressed", Image],
         ["/fmu/out/sensor_baro", SensorBaro],
         ["/fmu/out/sensor_combined", SensorCombined],
         ["/fmu/out/sensor_mag", SensorMag],

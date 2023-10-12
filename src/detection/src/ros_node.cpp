@@ -60,27 +60,27 @@ private:
 
     static void onMouse(int event, int x, int y, int flags, void *userdata)
     {
+        auto obj_ptr = ((TrackerROSNode *)userdata);
         (void)flags;
         if (event == cv::EVENT_LBUTTONDOWN)
         {
-            // create bbox around x,y + 50px
             cv::Rect bbox;
-            bbox.x = x - ((TrackerROSNode *)userdata)->bbox_size_ / 2;
-            bbox.y = y - ((TrackerROSNode *)userdata)->bbox_size_ / 2;
-            bbox.width = ((TrackerROSNode *)userdata)->bbox_size_;
-            bbox.height = ((TrackerROSNode *)userdata)->bbox_size_;
-            ((TrackerROSNode *)userdata)->tracker.hard_reset_bbox(bbox);
+            bbox.x = x - obj_ptr->bbox_size_ / 2;
+            bbox.y = y - obj_ptr->bbox_size_ / 2;
+            bbox.width = obj_ptr->bbox_size_;
+            bbox.height = obj_ptr->bbox_size_;
+            obj_ptr->tracker.hard_reset_bbox(bbox);
         }
 
         if (event == cv::EVENT_RBUTTONDOWN)
         {
             if (x > 480 / 2)
             {
-                ((TrackerROSNode *)userdata)->bbox_size_ += 10;
+                obj_ptr->bbox_size_ += 10;
             }
             else
             {
-                ((TrackerROSNode *)userdata)->bbox_size_ -= 10;
+                obj_ptr->bbox_size_ -= 10;
             }
         }
     }
