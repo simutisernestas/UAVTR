@@ -20,8 +20,7 @@ def generate_launch_description():
                 output='screen',
                 parameters=[
                     os.path.join(config_dir, 'imu_filter.yaml'),
-                    {'use_mag': True},  # , 'mag_bias_x': 0.33534499,
-                    # 'mag_bias_y': 0.02863634, 'mag_bias_z': 0.94166007
+                    {'use_mag': True, 'world_frame': 'ned'}
                 ],
                 # remappings=[ # simulation
                 #     ('imu/data_raw', '/x500/imu'),
