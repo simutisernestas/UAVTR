@@ -13,18 +13,23 @@ def generate_launch_description():
         output='screen'
     )
 
-    tracking = ExecuteProcess(
-        cmd=['./tracking_ros_node'],
-        cwd='/home/ernie/thesis/track/src/detection/build',
-        output='screen'
-    )
+    # tracking = ExecuteProcess(
+    #     cmd=['./tracking_ros_node'],
+    #     cwd='/home/ernie/thesis/track/src/detection/build',
+    #     output='screen'
+    # )
 
+    # estimation = ExecuteProcess(
+    #     cmd=["/home/ernie/thesis/track/src/estimation/build/estimation_node"],
+    #     output='screen'
+    # )
     estimation = ExecuteProcess(
-        cmd=["/home/ernie/thesis/track/src/estimation/build/estimation_node"],
+        cmd=["/home/ernie/thesis/track/src/estimation/build/filter_exe"],
+        prefix=['xterm -e gdb -ex run --args'],
         output='screen'
     )
 
-    play_bag_cmd = '''ros2 bag play drone_data_asta/ --start-offset 80'''
+    play_bag_cmd = '''ros2 bag play drone_data_asta/ --start-offset 60'''  # 
     play_bag = ExecuteProcess(
         cmd=play_bag_cmd.split(),
         cwd="/home/ernie/thesis/bags",
@@ -33,7 +38,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         play_bag,
-        tracking,
+        # tracking,
         estimation,
         imu_mag_repub,
         IncludeLaunchDescription(
