@@ -25,7 +25,7 @@ def generate_launch_description():
     # )
     estimation = ExecuteProcess(
         cmd=["/home/ernie/thesis/track/src/estimation/build/filter_exe"],
-        prefix=['xterm -e gdb -ex run --args'],
+        prefix=['xterm -e gdb   -ex run --args'],
         output='screen'
     )
 

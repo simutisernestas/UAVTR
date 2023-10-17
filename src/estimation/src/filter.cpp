@@ -34,7 +34,7 @@ namespace robot
 
         SystemModel()
         {
-            this->W.setIdentity();
+            this->W.setIdentity() * 10;
             this->W(N - 1, N - 1) = 0.0;
         }
 
@@ -117,7 +117,7 @@ namespace robot
             // Setup noise jacobian. As this one is static, we can define it once
             // and do not need to update it dynamically
             this->V.setIdentity();
-            this->V *= 0.1;
+            this->V *= 0.01;
         }
 
         M h(const S &x) const
@@ -158,7 +158,7 @@ namespace robot
             // Setup noise jacobian. As this one is static, we can define it once
             // and do not need to update it dynamically
             this->V.setIdentity();
-            this->V *= 0.1;
+            // this->V *= 0.1;
         }
 
         M h(const S &x) const

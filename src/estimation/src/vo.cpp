@@ -23,7 +23,7 @@ public:
         range_sub_ = create_subscription<sensor_msgs::msg::Range>(
             "/teraranger_evo_40m", 10, std::bind(&StateEstimationNode::range_callback, this, std::placeholders::_1));
         imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
-            "/imu/data", 10, std::bind(&StateEstimationNode::imu_callback, this, std::placeholders::_1));
+            "/imu/data_raw", 10, std::bind(&StateEstimationNode::imu_callback, this, std::placeholders::_1));
         // "/camera/imu", 10, std::bind(&StateEstimationNode::imu_callback, this, std::placeholders::_1));
 
         tf_buffer_ =
@@ -33,7 +33,7 @@ public:
         tf_timer_ = create_wall_timer(std::chrono::milliseconds(20), std::bind(&StateEstimationNode::tf_callback, this));
 
         state.setZero();
-        state[robot::N - 1] = 10.0;
+        state[robot::N - 1] = 1.0;
         ekf.init(state);
     }
 
@@ -160,7 +160,7 @@ private:
         position_ += t_world;
 
         robot::PositionMeasurement<double> measurement{};
-        measurement << position_[0], position_[1], position_[2];
+        measurement << t_world[0], t_world[1], t_world[2];
         state = ekf.update(pos_meas_model, measurement);
 
         std::cout << "state: " << '\n'
