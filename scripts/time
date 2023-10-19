@@ -1,0 +1,3 @@
+Wed Oct 18 12:28:59 PM CEST 2023
+Wed Oct 18 12:31:50 PM CEST 2023
+sudo ntpdate -u 172.27.0.0
