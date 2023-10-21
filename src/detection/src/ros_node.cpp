@@ -31,6 +31,9 @@ private:
             return;
         }
 
+        // resize by .5
+        cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(), 0.5, 0.5);
+
         cv::Rect bbox{};
         bool success = tracker.process(cv_ptr->image, bbox);
 
