@@ -32,7 +32,9 @@ private:
         }
 
         // resize by .5
-        cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(), 0.5, 0.5);
+        // only if image width is more than 1000
+        if (cv_ptr->image.cols > 1000)
+            cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(), 0.5, 0.5);
 
         cv::Rect bbox{};
         bool success = tracker.process(cv_ptr->image, bbox);

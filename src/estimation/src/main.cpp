@@ -51,6 +51,10 @@ private:
 
     void cam_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr msg)
     {
+        if (msg->header.frame_id == "x500_0/OakD-Lite/base_link/StereoOV7251")
+        {
+            return;
+        }
         cam_info_ = *msg;
     }
 
@@ -63,17 +67,16 @@ private:
             return;
         if (cam_info_.k.size() < 9)
             return;
-        if (!image_tf_) //  || !base_link_enu_ || !tera_tf_
+        if (!image_tf_ || !base_link_enu_) //  || !base_link_enu_ || !tera_tf_
             return;
 
         auto img_T_base = tf_msg_to_affine(*image_tf_);
         img_T_base.translation() = Eigen::Vector3d::Zero();
-        // auto base_T_odom = tf_msg_to_affine(*base_link_enu_);
+        auto base_T_odom = tf_msg_to_affine(*base_link_enu_);
         // auto tera_T_base = tf_msg_to_affine(*tera_tf_);
 
         Eigen::Matrix<double, 3, 3> K;
         static constexpr double scale = .5;
-
         for (size_t i = 0; i < 9; i++)
         {
             size_t row = std::floor(i / 3);
@@ -86,6 +89,7 @@ private:
                 K(row, col) = cam_info_.k[i];
         }
         Eigen::Matrix<double, 3, 3> Kinv = K.inverse();
+        std::cout << Kinv << std::endl;
 
         std::array<Eigen::Vector3d, 3> xyz_points;
         std::array<Eigen::Vector2d, 3> uv_points;
@@ -100,29 +104,28 @@ private:
         // H_vec = base_T_odom * tera_T_base * H_vec;
         Eigen::Vector3d lr;
         lr << 0, 0, -1;
-        Eigen::Matrix3d R_f;
-        R_f << 0, 0, 1,
-            -1, 0, 0,
-            0, -1, 0;
-        R_f *= K(1, 1);
+        std::cout << img_T_base.rotation() << std::endl;
         for (size_t i = 0; auto &uv : uv_points)
         {
             Eigen::Vector3d Puv_hom;
             Puv_hom << uv[0], uv[1], 1;
 
-            Eigen::Vector3d Pc = R_f * Kinv * Puv_hom;
-
-            Eigen::Vector3d ls = img_T_base * (Pc / Pc.norm());
+            Eigen::Vector3d Pc = Kinv * Puv_hom; // R_f * 
+            std::cout << Pc << std::endl;
+            // base_T_odom *
+            Eigen::Vector3d ls = img_T_base.rotation().inverse() * (Pc / Pc.norm());
 
             double d = H_vec[2] / (lr.transpose() * ls);
+
+            // ls = base_T_odom * img_T_base.rotation() * (d * Pc / Pc.norm());
 
             Eigen::Vector3d Pt = ls * d;
             xyz_points[i] = Pt;
 
+            RCLCPP_INFO(this->get_logger(), "xyz: %f %f %f; norm: %f",
+                        xyz_points[i][0], xyz_points[i][1], xyz_points[i][2], xyz_points[i].norm());
             ++i;
         }
-        RCLCPP_INFO(this->get_logger(), "xyz: %f %f %f; norm: %f",
-                    xyz_points[0][0], xyz_points[0][1], xyz_points[0][2], xyz_points[0].norm());
     }
 
     void range_callback(const sensor_msgs::msg::Range::SharedPtr msg)
@@ -173,9 +176,9 @@ private:
         // tera_tf.transform.rotation.w = 1.0;
         // tera_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>(tera_tf);
 
-        // geometry_msgs::msg::TransformStamped base_link_enu;
-        // tf_lookup_helper(base_link_enu, "base_link", "odom");
-        // base_link_enu_ = std::make_unique<geometry_msgs::msg::TransformStamped>(base_link_enu);
+        geometry_msgs::msg::TransformStamped base_link_enu;
+        tf_lookup_helper(base_link_enu, "base_link", "odom");
+        base_link_enu_ = std::make_unique<geometry_msgs::msg::TransformStamped>(base_link_enu);
     }
 
     Eigen::Transform<double, 3, Eigen::Affine> tf_msg_to_affine(const geometry_msgs::msg::TransformStamped &tf_stamp)
