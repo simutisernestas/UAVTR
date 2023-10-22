@@ -53,11 +53,6 @@ add_executable(estimation_node src/main.cpp)
 target_include_directories(estimation_node PUBLIC include ${EIGEN3_INCLUDE_DIR})
 ament_target_dependencies(estimation_node rclcpp sensor_msgs cv_bridge vision_msgs Eigen3 tf2_ros geometry_msgs px4_msgs)
 
-# add_executable(filter_exe src/filter.cpp src/vo.cpp)
-# target_include_directories(filter_exe PUBLIC kalman/include ${EIGEN3_INCLUDE_DIR})
-# ament_target_dependencies(filter_exe rclcpp sensor_msgs cv_bridge Eigen3 tf2_ros geometry_msgs)
-# target_link_libraries(filter_exe ${OpenCV_LIBS})
-
 if (TEST)
     find_package(GTest REQUIRED)
 endif()
