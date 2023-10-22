@@ -52,7 +52,7 @@ def generate_launch_description():
     robot_state_pub = ExecuteProcess(
         cmd=['ros2', 'run', 'robot_state_publisher',
              'robot_state_publisher', 'cam.urdf'],
-        cwd="/home/ernie/thesis/track",
+        cwd="/home/ernie/thesis/track/assets",
         output='screen'
     )
 
