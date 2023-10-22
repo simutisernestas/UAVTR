@@ -49,9 +49,14 @@ find_package(geometry_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(px4_msgs REQUIRED)
 
-add_executable(estimation_node src/main.cpp)
+add_library(estimator_lib SHARED src/estimator.cpp)
+target_include_directories(estimator_lib PUBLIC include ${EIGEN3_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS})
+ament_target_dependencies(estimator_lib Eigen3 OpenCV)
+
+add_executable(estimation_node src/ros_node.cpp)
 target_include_directories(estimation_node PUBLIC include ${EIGEN3_INCLUDE_DIR})
 ament_target_dependencies(estimation_node rclcpp sensor_msgs cv_bridge vision_msgs Eigen3 tf2_ros geometry_msgs px4_msgs)
+target_link_libraries(estimation_node estimator_lib)
 
 if (TEST)
     find_package(GTest REQUIRED)
