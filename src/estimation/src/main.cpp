@@ -51,10 +51,10 @@ private:
 
     void cam_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr msg)
     {
+        // TODO; simulation specific : (
         if (msg->header.frame_id == "x500_0/OakD-Lite/base_link/StereoOV7251")
-        {
             return;
-        }
+
         cam_info_ = *msg;
     }
 
@@ -89,72 +89,52 @@ private:
                 K(row, col) = cam_info_.k[i];
         }
         Eigen::Matrix<double, 3, 3> Kinv = K.inverse();
-        std::cout << Kinv << std::endl;
 
-        std::array<Eigen::Vector3d, 3> xyz_points;
-        std::array<Eigen::Vector2d, 3> uv_points;
-        uv_points[0] << bbox_.bbox.center.position.x,
+        Eigen::Vector2d uv_point;
+        uv_point << bbox_.bbox.center.position.x,
             bbox_.bbox.center.position.y;
-        uv_points[1] << bbox_.bbox.center.position.x + bbox_.bbox.size_x / 2,
-            bbox_.bbox.center.position.y + bbox_.bbox.size_y / 2;
-        uv_points[2] << bbox_.bbox.center.position.x - bbox_.bbox.size_x / 2,
-            bbox_.bbox.center.position.y - bbox_.bbox.size_y / 2;
         Eigen::Vector3d H_vec;
         H_vec << 0, 0, height_;
         // H_vec = base_T_odom * tera_T_base * H_vec;
         Eigen::Vector3d lr;
         lr << 0, 0, -1;
-        std::cout << img_T_base.rotation() << std::endl;
-        for (size_t i = 0; auto &uv : uv_points)
-        {
-            Eigen::Vector3d Puv_hom;
-            Puv_hom << uv[0], uv[1], 1;
+        Eigen::Vector3d Puv_hom;
+        Puv_hom << uv_point[0], uv_point[1], 1;
+        Eigen::Vector3d Pc = Kinv * Puv_hom;
+        Eigen::Vector3d ls = base_T_odom.rotation() * img_T_base.rotation() * (Pc / Pc.norm());
+        double d = H_vec[2] / (lr.transpose() * ls);
+        Eigen::Vector3d Pt = ls * d;
 
-            Eigen::Vector3d Pc = Kinv * Puv_hom; // R_f * 
-            std::cout << Pc << std::endl;
-            // base_T_odom *
-            Eigen::Vector3d ls = img_T_base.rotation().inverse() * (Pc / Pc.norm());
-
-            double d = H_vec[2] / (lr.transpose() * ls);
-
-            // ls = base_T_odom * img_T_base.rotation() * (d * Pc / Pc.norm());
-
-            Eigen::Vector3d Pt = ls * d;
-            xyz_points[i] = Pt;
-
-            RCLCPP_INFO(this->get_logger(), "xyz: %f %f %f; norm: %f",
-                        xyz_points[i][0], xyz_points[i][1], xyz_points[i][2], xyz_points[i].norm());
-            ++i;
-        }
+        RCLCPP_INFO(this->get_logger(), "xyz: %f %f %f; norm: %f",
+                    Pt[0], Pt[1], Pt[2], Pt.norm());
     }
 
     void range_callback(const sensor_msgs::msg::Range::SharedPtr msg)
     {
-        // TODO: orientation in ENU
         height_ = msg->range;
     }
 
     void tf_lookup_helper(geometry_msgs::msg::TransformStamped &tf,
-                          const std::string &from_frame, const std::string &to_frame)
+                          const std::string &target_frame, const std::string &source_frame)
     {
         try
         {
             tf = tf_buffer_->lookupTransform(
-                from_frame, to_frame,
+                target_frame, source_frame,
                 tf2::TimePointZero);
         }
         catch (const tf2::TransformException &ex)
         {
             RCLCPP_INFO(
                 this->get_logger(), "Could not transform %s to %s: %s",
-                to_frame.c_str(), from_frame.c_str(), ex.what());
+                source_frame.c_str(), target_frame.c_str(), ex.what());
         }
     }
 
     void tf_callback()
     {
         geometry_msgs::msg::TransformStamped image_tf;
-        tf_lookup_helper(image_tf, "camera_link_optical", "base_link");
+        tf_lookup_helper(image_tf, "base_link", "camera_link_optical");
         image_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>(image_tf);
 
         // image_tf.transform.translation.x = -0.059;
@@ -177,7 +157,7 @@ private:
         // tera_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>(tera_tf);
 
         geometry_msgs::msg::TransformStamped base_link_enu;
-        tf_lookup_helper(base_link_enu, "base_link", "odom");
+        tf_lookup_helper(base_link_enu, "odom", "base_link");
         base_link_enu_ = std::make_unique<geometry_msgs::msg::TransformStamped>(base_link_enu);
     }
 
