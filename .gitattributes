@@ -1,1 +1,4 @@
 *.ipynb linguist-detectable=false
+*.txt linguist-detectable=false
+*.sh linguist-detectable=false
+Dockerfile linguist-detectable=false
