@@ -9,7 +9,7 @@ def generate_launch_description():
     dir_path = os.path.dirname(os.path.realpath(__file__))
 
     imu_mag_repub = ExecuteProcess(
-        cmd=['python3', '/home/ernie/thesis/track/repub.py'],
+        cmd=['/home/ernie/thesis/track/src/estimation/build/imu_repub_node'],
         output='screen'
     )
 

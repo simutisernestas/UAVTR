@@ -62,6 +62,9 @@ target_include_directories(estimation_node PUBLIC include ${EIGEN3_INCLUDE_DIR})
 ament_target_dependencies(estimation_node rclcpp sensor_msgs cv_bridge vision_msgs Eigen3 tf2_ros geometry_msgs px4_msgs)
 target_link_libraries(estimation_node estimator_lib kalman_lib)
 
+add_executable(imu_repub_node src/imu_repub.cpp)
+ament_target_dependencies(imu_repub_node rclcpp sensor_msgs px4_msgs)
+
 if (TEST)
     find_package(GTest REQUIRED)
 endif()
