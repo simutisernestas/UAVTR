@@ -1,6 +1,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/msg/range.hpp"
+#include "sensor_msgs/msg/imu.hpp"
 #include <vision_msgs/msg/detection2_d.hpp>
 #include <Eigen/Dense>
 #include "tf2_ros/transform_listener.h"
@@ -18,15 +19,9 @@ public:
     {
         bbox_sub_ = create_subscription<vision_msgs::msg::Detection2D>(
             "/bounding_box", 1, std::bind(&StateEstimationNode::bbox_callback, this, std::placeholders::_1));
-        bbox_.bbox.size_x = -1;
-        bbox_.bbox.size_y = -1;
-
         cam_info_sub_ = create_subscription<sensor_msgs::msg::CameraInfo>(
             "/camera/color/camera_info", 1,
             std::bind(&StateEstimationNode::cam_info_callback, this, std::placeholders::_1));
-
-        cam_target_pos_timer_ = create_wall_timer(
-            std::chrono::milliseconds(33), std::bind(&StateEstimationNode::timer_callback, this));
         cam_target_pos_pub_ = create_publisher<geometry_msgs::msg::PointStamped>(
             "/cam_target_pos", 1);
         gt_pose_array_sub_ = create_subscription<geometry_msgs::msg::PoseArray>(
@@ -34,7 +29,6 @@ public:
             std::bind(&StateEstimationNode::gt_pose_array_callback, this, std::placeholders::_1));
         gt_target_pos_pub_ = create_publisher<geometry_msgs::msg::PointStamped>(
             "/gt_target_pos", 1);
-
         range_sub_ = create_subscription<sensor_msgs::msg::Range>(
             "/teraranger_evo_40m", 1, std::bind(&StateEstimationNode::range_callback, this, std::placeholders::_1));
 
@@ -43,6 +37,10 @@ public:
         air_data_sub_ = create_subscription<px4_msgs::msg::VehicleAirData>(
             "/fmu/out/vehicle_air_data", qos,
             std::bind(&StateEstimationNode::air_data_callback, this, std::placeholders::_1));
+
+        imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
+            "/imu/data_raw", 10,
+            std::bind(&StateEstimationNode::imu_callback, this, std::placeholders::_1));
 
         tf_buffer_ =
             std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -54,6 +52,22 @@ public:
     }
 
 private:
+    void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
+    {
+        if (!base_link_enu_)
+            return;
+        auto base_T_odom = tf_msg_to_affine(*base_link_enu_);
+
+        Eigen::Vector3d accel;
+        accel << msg->linear_acceleration.x,
+            msg->linear_acceleration.y,
+            msg->linear_acceleration.z;
+        accel = base_T_odom.rotation() * accel;
+        accel[2] += 9.81;
+
+        estimator_->update_imu_accel(accel);
+    }
+
     bool is_K_received()
     {
         return K_(0, 0) != 0;
@@ -64,9 +78,41 @@ private:
         height_ = msg->baro_alt_meter;
     }
 
-    void bbox_callback(const vision_msgs::msg::Detection2D::SharedPtr msg)
+    void bbox_callback(const vision_msgs::msg::Detection2D::SharedPtr bbox)
     {
-        bbox_ = *msg;
+        if (height_ < 0 || std::isnan(height_) || std::isinf(height_))
+            return;
+        if (!is_K_received())
+            return;
+        if (!image_tf_ || !base_link_enu_) //  || !base_link_enu_ || !tera_tf_
+            return;
+
+        auto img_T_base = tf_msg_to_affine(*image_tf_);
+        img_T_base.translation() = Eigen::Vector3d::Zero();
+        auto base_T_odom = tf_msg_to_affine(*base_link_enu_);
+        // auto tera_T_base = tf_msg_to_affine(*tera_tf_);
+
+        Eigen::Vector2d uv_point;
+        uv_point << bbox->bbox.center.position.x,
+            bbox->bbox.center.position.y;
+
+        // TODO:
+        // Eigen::Vector3d H_vec;
+        // H_vec << 0, 0, height_;
+        // H_vec = base_T_odom * tera_T_base * H_vec;
+
+        auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
+        Eigen::Vector3d Pt = estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_, height_);
+
+        RCLCPP_INFO(this->get_logger(), "xyz: %f %f %f; norm: %f",
+                    Pt[0], Pt[1], Pt[2], Pt.norm());
+
+        // publish norm
+        geometry_msgs::msg::PointStamped msg;
+        msg.header.stamp = bbox->header.stamp;
+        msg.header.frame_id = "odom";
+        msg.point.x = Pt.norm();
+        cam_target_pos_pub_->publish(msg);
     }
 
     void cam_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr msg)
@@ -105,46 +151,6 @@ private:
         gt_point->header.frame_id = "odom";
         gt_point->point.x = norm;
         gt_target_pos_pub_->publish(*gt_point);
-    }
-
-    void timer_callback()
-    {
-        // check that info arrived
-        if (height_ < 0 || std::isnan(height_) || std::isinf(height_))
-            return;
-        if (bbox_.bbox.size_x < 0 || bbox_.bbox.size_y < 0)
-            return;
-        if (!is_K_received())
-            return;
-        if (!image_tf_ || !base_link_enu_) //  || !base_link_enu_ || !tera_tf_
-            return;
-
-        auto img_T_base = tf_msg_to_affine(*image_tf_);
-        img_T_base.translation() = Eigen::Vector3d::Zero();
-        auto base_T_odom = tf_msg_to_affine(*base_link_enu_);
-        // auto tera_T_base = tf_msg_to_affine(*tera_tf_);
-
-        Eigen::Vector2d uv_point;
-        uv_point << bbox_.bbox.center.position.x,
-            bbox_.bbox.center.position.y;
-
-        // TODO:
-        // Eigen::Vector3d H_vec;
-        // H_vec << 0, 0, height_;
-        // H_vec = base_T_odom * tera_T_base * H_vec;
-
-        auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
-        Eigen::Vector3d Pt = estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_, height_);
-
-        RCLCPP_INFO(this->get_logger(), "xyz: %f %f %f; norm: %f",
-                    Pt[0], Pt[1], Pt[2], Pt.norm());
-
-        // publish norm
-        geometry_msgs::msg::PointStamped msg;
-        msg.header.stamp = bbox_.header.stamp;
-        msg.header.frame_id = "odom";
-        msg.point.x = Pt.norm();
-        cam_target_pos_pub_->publish(msg);
     }
 
     void range_callback(const sensor_msgs::msg::Range::SharedPtr msg)
@@ -212,7 +218,6 @@ private:
         return transform;
     }
 
-    rclcpp::TimerBase::SharedPtr cam_target_pos_timer_;
     rclcpp::TimerBase::SharedPtr tf_timer_;
     rclcpp::Subscription<vision_msgs::msg::Detection2D>::SharedPtr bbox_sub_;
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_sub_;
@@ -221,6 +226,7 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr cam_target_pos_pub_;
     rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr gt_target_pos_pub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gt_pose_array_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
 
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -228,10 +234,10 @@ private:
     std::unique_ptr<geometry_msgs::msg::TransformStamped> tera_tf_{nullptr};
     std::unique_ptr<geometry_msgs::msg::TransformStamped> base_link_enu_{nullptr};
 
-    vision_msgs::msg::Detection2D bbox_;
     double height_{-1};
     Eigen::Matrix<double, 3, 3> K_;
     std::unique_ptr<Estimator> estimator_{nullptr};
+    rclcpp::Time imu_t;
 };
 
 int main(int argc, char **argv)
