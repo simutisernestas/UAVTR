@@ -6,6 +6,8 @@
 #include "tf2_ros/transform_listener.h"
 #include "tf2_ros/buffer.h"
 #include <geometry_msgs/msg/transform_stamped.hpp>
+#include <geometry_msgs/msg/point_stamped.hpp>
+#include <geometry_msgs/msg/pose_array.hpp>
 #include "px4_msgs/msg/vehicle_air_data.hpp"
 #include "estimator.hpp"
 
@@ -25,6 +27,13 @@ public:
 
         cam_target_pos_timer_ = create_wall_timer(
             std::chrono::milliseconds(33), std::bind(&StateEstimationNode::timer_callback, this));
+        cam_target_pos_pub_ = create_publisher<geometry_msgs::msg::PointStamped>(
+            "/cam_target_pos", 1);
+        gt_pose_array_sub_ = create_subscription<geometry_msgs::msg::PoseArray>(
+            "/gz/gt_pose_array", 1,
+            std::bind(&StateEstimationNode::gt_pose_array_callback, this, std::placeholders::_1));
+        gt_target_pos_pub_ = create_publisher<geometry_msgs::msg::PointStamped>(
+            "/gt_target_pos", 1);
 
         range_sub_ = create_subscription<sensor_msgs::msg::Range>(
             "/teraranger_evo_40m", 1, std::bind(&StateEstimationNode::range_callback, this, std::placeholders::_1));
@@ -81,6 +90,23 @@ private:
         }
     }
 
+    void gt_pose_array_callback(const geometry_msgs::msg::PoseArray::SharedPtr msg)
+    {
+        // take norm between points 0 and 1
+        if (msg->poses.size() < 2)
+            return;
+        auto p0 = msg->poses[0];
+        auto p1 = msg->poses[1];
+        Eigen::Vector3d p0_vec(p0.position.x, p0.position.y, p0.position.z);
+        Eigen::Vector3d p1_vec(p1.position.x, p1.position.y, p1.position.z);
+        auto norm = (p0_vec - p1_vec).norm();
+        auto gt_point = std::make_unique<geometry_msgs::msg::PointStamped>();
+        gt_point->header.stamp = msg->header.stamp;
+        gt_point->header.frame_id = "odom";
+        gt_point->point.x = norm;
+        gt_target_pos_pub_->publish(*gt_point);
+    }
+
     void timer_callback()
     {
         // check that info arrived
@@ -112,6 +138,13 @@ private:
 
         RCLCPP_INFO(this->get_logger(), "xyz: %f %f %f; norm: %f",
                     Pt[0], Pt[1], Pt[2], Pt.norm());
+
+        // publish norm
+        geometry_msgs::msg::PointStamped msg;
+        msg.header.stamp = bbox_.header.stamp;
+        msg.header.frame_id = "odom";
+        msg.point.x = Pt.norm();
+        cam_target_pos_pub_->publish(msg);
     }
 
     void range_callback(const sensor_msgs::msg::Range::SharedPtr msg)
@@ -185,6 +218,9 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr range_sub_;
     rclcpp::Subscription<px4_msgs::msg::VehicleAirData>::SharedPtr air_data_sub_;
+    rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr cam_target_pos_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr gt_target_pos_pub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gt_pose_array_sub_;
 
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
