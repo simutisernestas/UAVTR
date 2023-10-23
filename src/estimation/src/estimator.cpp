@@ -5,9 +5,9 @@ Estimator::Estimator()
     double dt = 0.005;
 
     Eigen::MatrixXd A(9, 9);
-    A << 1, 0, 0, dt, 0, 0, -0.000, 0, 0,
-        0, 1, 0, 0, dt, 0, 0, -0.000, 0,
-        0, 0, 1, 0, 0, dt, 0, 0, -0.000,
+    A << 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0, 0,
+        0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0,
+        0, 0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt,
         0, 0, 0, 1, 0, 0, -dt, 0, 0,
         0, 0, 0, 0, 1, 0, 0, -dt, 0,
         0, 0, 0, 0, 0, 1, 0, 0, -dt,
@@ -33,12 +33,12 @@ Estimator::Estimator()
         0, 0, 1, 0, 0, 0, 0, 0, 0;
 
     Eigen::MatrixXd Q(9, 9);
-    Q = Eigen::MatrixXd::Identity(9, 9);
+    Q = Eigen::MatrixXd::Identity(9, 9) * 0.05;
     Q(6, 6) = 0;
     Q(7, 7) = 0;
     Q(8, 8) = 0;
     Eigen::MatrixXd R(3, 3);
-    R = Eigen::MatrixXd::Identity(3, 3) * 10;
+    R = Eigen::MatrixXd::Identity(3, 3) * 100;
     R(3, 3) = .1;
     Eigen::MatrixXd P(9, 9);
     P = Eigen::MatrixXd::Identity(9, 9) * 1000;
