@@ -11,6 +11,8 @@
 #include <geometry_msgs/msg/pose_array.hpp>
 #include "px4_msgs/msg/vehicle_air_data.hpp"
 #include "estimator.hpp"
+#include <sensor_msgs/msg/image.hpp>
+#include <cv_bridge/cv_bridge.h>
 
 class StateEstimationNode : public rclcpp::Node
 {
@@ -42,6 +44,10 @@ public:
             "/imu/data_raw", 10,
             std::bind(&StateEstimationNode::imu_callback, this, std::placeholders::_1));
 
+        img_sub_ = create_subscription<sensor_msgs::msg::Image>(
+            "/camera/color/image_raw", 1,
+            std::bind(&StateEstimationNode::img_callback, this, std::placeholders::_1));
+
         tf_buffer_ =
             std::make_unique<tf2_ros::Buffer>(this->get_clock());
         tf_listener_ =
@@ -52,6 +58,37 @@ public:
     }
 
 private:
+    void img_callback(const sensor_msgs::msg::Image::SharedPtr msg)
+    {
+        (void)msg;
+        // if (!is_K_received())
+        //     return;
+        // if (!image_tf_ || !base_link_enu_) //  || !base_link_enu_ || !tera_tf_
+        //     return;
+        // if (height_ < 0 || std::isnan(height_) || std::isinf(height_))
+        //     return;
+
+        // auto img_T_base = tf_msg_to_affine(*image_tf_);
+        // auto base_T_odom = tf_msg_to_affine(*base_link_enu_);
+        // auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
+
+        // cv_bridge::CvImagePtr cv_ptr;
+        // try
+        // {
+        //     cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::RGB8);
+        // }
+        // catch (const std::exception &e)
+        // {
+        //     RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
+        //     return;
+        // }
+        // // cv::cvtColor(cv_ptr->image, cv_ptr->image, cv::COLOR_RGB2BGR);
+        // if (cv_ptr->image.cols > 1000)
+        //     cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(), 0.5, 0.5);
+
+        // estimator_->update_flow_velocity(cv_ptr->image, cam_R_enu, K_, height_);
+    }
+
     void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
     {
         if (!base_link_enu_)
@@ -227,6 +264,7 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr gt_target_pos_pub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gt_pose_array_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_;
 
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;

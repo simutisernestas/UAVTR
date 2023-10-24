@@ -13,7 +13,8 @@ public:
         const Eigen::Vector2d &bbox_c, const Eigen::Matrix3d &cam_R_enu,
         const Eigen::Matrix3d &K, const double height);
 
-    void update_flow_velocity(const cv::Mat &frame);
+    void update_flow_velocity(cv::Mat &frame, const Eigen::Matrix3d &cam_R_enu,
+                              const Eigen::Matrix3d &K, const double height);
 
     void update_imu_accel(const Eigen::Vector3d &accel);
 

@@ -23,9 +23,10 @@ def generate_launch_description():
 
     estimation = ExecuteProcess(
         cmd=["/home/ernie/thesis/track/src/estimation/build/estimation_node",
-             '--ros-args', '-r', '/camera/color/camera_info:=/x500/camera_info'],
+             '--ros-args', '-r', '/camera/color/camera_info:=/x500/camera_info',
+             '-r', '/camera/color/image_raw:=/x500/camera'],
         # cmd=["/home/ernie/thesis/track/src/estimation/build/estimation_node"],
-        # prefix=['xterm -e gdb -ex run --args'],
+        # prefix=['xterm -fa "Monospace" -fs 14 -e gdb -tui -iex break -ex "b main" -ex run --args'],
         output='screen'
     )
     # estimation = ExecuteProcess(
