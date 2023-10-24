@@ -10,6 +10,7 @@
 #include <geometry_msgs/msg/point_stamped.hpp>
 #include <geometry_msgs/msg/pose_array.hpp>
 #include "px4_msgs/msg/vehicle_air_data.hpp"
+#include "px4_msgs/msg/timesync_status.hpp"
 #include "estimator.hpp"
 #include <sensor_msgs/msg/image.hpp>
 #include <cv_bridge/cv_bridge.h>
@@ -54,10 +55,21 @@ public:
             std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
         tf_timer_ = create_wall_timer(std::chrono::milliseconds(20), std::bind(&StateEstimationNode::tf_callback, this));
 
+        timesync_sub_ = create_subscription<px4_msgs::msg::TimesyncStatus>(
+            "/fmu/out/timesync_status", qos,
+            std::bind(&StateEstimationNode::timesync_callback, this, std::placeholders::_1));
+
         estimator_ = std::make_unique<Estimator>();
     }
 
 private:
+    double offset_{0};
+
+    void timesync_callback(const px4_msgs::msg::TimesyncStatus::SharedPtr msg)
+    {
+        offset_ = (double)msg->observed_offset;
+    }
+
     void img_callback(const sensor_msgs::msg::Image::SharedPtr msg)
     {
         (void)msg;
@@ -123,6 +135,15 @@ private:
             return;
         if (!image_tf_ || !base_link_enu_) //  || !base_link_enu_ || !tera_tf_
             return;
+
+        // that's what i should be doing ?
+        // auto time_point = (bbox->header.stamp.sec - offset_ / 1e6);
+        // auto time = rclcpp::Time(time_point * 1e9);
+        // geometry_msgs::msg::TransformStamped base_link_enu;
+        // bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
+        // if (!succ)
+        //     return;
+        // base_link_enu_ = std::make_unique<geometry_msgs::msg::TransformStamped>(base_link_enu);
 
         auto img_T_base = tf_msg_to_affine(*image_tf_);
         img_T_base.translation() = Eigen::Vector3d::Zero();
@@ -195,21 +216,26 @@ private:
         height_ = msg->range;
     }
 
-    void tf_lookup_helper(geometry_msgs::msg::TransformStamped &tf,
-                          const std::string &target_frame, const std::string &source_frame)
+    bool tf_lookup_helper(geometry_msgs::msg::TransformStamped &tf,
+                          const std::string &target_frame, const std::string &source_frame,
+                          const rclcpp::Time &time = rclcpp::Time(0))
     {
         try
         {
             tf = tf_buffer_->lookupTransform(
                 target_frame, source_frame,
-                tf2::TimePointZero);
+                time);
         }
         catch (const tf2::TransformException &ex)
         {
+            // TOOD: handle better
             RCLCPP_INFO(
                 this->get_logger(), "Could not transform %s to %s: %s",
                 source_frame.c_str(), target_frame.c_str(), ex.what());
+            return false;
         }
+
+        return true;
     }
 
     void tf_callback()
@@ -265,6 +291,7 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gt_pose_array_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_;
+    rclcpp::Subscription<px4_msgs::msg::TimesyncStatus>::SharedPtr timesync_sub_;
 
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;

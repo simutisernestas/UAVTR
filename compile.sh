@@ -10,6 +10,6 @@ ninja &
 
 mkdir -p ../../estimation/build
 cd ../../estimation/build
-cmake -G Ninja ..
+# cmake -G Ninja ..
 # DEBUG=1 cmake -G Ninja ..
 ninja
