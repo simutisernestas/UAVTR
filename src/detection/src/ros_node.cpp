@@ -1,6 +1,5 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/image.hpp>
-#include <sensor_msgs/msg/camera_info.hpp>
 #include <opencv2/opencv.hpp>
 #include "tracker.cpp"
 #include <cv_bridge/cv_bridge.h>

@@ -25,7 +25,7 @@ KalmanFilter::KalmanFilter(
   I.setIdentity();
 }
 
-KalmanFilter::KalmanFilter() {}
+KalmanFilter::KalmanFilter() = default;
 
 void KalmanFilter::init(double t0, const Eigen::VectorXd &x0)
 {
@@ -60,7 +60,6 @@ void KalmanFilter::predict(const Eigen::VectorXd &u)
 
 void KalmanFilter::update(const Eigen::VectorXd &y)
 {
-
   if (!initialized)
     throw std::runtime_error("Filter is not initialized!");
 

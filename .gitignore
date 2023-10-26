@@ -1,6 +1,6 @@
 onnxruntime
 **/__pycache__
-**/build
+**/*build*
 .vscode
 *.onnx
 weights
@@ -10,3 +10,4 @@ run.sh
 data/
 **rosbag*
 metadata.yaml
+.idea/
