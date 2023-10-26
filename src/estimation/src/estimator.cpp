@@ -3,7 +3,7 @@
 
 Estimator::Estimator()
 {
-    double dt = 0.005;
+    const double dt = 0.005;
 
     Eigen::MatrixXd A(9, 9);
     A << 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0, 0,
@@ -18,19 +18,19 @@ Estimator::Estimator()
     std::cout << A << std::endl;
 
     Eigen::MatrixXd B(9, 3);
-    B << 0, 0, 0,
-        0, 0, 0,
-        0, 0, 0,
-        dt, 0, 0,
-        0, dt, 0,
-        0, 0, dt,
+    B << -.5 * dt * dt, 0, 0,
+        0, -.5 * dt * dt, 0,
+        0, 0, -.5 * dt * dt,
+        -dt, 0, 0,
+        0, -dt, 0,
+        0, 0, -dt,
         0, 0, 0,
         0, 0, 0,
         0, 0, 0;
 
     Eigen::MatrixXd C(3, 9);
     C << 1, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 1, 0, 0, 0, 0, 0, 0, -0,
+        0, 1, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 1, 0, 0, 0, 0, 0, 0;
 
     Eigen::MatrixXd Q(9, 9);
