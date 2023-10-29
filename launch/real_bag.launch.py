@@ -37,16 +37,9 @@ def generate_launch_description():
         cwd="/home/ernie/thesis/bags",
         output='screen'
     )
-    play_bag_cmd = '''ros2 bag play ./18_0/rosbag2_2023_10_18-12_24_19 --topics /tf_static -d 2'''
-    play_tf = ExecuteProcess(
-        cmd=play_bag_cmd.split(),
-        cwd="/home/ernie/thesis/bags",
-        output='screen'
-    )
 
     return LaunchDescription([
         play_bag,
-        play_tf,
         tracking,
         estimation,
         uncompress,

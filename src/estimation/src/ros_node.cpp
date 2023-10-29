@@ -229,19 +229,30 @@ private:
         // TODO: tf from the real data
         if (!image_tf_)
         {
-            geometry_msgs::msg::TransformStamped image_tf;
-            std::string optical_frame = simulation_ ? "camera_link_optical" : "camera_color_optical_frame";
-            tf_lookup_helper(image_tf, "base_link", optical_frame);
-            image_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>(image_tf);
+            if (simulation_)
+            {
+                geometry_msgs::msg::TransformStamped image_tf;
+                std::string optical_frame = "camera_link_optical";
+                bool succes = tf_lookup_helper(image_tf, "base_link", optical_frame);
+                if (succes)
+                    image_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>(image_tf);
+            }
+            else
+            {
+                // TODO: might be inverse
+                //  : "camera_color_optical_frame"
+                // - Translation: [0.115, -0.059, -0.071]
+                // - Rotation: in Quaternion [0.654, -0.652, 0.271, -0.272]
+                image_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>();
+                image_tf_->transform.translation.x = 0.115;
+                image_tf_->transform.translation.y = -0.059;
+                image_tf_->transform.translation.z = -0.071;
+                image_tf_->transform.rotation.x = 0.654;
+                image_tf_->transform.rotation.y = -0.652;
+                image_tf_->transform.rotation.z = 0.271;
+                image_tf_->transform.rotation.w = -0.272;
+            }
         }
-
-        // image_tf.transform.translation.x = -0.059;
-        // image_tf.transform.translation.y = 0.031;
-        // image_tf.transform.translation.z = -0.131;
-        // image_tf.transform.rotation.x = 0.654;
-        // image_tf.transform.rotation.y = -0.652;
-        // image_tf.transform.rotation.z = 0.271;
-        // image_tf.transform.rotation.w = 0.272;
 
         // tf_lookup_helper(tera_tf, "base_link", "teraranger_evo_40m");
         // geometry_msgs::msg::TransformStamped tera_tf;
@@ -329,7 +340,7 @@ private:
     Eigen::Matrix<double, 3, 3> K_;
     std::unique_ptr<Estimator> estimator_{nullptr};
     rclcpp::Time imu_t;
-    bool simulation_{true};
+    const bool simulation_{false};
 };
 
 int main(int argc, char **argv)
