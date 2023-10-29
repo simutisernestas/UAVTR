@@ -92,9 +92,9 @@ std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Val
 
         (void)confidence;
 
-        std::cout << "Class Name: " << classNames.at(classPrediction) << '\n';
-        std::cout << "Coords: Top Left (" << x1 << ", " << y1 << "), Bottom Right (" << x2 << ", " << y2 << ")" << '\n';
-        std::cout << "Accuracy: " << accuracy << '\n';
+        // std::cout << "Class Name: " << classNames.at(classPrediction) << '\n';
+        // std::cout << "Coords: Top Left (" << x1 << ", " << y1 << "), Bottom Right (" << x2 << ", " << y2 << ")" << '\n';
+        // std::cout << "Accuracy: " << accuracy << '\n';
 
         // Coords should be scaled to the original image. The coords from the model are relative to the model's input height and width.
         x1 = (x1 / model_input_width) * originalImageSize.width;
@@ -106,7 +106,7 @@ std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Val
 
         resultVector.push_back(result);
 
-        std::cout << '\n';
+        // std::cout << '\n';
     }
 
     return resultVector;
@@ -476,9 +476,9 @@ bool ObjDetertor::detect(const cv::Mat &frame)
     float max_accuracy = 0.0f;
     for (const auto &result : resultVector)
     {
-        if (classNames.at(result.obj_id) != "dining table")
+        if (classNames.at(result.obj_id) != "boat")
             continue;
-        if (result.accuracy < 0.9f && result.accuracy < max_accuracy)
+        if (result.accuracy < 0.6f && result.accuracy < max_accuracy)
             continue;
         found = true;
         max_accuracy = result.accuracy;
@@ -549,7 +549,7 @@ Tracker::Tracker()
                 this->catchup_reinit();
                 // return;
             } else {
-                _frames.pop();
+                while (_frames.pop()) {}
             }
         } });
 }
@@ -557,6 +557,8 @@ Tracker::Tracker()
 bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox)
 {
     _frames.push(frame);
+    // print out buffer size
+    // std::cout << "buffer size: " << _frames.read_available() << std::endl;
 
     if (_tracker == nullptr)
         return false;
@@ -565,8 +567,9 @@ bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox)
     bool located = _tracker->update(frame, bbox);
     if (!located)
         ++failure_count_;
-    if (failure_count_ > 5)
+    if (failure_count_ > 10)
     {
+        std::cout << "failure count exceeded, reinit tracker" << std::endl;
         _tracker.reset();
         failure_count_ = 0;
     }
@@ -600,7 +603,7 @@ void Tracker::catchup_reinit()
 
     auto params = cv::TrackerKCF::Params();
     params.resize = true;
-    params.detect_thresh = 0.7f;
+    // params.detect_thresh = 0.7f;
     // cv::TrackerDaSiamRPN::Params params;
     // params.model = "/home/ernie/thesis/track/dasiamrpn_model.onnx";
     // params.kernel_cls1 = "/home/ernie/thesis/track/dasiamrpn_kernel_cls1.onnx";
@@ -621,6 +624,7 @@ void Tracker::catchup_reinit()
         if (_allowed_to_swap)
         {
             _tracker = local_tracker;
+            failure_count_ = 0;
             return;
         }
     }

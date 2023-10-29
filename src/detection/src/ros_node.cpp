@@ -30,8 +30,7 @@ private:
             return;
         }
 
-        // resize by .5
-        // only if image width is more than 1000
+        // resize by .5 for simulation i.e. only if image width is more than 1000
         if (cv_ptr->image.cols > 1000)
             cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(), 0.5, 0.5);
 
