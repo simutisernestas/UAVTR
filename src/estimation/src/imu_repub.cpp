@@ -25,43 +25,43 @@ public:
     }
 
 private:
-    void sensor_combined_callback(const px4_msgs::msg::SensorCombined::SharedPtr msg)
+    void sensor_combined_callback(const px4_msgs::msg::SensorCombined::SharedPtr msg) const
     {
-        auto imu_msg = std::make_unique<sensor_msgs::msg::Imu>();
+        sensor_msgs::msg::Imu imu_msg{};
         auto timestamp_microseconds = msg->timestamp;
-        imu_msg->header.stamp = rclcpp::Time(timestamp_microseconds * 1000);
-        imu_msg->header.frame_id = "base_link";
-        imu_msg->linear_acceleration.x = static_cast<float>(msg->accelerometer_m_s2[0]);
-        imu_msg->linear_acceleration.y = static_cast<float>(msg->accelerometer_m_s2[1]);
-        imu_msg->linear_acceleration.z = static_cast<float>(msg->accelerometer_m_s2[2]);
-        imu_msg->angular_velocity.x = static_cast<float>(msg->gyro_rad[0]);
-        imu_msg->angular_velocity.y = static_cast<float>(msg->gyro_rad[1]);
-        imu_msg->angular_velocity.z = static_cast<float>(msg->gyro_rad[2]);
-        imu_publisher_->publish(std::move(imu_msg));
+        imu_msg.header.stamp = rclcpp::Time(timestamp_microseconds * 1000);
+        imu_msg.header.frame_id = "base_link";
+        imu_msg.linear_acceleration.x = msg->accelerometer_m_s2[0];
+        imu_msg.linear_acceleration.y = msg->accelerometer_m_s2[1];
+        imu_msg.linear_acceleration.z = msg->accelerometer_m_s2[2];
+        imu_msg.angular_velocity.x = msg->gyro_rad[0];
+        imu_msg.angular_velocity.y = msg->gyro_rad[1];
+        imu_msg.angular_velocity.z = msg->gyro_rad[2];
+        imu_publisher_->publish(imu_msg);
     }
 
-    void vehicle_magnetometer_callback(const px4_msgs::msg::VehicleMagnetometer::SharedPtr msg)
+    void vehicle_magnetometer_callback(const px4_msgs::msg::VehicleMagnetometer::SharedPtr msg) const
     {
-        auto mag_msg = std::make_unique<sensor_msgs::msg::MagneticField>();
+        sensor_msgs::msg::MagneticField mag_msg{};
         auto timestamp_microseconds = msg->timestamp;
-        mag_msg->header.stamp = rclcpp::Time(timestamp_microseconds * 1000);
-        mag_msg->header.frame_id = "base_link";
-        mag_msg->magnetic_field.x = static_cast<float>(msg->magnetometer_ga[0]);
-        mag_msg->magnetic_field.y = static_cast<float>(msg->magnetometer_ga[1]);
-        mag_msg->magnetic_field.z = static_cast<float>(msg->magnetometer_ga[2]);
-        mag_publisher_->publish(std::move(mag_msg));
+        mag_msg.header.stamp = rclcpp::Time(timestamp_microseconds * 1000);
+        mag_msg.header.frame_id = "base_link";
+        mag_msg.magnetic_field.x = msg->magnetometer_ga[0];
+        mag_msg.magnetic_field.y = msg->magnetometer_ga[1];
+        mag_msg.magnetic_field.z = msg->magnetometer_ga[2];
+        mag_publisher_->publish(mag_msg);
     }
 
-    void sensor_mag_callback(const px4_msgs::msg::SensorMag::SharedPtr msg)
+    void sensor_mag_callback(const px4_msgs::msg::SensorMag::SharedPtr msg) const
     {
-        auto mag_msg = std::make_unique<sensor_msgs::msg::MagneticField>();
+        sensor_msgs::msg::MagneticField mag_msg{};
         auto timestamp_microseconds = msg->timestamp;
-        mag_msg->header.stamp = rclcpp::Time(timestamp_microseconds * 1000);
-        mag_msg->header.frame_id = "base_link";
-        mag_msg->magnetic_field.x = static_cast<float>(msg->x);
-        mag_msg->magnetic_field.y = static_cast<float>(msg->y);
-        mag_msg->magnetic_field.z = static_cast<float>(msg->z);
-        mag_publisher_->publish(std::move(mag_msg));
+        mag_msg.header.stamp = rclcpp::Time(timestamp_microseconds * 1000);
+        mag_msg.header.frame_id = "base_link";
+        mag_msg.magnetic_field.x = msg->x;
+        mag_msg.magnetic_field.y = msg->y;
+        mag_msg.magnetic_field.z = msg->z;
+        mag_publisher_->publish(mag_msg);
     }
 
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher_;
@@ -75,7 +75,9 @@ int main(int argc, char *argv[])
 {
     rclcpp::init(argc, argv);
     auto sensor_translator = std::make_shared<SensorTranslator>();
-    rclcpp::spin(sensor_translator);
+    rclcpp::executors::StaticSingleThreadedExecutor executor;
+    executor.add_node(sensor_translator);
+    executor.spin();
     rclcpp::shutdown();
     return 0;
 }

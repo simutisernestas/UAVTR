@@ -15,6 +15,8 @@
 #include <sensor_msgs/msg/image.hpp>
 #include <cv_bridge/cv_bridge.h>
 
+#define VEL_MEAS 0
+
 class StateEstimationNode : public rclcpp::Node
 {
 public:
@@ -44,10 +46,11 @@ public:
         imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
             "/imu/data_raw", 10,
             std::bind(&StateEstimationNode::imu_callback, this, std::placeholders::_1));
-
+#if VEL_MEAS
         img_sub_ = create_subscription<sensor_msgs::msg::Image>(
             "/camera/color/image_raw", 1,
             std::bind(&StateEstimationNode::img_callback, this, std::placeholders::_1));
+#endif
 
         tf_buffer_ =
             std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -70,37 +73,6 @@ private:
         offset_ = (double)msg->observed_offset;
     }
 
-    void img_callback(const sensor_msgs::msg::Image::SharedPtr msg)
-    {
-        (void)msg;
-        // if (!is_K_received())
-        //     return;
-        // if (!image_tf_ || !base_link_enu_) //  || !base_link_enu_ || !tera_tf_
-        //     return;
-        // if (height_ < 0 || std::isnan(height_) || std::isinf(height_))
-        //     return;
-
-        // auto img_T_base = tf_msg_to_affine(*image_tf_);
-        // auto base_T_odom = tf_msg_to_affine(*base_link_enu_);
-        // auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
-
-        // cv_bridge::CvImagePtr cv_ptr;
-        // try
-        // {
-        //     cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::RGB8);
-        // }
-        // catch (const std::exception &e)
-        // {
-        //     RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
-        //     return;
-        // }
-        // // cv::cvtColor(cv_ptr->image, cv_ptr->image, cv::COLOR_RGB2BGR);
-        // if (cv_ptr->image.cols > 1000)
-        //     cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(), 0.5, 0.5);
-
-        // estimator_->update_flow_velocity(cv_ptr->image, cam_R_enu, K_, height_);
-    }
-
     void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
     {
         if (!base_link_enu_)
@@ -115,6 +87,14 @@ private:
         accel[2] += 9.81;
 
         estimator_->update_imu_accel(accel);
+
+        auto state = estimator_->state();
+        // publish norm
+        geometry_msgs::msg::PointStamped pt_msgs;
+        // pt_msgs.header.stamp = bbox->header.stamp;
+        pt_msgs.header.frame_id = "odom";
+        pt_msgs.point.x = state.segment(0, 3).norm();
+        cam_target_pos_pub_->publish(pt_msgs);
     }
 
     bool is_K_received()
@@ -124,7 +104,17 @@ private:
 
     void air_data_callback(const px4_msgs::msg::VehicleAirData::SharedPtr msg)
     {
-        height_ = msg->baro_alt_meter;
+        if (!simulation_) // above beach ground
+            height_ = std::abs(-25.94229507446289 - msg->baro_alt_meter);
+        else
+            height_ = msg->baro_alt_meter;
+    }
+
+    void range_callback(const sensor_msgs::msg::Range::SharedPtr msg)
+    {
+        if (std::isnan(msg->range) || std::isinf(msg->range))
+            return;
+        // height_ = msg->range;
     }
 
     void bbox_callback(const vision_msgs::msg::Detection2D::SharedPtr bbox)
@@ -165,12 +155,12 @@ private:
         RCLCPP_INFO(this->get_logger(), "xyz: %f %f %f; norm: %f",
                     Pt[0], Pt[1], Pt[2], Pt.norm());
 
-        // publish norm
-        geometry_msgs::msg::PointStamped msg;
-        msg.header.stamp = bbox->header.stamp;
-        msg.header.frame_id = "odom";
-        msg.point.x = Pt.norm();
-        cam_target_pos_pub_->publish(msg);
+        // // publish norm
+        // geometry_msgs::msg::PointStamped msg;
+        // msg.header.stamp = bbox->header.stamp;
+        // msg.header.frame_id = "odom";
+        // msg.point.x = Pt.norm();
+        // cam_target_pos_pub_->publish(msg);
     }
 
     void cam_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr msg)
@@ -178,10 +168,11 @@ private:
         // only do once
         if (is_K_received())
             return;
-        // TODO; simulation specific : (
+        // TODO; simulation specific : ( but will still work just fine )
         if (msg->header.frame_id == "x500_0/OakD-Lite/base_link/StereoOV7251")
             return;
 
+        // TODO: scale does not appy for real data :<)
         static constexpr double scale = .5;
         for (size_t i = 0; i < 9; i++)
         {
@@ -211,11 +202,6 @@ private:
         gt_target_pos_pub_->publish(*gt_point);
     }
 
-    void range_callback(const sensor_msgs::msg::Range::SharedPtr msg)
-    {
-        height_ = msg->range;
-    }
-
     bool tf_lookup_helper(geometry_msgs::msg::TransformStamped &tf,
                           const std::string &target_frame, const std::string &source_frame,
                           const rclcpp::Time &time = rclcpp::Time(0))
@@ -240,9 +226,14 @@ private:
 
     void tf_callback()
     {
-        geometry_msgs::msg::TransformStamped image_tf;
-        tf_lookup_helper(image_tf, "base_link", "camera_link_optical");
-        image_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>(image_tf);
+        // TODO: tf from the real data
+        if (!image_tf_)
+        {
+            geometry_msgs::msg::TransformStamped image_tf;
+            std::string optical_frame = simulation_ ? "camera_link_optical" : "camera_color_optical_frame";
+            tf_lookup_helper(image_tf, "base_link", optical_frame);
+            image_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>(image_tf);
+        }
 
         // image_tf.transform.translation.x = -0.059;
         // image_tf.transform.translation.y = 0.031;
@@ -281,6 +272,39 @@ private:
         return transform;
     }
 
+#if VEL_MEAS
+    void img_callback(const sensor_msgs::msg::Image::SharedPtr msg)
+    {
+        (void)msg;
+        if (!is_K_received())
+            return;
+        if (!image_tf_ || !base_link_enu_) //  || !base_link_enu_ || !tera_tf_
+            return;
+        if (height_ < 0 || std::isnan(height_) || std::isinf(height_))
+            return;
+
+        auto img_T_base = tf_msg_to_affine(*image_tf_);
+        auto base_T_odom = tf_msg_to_affine(*base_link_enu_);
+        auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
+
+        cv_bridge::CvImagePtr cv_ptr;
+        try
+        {
+            cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::RGB8);
+        }
+        catch (const std::exception &e)
+        {
+            RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
+            return;
+        }
+        // cv::cvtColor(cv_ptr->image, cv_ptr->image, cv::COLOR_RGB2BGR);
+        if (cv_ptr->image.cols > 1000)
+            cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(), 0.5, 0.5);
+
+        estimator_->update_flow_velocity(cv_ptr->image, cam_R_enu, K_, height_);
+    }
+#endif
+
     rclcpp::TimerBase::SharedPtr tf_timer_;
     rclcpp::Subscription<vision_msgs::msg::Detection2D>::SharedPtr bbox_sub_;
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_sub_;
@@ -290,7 +314,9 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr gt_target_pos_pub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gt_pose_array_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+#if VEL_MEAS
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_;
+#endif
     rclcpp::Subscription<px4_msgs::msg::TimesyncStatus>::SharedPtr timesync_sub_;
 
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
@@ -303,6 +329,7 @@ private:
     Eigen::Matrix<double, 3, 3> K_;
     std::unique_ptr<Estimator> estimator_{nullptr};
     rclcpp::Time imu_t;
+    bool simulation_{true};
 };
 
 int main(int argc, char **argv)

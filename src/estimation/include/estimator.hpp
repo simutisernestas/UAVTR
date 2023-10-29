@@ -18,6 +18,8 @@ public:
 
     void update_imu_accel(const Eigen::Vector3d &accel);
 
+    inline Eigen::VectorXd state() const { return kf_->state(); };
+
 private:
     std::unique_ptr<cv::Mat> prev_frame_{nullptr};
     std::vector<cv::Point2f> p0_, p1_;
