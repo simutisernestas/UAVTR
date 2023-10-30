@@ -15,23 +15,23 @@ We show how to define the model, load pretrained weights and visualize bounding 
 Let's start with some common imports.
 """
 
+import torch
+import torchvision.transforms as T
 # Commented out IPython magic to ensure Python compatibility.
 from PIL import Image
-import requests
+from torch import nn
+from torchvision.models import resnet50
+
 # import matplotlib.pyplot as plt
 # %config InlineBackend.figure_format = 'retina'
 
-import torch
-from torch import nn
-from torchvision.models import resnet50
-import torchvision.transforms as T
 torch.set_grad_enabled(False);
 import matplotlib.pyplot as plt
-import numpy as np
 
 """## DETR
 Here is a minimal implementation of DETR:
 """
+
 
 class DETRdemo(nn.Module):
     """
@@ -45,6 +45,7 @@ class DETRdemo(nn.Module):
     The model achieves ~40 AP on COCO val5k and runs at ~28 FPS on Tesla V100.
     Only batch size 1 supported.
     """
+
     def __init__(self, num_classes, hidden_dim=256, nheads=8,
                  num_encoder_layers=6, num_decoder_layers=6):
         super().__init__()
@@ -103,6 +104,7 @@ class DETRdemo(nn.Module):
         return {'pred_logits': self.linear_class(h),
                 'pred_boxes': self.linear_bbox(h).sigmoid()}
 
+
 """As you can see, DETR architecture is very simple, thanks to the representational power of the Transformer. There are two main components:
 * a convolutional backbone - we use ResNet-50 in this demo
 * a Transformer - we use the default PyTorch nn.Transformer
@@ -148,6 +150,7 @@ transform = T.Compose([
     T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
+
 # for output bounding box post-processing
 def box_cxcywh_to_xyxy(x):
     x_c, y_c, w, h = x.unbind(1)
@@ -155,13 +158,16 @@ def box_cxcywh_to_xyxy(x):
          (x_c + 0.5 * w), (y_c + 0.5 * h)]
     return torch.stack(b, dim=1)
 
+
 def rescale_bboxes(out_bbox, size):
     img_w, img_h = size
     b = box_cxcywh_to_xyxy(out_bbox)
     b = b * torch.tensor([img_w, img_h, img_w, img_h], dtype=torch.float32)
     return b
 
+
 """Let's put everything together in a `detect` function:"""
+
 
 def detect(im, model, transform):
     # mean-std normalize the input image (batch-size: 1)
@@ -171,7 +177,8 @@ def detect(im, model, transform):
     # demo model only support by default images with aspect ratio between 0.5 and 2
     # if you want to use images with an aspect ratio outside this range
     # rescale your image so that the maximum size is at most 1333 for best results
-    assert img.shape[-2] <= 1600 and img.shape[-1] <= 1600, 'demo model only supports images up to 1600 pixels on each side'
+    assert img.shape[-2] <= 1600 and img.shape[
+        -1] <= 1600, 'demo model only supports images up to 1600 pixels on each side'
 
     # propagate through the model
     outputs = model(img)
@@ -185,9 +192,11 @@ def detect(im, model, transform):
     bboxes_scaled = rescale_bboxes(outputs['pred_boxes'][0, keep], im.size)
     return probas[keep], bboxes_scaled
 
+
 """## Using DETR
 To try DETRdemo model on your own image just change the URL below.
 """
+
 
 def plot_results(pil_img, prob, boxes):
     # plt.figure(figsize=(16,10))
@@ -216,6 +225,7 @@ if __name__ == "__main__":
     im = Image.open('boat1/000010.jpg', 'r').convert('RGB')
 
     import time
+
     start_time = time.time()
     scores, boxes = detect(im, detr, transform)
     end_time = time.time()

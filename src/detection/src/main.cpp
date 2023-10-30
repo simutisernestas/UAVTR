@@ -7,8 +7,7 @@
 #include <numeric>
 #include <atomic>
 
-int main()
-{
+int main() {
     // test detector
 
     // ObjDetertor detector{};
@@ -40,8 +39,7 @@ int main()
     // }
     // cv::VideoWriter video("outcpp_real.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, cv::Size(frame_width, frame_height));
 
-    for (size_t i = 0; i < n_images; i += 1)
-    {
+    for (size_t i = 0; i < n_images; i += 1) {
         imageFilepath = "../images/" + std::to_string(i) + ".jpg";
         // std::cout << "Image: " << imageFilepath << std::endl;
         cv::Mat image = cv::imread(imageFilepath, cv::ImreadModes::IMREAD_COLOR);
@@ -52,14 +50,14 @@ int main()
         frame_width = image.cols;
         // convert to rgb
         // cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
-        if (image.empty())
-        {
+        if (image.empty()) {
             std::cout << "Failed to read image" << std::endl;
             return -1;
         }
         images.push_back(image);
     }
-    cv::VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30, cv::Size(frame_width, frame_height));
+    cv::VideoWriter video("outcpp.avi", cv::VideoWriter::fourcc('M', 'J', 'P', 'G'), 30,
+                          cv::Size(frame_width, frame_height));
 
     // bool success = detector.detect(images[0]);
     // std::cout << success << std::endl;
@@ -76,8 +74,7 @@ int main()
     double worst_comp_time{0.0};
 
     n_images = 300;
-    for (size_t i = 0; i < n_images - 1; i += 1)
-    {
+    for (size_t i = 0; i < n_images - 1; i += 1) {
         cv::Mat image = images[i];
         cv::Rect bbox{};
         auto start = std::chrono::system_clock::now();

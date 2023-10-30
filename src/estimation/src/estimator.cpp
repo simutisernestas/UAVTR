@@ -1,38 +1,37 @@
 #include "estimator.hpp"
 #include <Eigen/Sparse>
 
-Estimator::Estimator()
-{
+Estimator::Estimator() {
 //  TODO: doesn't fit the topic delta
     const double dt = 0.005;
 
     Eigen::MatrixXd A(9, 9);
     A << 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0, 0,
-        0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0,
-        0, 0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt,
-        0, 0, 0, 1, 0, 0, -dt, 0, 0,
-        0, 0, 0, 0, 1, 0, 0, -dt, 0,
-        0, 0, 0, 0, 0, 1, 0, 0, -dt,
-        0, 0, 0, 0, 0, 0, 1, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 1, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 1;
+            0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0,
+            0, 0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt,
+            0, 0, 0, 1, 0, 0, -dt, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, -dt, 0,
+            0, 0, 0, 0, 0, 1, 0, 0, -dt,
+            0, 0, 0, 0, 0, 0, 1, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 1, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 1;
     std::cout << A << std::endl;
 
     Eigen::MatrixXd B(9, 3);
     B << -.5 * dt * dt, 0, 0,
-        0, -.5 * dt * dt, 0,
-        0, 0, -.5 * dt * dt,
-        -dt, 0, 0,
-        0, -dt, 0,
-        0, 0, -dt,
-        0, 0, 0,
-        0, 0, 0,
-        0, 0, 0;
+            0, -.5 * dt * dt, 0,
+            0, 0, -.5 * dt * dt,
+            -dt, 0, 0,
+            0, -dt, 0,
+            0, 0, -dt,
+            0, 0, 0,
+            0, 0, 0,
+            0, 0, 0;
 
     Eigen::MatrixXd C(3, 9);
     C << 1, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 1, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 1, 0, 0, 0, 0, 0, 0;
+            0, 1, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 1, 0, 0, 0, 0, 0, 0;
 
     Eigen::MatrixXd Q(9, 9);
     Q = Eigen::MatrixXd::Identity(9, 9) * 3.0;
@@ -50,9 +49,8 @@ Estimator::Estimator()
 
 // TODO: rename
 Eigen::Vector3d Estimator::compute_pixel_rel_position(
-    const Eigen::Vector2d &bbox_c, const Eigen::Matrix3d &cam_R_enu,
-    const Eigen::Matrix3d &K, const double height)
-{
+        const Eigen::Vector2d &bbox_c, const Eigen::Matrix3d &cam_R_enu,
+        const Eigen::Matrix3d &K, const double height) {
     Eigen::Matrix<double, 3, 3> Kinv = K.inverse();
     Eigen::Vector3d lr;
     lr << 0, 0, -1;
@@ -64,8 +62,7 @@ Eigen::Vector3d Estimator::compute_pixel_rel_position(
     Eigen::Vector3d Pt = ls * d;
     if (kf_->is_initialized())
         kf_->update(Pt);
-    else
-    {
+    else {
         Eigen::VectorXd x0(9);
         x0 << Pt[0], Pt[1], Pt[2], 0, 0, 0, 0, 0, 0;
         kf_->init(0.005, x0);
@@ -76,8 +73,7 @@ Eigen::Vector3d Estimator::compute_pixel_rel_position(
     return Pt;
 }
 
-void Estimator::update_imu_accel(const Eigen::Vector3d &accel)
-{
+void Estimator::update_imu_accel(const Eigen::Vector3d &accel) {
     if (!kf_->is_initialized())
         return;
 

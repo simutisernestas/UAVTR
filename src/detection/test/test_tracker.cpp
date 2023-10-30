@@ -1,8 +1,7 @@
 #include <gtest/gtest.h>
 #include "tracker.h"
 
-TEST(TrackerTest, TestTracker)
-{
+TEST(TrackerTest, TestTracker) {
     // Create a tracker object
     Tracker tracker;
 
@@ -17,15 +16,13 @@ TEST(TrackerTest, TestTracker)
     tracker.init(frames[0], bbox);
 
     // Update the tracker with the remaining frames
-    for (int i = 1; i < frames.size(); i++)
-    {
+    for (int i = 1; i < frames.size(); i++) {
         bool track = tracker.update(frames[i], bbox);
         ASSERT_TRUE(track);
     }
 }
 
-TEST(PreprocessTest, ConvertsBGRToRGB)
-{
+TEST(PreprocessTest, ConvertsBGRToRGB) {
     // Arrange
     cv::Mat image = cv::imread("test_image.jpg");
     cv::Mat expected = image.clone();
@@ -40,8 +37,7 @@ TEST(PreprocessTest, ConvertsBGRToRGB)
     ASSERT_TRUE(cv::countNonZero(result != expected) == 0);
 }
 
-TEST(PreprocessTest, ResizesImage)
-{
+TEST(PreprocessTest, ResizesImage) {
     // Arrange
     cv::Mat image = cv::imread("test_image.jpg");
     cv::Size expectedSize(224, 224);
@@ -53,8 +49,7 @@ TEST(PreprocessTest, ResizesImage)
     ASSERT_EQ(result.size(), expectedSize);
 }
 
-TEST(PreprocessTest, ConvertsToFloat32AndNormalizes)
-{
+TEST(PreprocessTest, ConvertsToFloat32AndNormalizes) {
     // Arrange
     cv::Mat image = cv::imread("test_image.jpg");
 
@@ -67,8 +62,7 @@ TEST(PreprocessTest, ConvertsToFloat32AndNormalizes)
     ASSERT_TRUE(cv::countNonZero(result > 1) == 0);
 }
 
-TEST(PreprocessTest, Creates4DBlob)
-{
+TEST(PreprocessTest, Creates4DBlob) {
     // Arrange
     cv::Mat image = cv::imread("test_image.jpg");
 

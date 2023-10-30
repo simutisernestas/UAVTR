@@ -20,8 +20,8 @@ class BboxPublisher(Node):
         # - 0.0
         # - 1397.2235298156738
         # - 540.0
-        msg.bbox.center.position.x = 960/2
-        msg.bbox.center.position.y = 540/2
+        msg.bbox.center.position.x = 960 / 2
+        msg.bbox.center.position.y = 540 / 2
         msg.bbox.size_x = 3.0
         msg.bbox.size_y = 4.0
         self.publisher_.publish(msg)

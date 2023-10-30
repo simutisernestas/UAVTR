@@ -5,27 +5,22 @@
 #include <cv_bridge/cv_bridge.h>
 #include <vision_msgs/msg/detection2_d.hpp>
 
-class TrackerROSNode : public rclcpp::Node
-{
+class TrackerROSNode : public rclcpp::Node {
 public:
-    TrackerROSNode() : Node("image_subscriber")
-    {
+    TrackerROSNode() : Node("image_subscriber") {
         img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-            "/camera/color/image_raw", 10, std::bind(&TrackerROSNode::image_callback, this, std::placeholders::_1));
+                "/camera/color/image_raw", 10, std::bind(&TrackerROSNode::image_callback, this, std::placeholders::_1));
         detection_pub_ = this->create_publisher<vision_msgs::msg::Detection2D>("/bounding_box", 10);
     }
 
 private:
-    void image_callback(const sensor_msgs::msg::Image::SharedPtr msg)
-    {
+    void image_callback(const sensor_msgs::msg::Image::SharedPtr msg) {
         cv_bridge::CvImagePtr cv_ptr;
-        try
-        {
+        try {
             cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::RGB8);
             cv::cvtColor(cv_ptr->image, cv_ptr->image, cv::COLOR_RGB2BGR);
         }
-        catch (const std::exception &e)
-        {
+        catch (const std::exception &e) {
             RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
             return;
         }
@@ -44,8 +39,7 @@ private:
         cv::setMouseCallback("Image window", TrackerROSNode::onMouse, this);
         cv::waitKey(1);
 
-        if (!success)
-        {
+        if (!success) {
             RCLCPP_INFO(this->get_logger(), "No object detected");
             return;
         }
@@ -61,12 +55,10 @@ private:
         detection_pub_->publish(bbox_msg);
     }
 
-    static void onMouse(int event, int x, int y, int flags, void *userdata)
-    {
-        auto obj_ptr = ((TrackerROSNode *)userdata);
-        (void)flags;
-        if (event == cv::EVENT_LBUTTONDOWN)
-        {
+    static void onMouse(int event, int x, int y, int flags, void *userdata) {
+        auto obj_ptr = ((TrackerROSNode *) userdata);
+        (void) flags;
+        if (event == cv::EVENT_LBUTTONDOWN) {
             cv::Rect bbox;
             bbox.x = x - obj_ptr->bbox_size_ / 2;
             bbox.y = y - obj_ptr->bbox_size_ / 2;
@@ -75,14 +67,10 @@ private:
             obj_ptr->tracker.hard_reset_bbox(bbox);
         }
 
-        if (event == cv::EVENT_RBUTTONDOWN)
-        {
-            if (x > 480 / 2)
-            {
+        if (event == cv::EVENT_RBUTTONDOWN) {
+            if (x > 480 / 2) {
                 obj_ptr->bbox_size_ += 10;
-            }
-            else
-            {
+            } else {
                 obj_ptr->bbox_size_ -= 10;
             }
         }
@@ -94,8 +82,7 @@ private:
     Tracker tracker{};
 };
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     rclcpp::init(argc, argv);
     auto node = std::make_shared<TrackerROSNode>();
     rclcpp::spin(node);

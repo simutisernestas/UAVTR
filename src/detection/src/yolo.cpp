@@ -3,8 +3,7 @@
 #include <opencv2/opencv.hpp>
 #include <chrono>
 
-typedef struct Result
-{
+typedef struct Result {
     int x1;
     int x2;
     int y1;
@@ -12,8 +11,7 @@ typedef struct Result
     int obj_id;
     float accuracy;
 
-    Result(int x1_, int x2_, int y1_, int y2_, int obj_id_, float accuracy_)
-    {
+    Result(int x1_, int x2_, int y1_, int y2_, int obj_id_, float accuracy_) {
         x1 = x1_;
         x2 = x2_;
         y1 = y1_;
@@ -29,19 +27,18 @@ int model_input_height;
 
 // Class names for YOLOv7
 std::array<const std::string, 80> classNames = {
-    "person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
-    "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
-    "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
-    "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball",
-    "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
-    "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
-    "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
-    "sofa", "potted plant", "bed", "dining table", "toilet", "tv monitor", "laptop", "mouse",
-    "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator",
-    "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"};
+        "person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
+        "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
+        "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
+        "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball",
+        "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
+        "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+        "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
+        "sofa", "potted plant", "bed", "dining table", "toilet", "tv monitor", "laptop", "mouse",
+        "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator",
+        "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"};
 
-cv::Mat preprocess(cv::Mat &image)
-{
+cv::Mat preprocess(cv::Mat &image) {
     // Channels order: BGR to RGB
     cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
 
@@ -58,8 +55,7 @@ cv::Mat preprocess(cv::Mat &image)
     return blobImage;
 }
 
-std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Value> &outputTensors)
-{
+std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Value> &outputTensors) {
     auto *rawOutput = outputTensors[0].GetTensorData<float>();
     std::vector<int64_t> outputShape = outputTensors[0].GetTensorTypeAndShapeInfo().GetShape();
     size_t count = outputTensors[0].GetTensorTypeAndShapeInfo().GetElementCount();
@@ -67,8 +63,7 @@ std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Val
 
     std::vector<Result> resultVector;
 
-    for (int i = 0; i < outputShape[0]; i++)
-    {
+    for (int i = 0; i < outputShape[0]; i++) {
         float confidence = output[i * outputShape[1] + 0];
         float x1 = output[i * outputShape[1] + 1];
         float y1 = output[i * outputShape[1] + 2];
@@ -77,10 +72,11 @@ std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Val
         int classPrediction = output[i * outputShape[1] + 5];
         float accuracy = output[i * outputShape[1] + 6];
 
-        (void)confidence;
+        (void) confidence;
 
         std::cout << "Class Name: " << classNames.at(classPrediction) << std::endl;
-        std::cout << "Coords: Top Left (" << x1 << ", " << y1 << "), Bottom Right (" << x2 << ", " << y2 << ")" << std::endl;
+        std::cout << "Coords: Top Left (" << x1 << ", " << y1 << "), Bottom Right (" << x2 << ", " << y2 << ")"
+                  << std::endl;
         std::cout << "Accuracy: " << accuracy << std::endl;
 
         // Coords should be scaled to the original image. The coords from the model are relative to the model's input height and width.
@@ -99,16 +95,14 @@ std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Val
     return resultVector;
 }
 
-void drawBoundingBox(cv::Mat &image, std::vector<Result> &resultVector)
-{
+void drawBoundingBox(cv::Mat &image, std::vector<Result> &resultVector) {
 
-    for (auto result : resultVector)
-    {
+    for (auto result: resultVector) {
 
-        if (result.accuracy > 0.6)
-        { // Threshold, can be made function parameter
+        if (result.accuracy > 0.6) { // Threshold, can be made function parameter
 
-            cv::rectangle(image, cv::Point(result.x1, result.y1), cv::Point(result.x2, result.y2), cv::Scalar(0, 255, 0), 2);
+            cv::rectangle(image, cv::Point(result.x1, result.y1), cv::Point(result.x2, result.y2),
+                          cv::Scalar(0, 255, 0), 2);
 
             cv::putText(image, classNames.at(result.obj_id),
                         cv::Point(result.x1, result.y1 - 3), cv::FONT_ITALIC,
@@ -121,8 +115,7 @@ void drawBoundingBox(cv::Mat &image, std::vector<Result> &resultVector)
     }
 }
 
-int main()
-{
+int main() {
 
     const char *model_path = "../yolov7.onnx";
 
@@ -141,25 +134,21 @@ int main()
     std::vector<char *> input_node_names_char;
     std::vector<char *> output_node_names_char;
 
-    for (size_t i = 0; i < num_input_nodes; ++i)
-    {
+    for (size_t i = 0; i < num_input_nodes; ++i) {
         input_node_names.push_back(session.GetInputNameAllocated(i, allocator));
         input_node_names_char.push_back(input_node_names[i].get());
     }
 
-    for (size_t i = 0; i < num_output_nodes; ++i)
-    {
+    for (size_t i = 0; i < num_output_nodes; ++i) {
         output_node_names.push_back(session.GetOutputNameAllocated(i, allocator));
         output_node_names_char.push_back(output_node_names[i].get());
     }
 
-    for (auto &input_name : input_node_names)
-    {
+    for (auto &input_name: input_node_names) {
         std::cout << "input node name   : " << input_name.get() << std::endl;
     }
 
-    for (auto &output_name : output_node_names)
-    {
+    for (auto &output_name: output_node_names) {
         std::cout << "output node name  : " << output_name.get() << std::endl;
     }
 
@@ -177,7 +166,7 @@ int main()
     cv::Mat inputImage = preprocess(image);
 
     Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(
-        OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
+            OrtAllocatorType::OrtArenaAllocator, OrtMemType::OrtMemTypeDefault);
 
     Ort::Value inputTensor = Ort::Value::CreateTensor<float>(memoryInfo,
                                                              inputImage.ptr<float>(),
@@ -193,7 +182,8 @@ int main()
                                                         output_node_names_char.data(),
                                                         num_output_nodes);
     auto end = std::chrono::high_resolution_clock::now();
-    std::cout << "Inference time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+    std::cout << "Inference time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+              << "ms" << std::endl;
 
     std::vector<Result> resultVector = postprocess(image.size(), outputTensors);
 

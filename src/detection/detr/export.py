@@ -1,11 +1,12 @@
-import numpy as np
-import onnxruntime
-import onnx
-import torch
-import time
-from detr_demo import detect, detr, transform
-from PIL import Image
 import os
+import time
+
+import onnx
+import onnxruntime
+import torch
+from PIL import Image
+
+from detr_demo import detect, detr, transform
 
 # Directory path containing the images
 image_dir = 'images'
@@ -21,11 +22,11 @@ print(file)
 # Read the next image
 image_path = os.path.join(image_dir, file)
 im = Image.open(image_path, 'r').convert('RGB')
-print("aspect ratio:", im.size[0]/im.size[1])
+print("aspect ratio:", im.size[0] / im.size[1])
 # reduce aspect ratio
 # if im.size[0]/im.size[1] > 1.5:
 #     im = im.resize((int(im.size[0]/1.5), int(im.size[1]/1.1)))
-print("aspect ratio:", im.size[0]/im.size[1])
+print("aspect ratio:", im.size[0] / im.size[1])
 print(im.size)
 
 detr.eval()
@@ -36,12 +37,11 @@ end_time = time.time()
 print("Time taken: ", end_time - start_time)
 print(scores.shape)
 
-
 img = transform(im).unsqueeze(0)
 print(img.shape)
 
 print(torch.mean(img))
-print(img[0,:,:10,0])
+print(img[0, :, :10, 0])
 
 # MUST USE TORCH NIGHTLY BUILD :)
 
@@ -79,11 +79,12 @@ print(ort_outs[0].shape, ort_outs[1].shape)
 def softmax(x):
     maxes = torch.max(x, -1, keepdim=True)[0]
     print(maxes.shape)
-    x_exp = torch.exp(x-maxes)
+    x_exp = torch.exp(x - maxes)
     print(x_exp.shape)
     x_exp_sum = torch.sum(x_exp, -1, keepdim=True)
     print(x_exp_sum.shape)
-    return x_exp/x_exp_sum
+    return x_exp / x_exp_sum
+
 
 probas = torch.tensor(ort_outs[0]).softmax(-1)[0, :, :-1]
 keep = probas.max(-1).values > 0.7
@@ -94,7 +95,7 @@ scores_np = softmax(torch.tensor(ort_outs[0]))[0, :, :-1]
 keep_np = scores_np.max(-1).values > 0.7
 np_probs = scores_np[keep_np]
 
-print(ort_outs[0][0,0])
+print(ort_outs[0][0, 0])
 
 print(torch.allclose(onnx_probs, scores, rtol=1e-03, atol=1e-05))
 print(torch.allclose(np_probs, scores, rtol=1e-03, atol=1e-05))
