@@ -69,6 +69,8 @@ public:
 
     double time() { return t; };
 
+    Eigen::MatrixXd covariance() { return P; };
+
 private:
     // Matrices for computation
     Eigen::MatrixXd A, B, C, Q, R, P, K, P0;

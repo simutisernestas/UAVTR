@@ -41,7 +41,7 @@ def generate_launch_description():
     return LaunchDescription([
         play_bag,
         tracking,
-        # estimation,
+        estimation,
         uncompress,
         imu_mag_repub,
         IncludeLaunchDescription(

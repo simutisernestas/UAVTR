@@ -1,56 +1,64 @@
 #include "estimator.hpp"
 #include <Eigen/Sparse>
 
-Estimator::Estimator() {
-//  TODO: doesn't fit the topic delta
+Estimator::Estimator()
+{
+    //  TODO: doesn't fit the topic delta
     const double dt = 0.005;
 
     Eigen::MatrixXd A(9, 9);
     A << 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0, 0,
-            0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0,
-            0, 0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt,
-            0, 0, 0, 1, 0, 0, -dt, 0, 0,
-            0, 0, 0, 0, 1, 0, 0, -dt, 0,
-            0, 0, 0, 0, 0, 1, 0, 0, -dt,
-            0, 0, 0, 0, 0, 0, 1, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 1, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 1;
+        0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0,
+        0, 0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt,
+        0, 0, 0, 1, 0, 0, -dt, 0, 0,
+        0, 0, 0, 0, 1, 0, 0, -dt, 0,
+        0, 0, 0, 0, 0, 1, 0, 0, -dt,
+        0, 0, 0, 0, 0, 0, 1, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 1, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 1;
     std::cout << A << std::endl;
 
     Eigen::MatrixXd B(9, 3);
     B << -.5 * dt * dt, 0, 0,
-            0, -.5 * dt * dt, 0,
-            0, 0, -.5 * dt * dt,
-            -dt, 0, 0,
-            0, -dt, 0,
-            0, 0, -dt,
-            0, 0, 0,
-            0, 0, 0,
-            0, 0, 0;
+        0, -.5 * dt * dt, 0,
+        0, 0, -.5 * dt * dt,
+        -dt, 0, 0,
+        0, -dt, 0,
+        0, 0, -dt,
+        0, 0, 0,
+        0, 0, 0,
+        0, 0, 0;
 
     Eigen::MatrixXd C(3, 9);
     C << 1, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 1, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 1, 0, 0, 0, 0, 0, 0;
+        0, 1, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 1, 0, 0, 0, 0, 0, 0;
 
     Eigen::MatrixXd Q(9, 9);
-    Q = Eigen::MatrixXd::Identity(9, 9) * 3.0;
+    Q = Eigen::MatrixXd::Identity(9, 9);
     Q(6, 6) = 0;
     Q(7, 7) = 0;
     Q(8, 8) = 0;
     Eigen::MatrixXd R(3, 3);
-    R = Eigen::MatrixXd::Identity(3, 3) * 2.0;
-    R(3, 3) = .1;
+    R = Eigen::MatrixXd::Identity(3, 3) * .1;
+    // R(3, 3) = .1;
     Eigen::MatrixXd P(9, 9);
-    P = Eigen::MatrixXd::Identity(9, 9) * 1000.0;
+    P = Eigen::MatrixXd::Identity(9, 9) * 1.0;
 
     kf_ = std::make_unique<KalmanFilter>(dt, A, B, C, Q, R, P);
+
+    const std::array<double, 3> a = {1.0, -1.56101808, 0.64135154};
+    const std::array<double, 3> b = {0.02008337, 0.04016673, 0.02008337};
+    // Create a low pass filter objects.
+    for (int i = 0; i < 3; i++)
+        lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<double, 3>>(b, a);
 }
 
 // TODO: rename
 Eigen::Vector3d Estimator::compute_pixel_rel_position(
-        const Eigen::Vector2d &bbox_c, const Eigen::Matrix3d &cam_R_enu,
-        const Eigen::Matrix3d &K, const double height) {
+    const Eigen::Vector2d &bbox_c, const Eigen::Matrix3d &cam_R_enu,
+    const Eigen::Matrix3d &K, const double height)
+{
     Eigen::Matrix<double, 3, 3> Kinv = K.inverse();
     Eigen::Vector3d lr;
     lr << 0, 0, -1;
@@ -62,22 +70,36 @@ Eigen::Vector3d Estimator::compute_pixel_rel_position(
     Eigen::Vector3d Pt = ls * d;
     if (kf_->is_initialized())
         kf_->update(Pt);
-    else {
+    else
+    {
         Eigen::VectorXd x0(9);
         x0 << Pt[0], Pt[1], Pt[2], 0, 0, 0, 0, 0, 0;
         kf_->init(0.005, x0);
     }
     auto x_hat = kf_->state();
-    // std::cout << x_hat << std::endl;
     Pt << x_hat[0], x_hat[1], x_hat[2];
+    auto cov = kf_->covariance();
+    std::cout << "covariance: " << std::endl
+              << cov << std::endl
+              << std::endl;
+    std::cout << "state" << std::endl
+              << x_hat << std::endl
+              << std::endl;
     return Pt;
 }
 
-void Estimator::update_imu_accel(const Eigen::Vector3d &accel) {
+void Estimator::update_imu_accel(const Eigen::Vector3d &accel)
+{
     if (!kf_->is_initialized())
         return;
 
-    kf_->predict(accel);
+    // copy accel vector into eigen vector
+    auto copy = accel;
+    // filter accel
+    for (int i = 0; i < 3; i++)
+        copy[i] = lp_acc_filter_arr_[i]->filter(copy[i]);
+
+    kf_->predict(copy);
 }
 
 // Eigen::MatrixXd visjac_p(const Eigen::MatrixXd &uv,
