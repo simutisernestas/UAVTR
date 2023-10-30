@@ -15,8 +15,7 @@
 #define DETR_LOGITS_INDEX 0
 #define DETR_BBOX_INDEX 1
 
-typedef struct Result
-{
+typedef struct Result {
     int x1;
     int x2;
     int y1;
@@ -24,8 +23,7 @@ typedef struct Result
     int obj_id;
     float accuracy;
 
-    Result(int x1_, int x2_, int y1_, int y2_, int obj_id_, float accuracy_)
-    {
+    Result(int x1_, int x2_, int y1_, int y2_, int obj_id_, float accuracy_) {
         x1 = x1_;
         x2 = x2_;
         y1 = y1_;
@@ -41,19 +39,18 @@ int model_input_height;
 
 // Class names for YOLOv7
 std::array<const std::string, 80> classNames = {
-    "person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
-    "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
-    "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
-    "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball",
-    "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
-    "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
-    "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
-    "sofa", "potted plant", "bed", "dining table", "toilet", "tv monitor", "laptop", "mouse",
-    "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator",
-    "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"};
+        "person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
+        "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
+        "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
+        "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball",
+        "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
+        "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
+        "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair",
+        "sofa", "potted plant", "bed", "dining table", "toilet", "tv monitor", "laptop", "mouse",
+        "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator",
+        "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"};
 
-cv::Mat preprocess(cv::Mat &image)
-{
+cv::Mat preprocess(cv::Mat &image) {
     // Channels order: BGR to RGB
     cv::cvtColor(image, image, cv::COLOR_BGR2RGB);
 
@@ -70,8 +67,7 @@ cv::Mat preprocess(cv::Mat &image)
     return blobImage;
 }
 
-std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Value> &outputTensors)
-{
+std::vector<Result> postprocess(const cv::Size &originalImageSize, std::vector<Ort::Value> &outputTensors) {
     auto *rawOutput = outputTensors[0].GetTensorData<float>();
     std::vector<int64_t> outputShape = outputTensors[0].GetTensorTypeAndShapeInfo().GetShape();
     size_t count = outputTensors[0].GetTensorTypeAndShapeInfo().GetElementCount();
@@ -79,8 +75,7 @@ std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Val
 
     std::vector<Result> resultVector;
 
-    for (int i = 0; i < outputShape[0]; i++)
-    {
+    for (int i = 0; i < outputShape[0]; i++) {
 
         float confidence = output[i * outputShape[1] + 0];
         float x1 = output[i * outputShape[1] + 1];
@@ -90,7 +85,7 @@ std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Val
         int classPrediction = output[i * outputShape[1] + 5];
         float accuracy = output[i * outputShape[1] + 6];
 
-        (void)confidence;
+        (void) confidence;
 
         // std::cout << "Class Name: " << classNames.at(classPrediction) << '\n';
         // std::cout << "Coords: Top Left (" << x1 << ", " << y1 << "), Bottom Right (" << x2 << ", " << y2 << ")" << '\n';
@@ -112,16 +107,14 @@ std::vector<Result> postprocess(cv::Size originalImageSize, std::vector<Ort::Val
     return resultVector;
 }
 
-void drawBoundingBox(cv::Mat &image, std::vector<Result> &resultVector)
-{
+void drawBoundingBox(cv::Mat &image, std::vector<Result> &resultVector) {
 
-    for (auto result : resultVector)
-    {
+    for (auto result: resultVector) {
 
-        if (result.accuracy > 0.6)
-        { // Threshold, can be made function parameter
+        if (result.accuracy > 0.6) { // Threshold, can be made function parameter
 
-            cv::rectangle(image, cv::Point(result.x1, result.y1), cv::Point(result.x2, result.y2), cv::Scalar(0, 255, 0), 2);
+            cv::rectangle(image, cv::Point(result.x1, result.y1), cv::Point(result.x2, result.y2),
+                          cv::Scalar(0, 255, 0), 2);
 
             cv::putText(image, classNames.at(result.obj_id),
                         cv::Point(result.x1, result.y1 - 3), cv::FONT_ITALIC,
@@ -134,9 +127,8 @@ void drawBoundingBox(cv::Mat &image, std::vector<Result> &resultVector)
     }
 }
 
-template <typename T>
-T vectorProduct(const std::vector<T> &v)
-{
+template<typename T>
+T vectorProduct(const std::vector<T> &v) {
     return std::accumulate(v.begin(), v.end(), 1, std::multiplies<T>());
 }
 
@@ -147,15 +139,12 @@ T vectorProduct(const std::vector<T> &v)
  * @param v
  * @return std::ostream&
  */
-template <typename T>
-std::ostream &operator<<(std::ostream &os, const std::vector<T> &v)
-{
+template<typename T>
+std::ostream &operator<<(std::ostream &os, const std::vector<T> &v) {
     os << "[";
-    for (size_t i = 0; i < v.size(); ++i)
-    {
+    for (size_t i = 0; i < v.size(); ++i) {
         os << v[i];
-        if (i != v.size() - 1)
-        {
+        if (i != v.size() - 1) {
             os << ", ";
         }
     }
@@ -171,76 +160,72 @@ std::ostream &operator<<(std::ostream &os, const std::vector<T> &v)
  * @return std::ostream&
  */
 std::ostream &operator<<(std::ostream &os,
-                         const ONNXTensorElementDataType &type)
-{
-    switch (type)
-    {
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED:
-        os << "undefined";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
-        os << "float";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
-        os << "uint8_t";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:
-        os << "int8_t";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16:
-        os << "uint16_t";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:
-        os << "int16_t";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
-        os << "int32_t";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
-        os << "int64_t";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING:
-        os << "std::string";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
-        os << "bool";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16:
-        os << "float16";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE:
-        os << "double";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32:
-        os << "uint32_t";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64:
-        os << "uint64_t";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX64:
-        os << "float real + float imaginary";
-        break;
-    case ONNXTensorElementDataType::
-        ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128:
-        os << "double real + float imaginary";
-        break;
-    case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16:
-        os << "bfloat16";
-        break;
-    default:
-        break;
+                         const ONNXTensorElementDataType &type) {
+    switch (type) {
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED:
+            os << "undefined";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
+            os << "float";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT8:
+            os << "uint8_t";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_INT8:
+            os << "int8_t";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT16:
+            os << "uint16_t";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_INT16:
+            os << "int16_t";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
+            os << "int32_t";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
+            os << "int64_t";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_STRING:
+            os << "std::string";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
+            os << "bool";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16:
+            os << "float16";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_DOUBLE:
+            os << "double";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT32:
+            os << "uint32_t";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_UINT64:
+            os << "uint64_t";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX64:
+            os << "float real + float imaginary";
+            break;
+        case ONNXTensorElementDataType::
+            ONNX_TENSOR_ELEMENT_DATA_TYPE_COMPLEX128:
+            os << "double real + float imaginary";
+            break;
+        case ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_BFLOAT16:
+            os << "bfloat16";
+            break;
+        default:
+            break;
     }
 
     return os;
 }
 
-struct BoundingBox
-{
+struct BoundingBox {
     float x_c, y_c, w, h;
 };
 
-std::vector<float> box_cxcywh_to_xyxy(const BoundingBox &bb)
-{
+std::vector<float> box_cxcywh_to_xyxy(const BoundingBox &bb) {
     float x_c = bb.x_c;
     float y_c = bb.y_c;
     float w = bb.w;
@@ -250,8 +235,7 @@ std::vector<float> box_cxcywh_to_xyxy(const BoundingBox &bb)
     return b;
 }
 
-std::vector<float> rescale_bboxes(const BoundingBox &out_bbox, const std::array<int, 2> &size)
-{
+std::vector<float> rescale_bboxes(const BoundingBox &out_bbox, const std::array<int, 2> &size) {
     int img_w = size[0];
     int img_h = size[1];
 
@@ -265,27 +249,25 @@ std::vector<float> rescale_bboxes(const BoundingBox &out_bbox, const std::array<
     return b;
 }
 
-class ObjDetertor
-{
+class ObjDetertor {
 public:
     ObjDetertor();
-    ~ObjDetertor()
-    {
+
+    ~ObjDetertor() {
         // deallocate memory in _input_names and _output_names
-        free((void *)_input_names[0]);
-        free((void *)_output_names[0]);
-        free((void *)_output_names[1]);
+        free((void *) _input_names[0]);
+        free((void *) _output_names[0]);
+        free((void *) _output_names[1]);
     }
 
     // return true if high confidence detection is made
     bool detect(const cv::Mat &frame);
 
-    inline void get_latest_bbox(cv::Rect &bbox)
-    {
+    inline void get_latest_bbox(cv::Rect &bbox) {
         bbox = _latest_bbox;
     }
-    inline void get_points(std::array<cv::Point, 2> &points)
-    {
+
+    inline void get_points(std::array<cv::Point, 2> &points) {
         points = _latest_bbox_points;
     }
 
@@ -310,12 +292,10 @@ private:
     std::vector<Ort::Value> _output_tensors;
 };
 
-ObjDetertor::ObjDetertor()
-{
+ObjDetertor::ObjDetertor() {
     auto providers =
-        Ort::GetAvailableProviders();
-    for (auto &&provider : providers)
-    {
+            Ort::GetAvailableProviders();
+    for (auto &&provider: providers) {
         std::cout << provider << '\n';
     }
 
@@ -331,7 +311,7 @@ ObjDetertor::ObjDetertor()
     _session = std::make_unique<Ort::Session>(_env, "../weights/yolov7.onnx", sessionOptions);
 #endif
     _memory_info = std::make_unique<Ort::MemoryInfo>(Ort::MemoryInfo::CreateCpu(
-        OrtArenaAllocator, OrtMemTypeDefault));
+            OrtArenaAllocator, OrtMemTypeDefault));
 
     // prepare input
     auto inputName = _session->GetInputNameAllocated(0, _allocator);
@@ -345,17 +325,16 @@ ObjDetertor::ObjDetertor()
     size_t inputTensorSize = vectorProduct(_input_dims);
     _input_image_values.resize(inputTensorSize);
     _input_tensors.push_back(Ort::Value::CreateTensor<float>(
-        *_memory_info, _input_image_values.data(), inputTensorSize,
-        _input_dims.data(), _input_dims.size()));
+            *_memory_info, _input_image_values.data(), inputTensorSize,
+            _input_dims.data(), _input_dims.size()));
     size_t input_name_len = strlen(inputName.get());
-    char *input_name = (char *)malloc(sizeof(char) * input_name_len + 1);
+    char *input_name = (char *) malloc(sizeof(char) * input_name_len + 1);
     strcpy(input_name, inputName.get());
     _input_names = {input_name};
 
     // prepare output
     size_t num_output_nodes = _session->GetOutputCount();
-    for (size_t i = 0; i < num_output_nodes; ++i)
-    {
+    for (size_t i = 0; i < num_output_nodes; ++i) {
         auto outputName = _session->GetOutputNameAllocated(i, _allocator);
         Ort::TypeInfo outputTypeInfo = _session->GetOutputTypeInfo(i);
         auto outputTensorInfo = outputTypeInfo.GetTensorTypeAndShapeInfo();
@@ -366,17 +345,16 @@ ObjDetertor::ObjDetertor()
         size_t outputTensorSize = vectorProduct(output_dims);
         _output_values.push_back(std::vector<float>(outputTensorSize));
         _output_tensors.push_back(Ort::Value::CreateTensor<float>(
-            *_memory_info, _output_values[i].data(), outputTensorSize,
-            _output_dims[i].data(), _output_dims[i].size()));
+                *_memory_info, _output_values[i].data(), outputTensorSize,
+                _output_dims[i].data(), _output_dims[i].size()));
         size_t output_name_len = strlen(outputName.get());
-        char *output_name = (char *)malloc(sizeof(char) * output_name_len + 1);
+        char *output_name = (char *) malloc(sizeof(char) * output_name_len + 1);
         strcpy(output_name, outputName.get());
         _output_names.push_back(output_name);
     }
 }
 
-bool ObjDetertor::detect(const cv::Mat &frame)
-{
+bool ObjDetertor::detect(const cv::Mat &frame) {
     cv::Rect2f bbox{};
 
 #if MODEL == 0
@@ -467,15 +445,15 @@ bool ObjDetertor::detect(const cv::Mat &frame)
               _input_image_values.begin());
 
     std::vector<Ort::Value> outputTensors = _session->Run(Ort::RunOptions{nullptr},
-                                                          _input_names.data(), _input_tensors.data(), _input_names.size(),
+                                                          _input_names.data(), _input_tensors.data(),
+                                                          _input_names.size(),
                                                           _output_names.data(), _output_names.size());
 
     std::vector<Result> resultVector = postprocess(frame.size(), outputTensors);
 
     bool found = false;
     float max_accuracy = 0.0f;
-    for (const auto &result : resultVector)
-    {
+    for (const auto &result: resultVector) {
         if (classNames.at(result.obj_id) != "boat")
             continue;
         if (result.accuracy < 0.6f && result.accuracy < max_accuracy)
@@ -491,7 +469,7 @@ bool ObjDetertor::detect(const cv::Mat &frame)
         bbox.height = (result.y2 - result.y1);
     }
 
-    if (found == false)
+    if (!found)
         return false;
 
 #endif
@@ -501,20 +479,23 @@ bool ObjDetertor::detect(const cv::Mat &frame)
     return true;
 }
 
-class Tracker
-{
+class Tracker {
 
 public:
     Tracker();
-    ~Tracker()
-    {
+
+    ~Tracker() {
         exit = true;
         _obj_detector_thread.join();
     }
-    bool init(const cv::Mat &frame, cv::Rect &bbox, double timeout = 5.0);
+
+    //bool init(const cv::Mat &frame, cv::Rect &bbox, double timeout = 5.0);
+    //void reinit(const cv::Mat &frame, const cv::Rect &bbox);
+
     bool process(const cv::Mat &frame, cv::Rect &bbox);
-    void reinit(const cv::Mat &frame, const cv::Rect &bbox);
+
     void catchup_reinit();
+
     // not safe, use with caution : )
     void hard_reset_bbox(const cv::Rect &bbox);
 
@@ -529,15 +510,12 @@ private:
     uint8_t failure_count_ = 0;
 };
 
-Tracker::Tracker()
-{
+Tracker::Tracker() {
     std::atomic_init(&_allowed_to_swap, true);
     _detector = std::make_unique<ObjDetertor>();
-    _obj_detector_thread = std::thread([this]()
-                                       {
-        while (true)
-        {
-            if (exit) 
+    _obj_detector_thread = std::thread([this]() {
+        while (true) {
+            if (exit)
                 return;
 
             if (_frames.empty())
@@ -551,11 +529,11 @@ Tracker::Tracker()
             } else {
                 while (_frames.pop()) {}
             }
-        } });
+        }
+    });
 }
 
-bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox)
-{
+bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox) {
     _frames.push(frame);
     // print out buffer size
     // std::cout << "buffer size: " << _frames.read_available() << std::endl;
@@ -567,8 +545,7 @@ bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox)
     bool located = _tracker->update(frame, bbox);
     if (!located)
         ++failure_count_;
-    if (failure_count_ > 10)
-    {
+    if (failure_count_ > 10) {
         std::cout << "failure count exceeded, reinit tracker" << std::endl;
         _tracker.reset();
         failure_count_ = 0;
@@ -579,31 +556,27 @@ bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox)
 }
 
 // not safe, use with caution : )
-void Tracker::hard_reset_bbox(const cv::Rect &bbox)
-{
+void Tracker::hard_reset_bbox(const cv::Rect &bbox) {
     auto params = cv::TrackerKCF::Params();
     params.resize = true;
     params.detect_thresh = 0.7f;
     auto local_tracker = cv::TrackerKCF::create(params);
     local_tracker->init(_frames.front(), bbox);
-    while (true)
-    {
-        if (_allowed_to_swap)
-        {
+    while (true) {
+        if (_allowed_to_swap) {
             _tracker = local_tracker;
             return;
         }
     }
 }
 
-void Tracker::catchup_reinit()
-{
+void Tracker::catchup_reinit() {
     cv::Rect bbox;
     _detector->get_latest_bbox(bbox);
 
     auto params = cv::TrackerKCF::Params();
     params.resize = true;
-    // params.detect_thresh = 0.7f;
+//    params.detect_thresh = 0.7f;
     // cv::TrackerDaSiamRPN::Params params;
     // params.model = "/home/ernie/thesis/track/dasiamrpn_model.onnx";
     // params.kernel_cls1 = "/home/ernie/thesis/track/dasiamrpn_kernel_cls1.onnx";
@@ -611,18 +584,15 @@ void Tracker::catchup_reinit()
     auto local_tracker = cv::TrackerKCF::create(params);
     local_tracker->init(_frames.front(), bbox);
     _frames.pop();
-    while (_frames.read_available() > 1)
-    {
+    while (_frames.read_available() > 1) {
         bool track = local_tracker->update(_frames.front(), bbox);
         if (!track)
             return;
 
         _frames.pop();
     }
-    while (true)
-    {
-        if (_allowed_to_swap)
-        {
+    while (true) {
+        if (_allowed_to_swap) {
             _tracker = local_tracker;
             failure_count_ = 0;
             return;

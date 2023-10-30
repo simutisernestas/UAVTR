@@ -1,6 +1,5 @@
-project(tracker)
-
 cmake_minimum_required(VERSION 3.22)
+project(tracker)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -10,14 +9,14 @@ message("#####################")
 message("##### MY CONFIG #####")
 message("#####################")
 
-if (DEFINED ENV{DEBUG})
-    message("Debug mode")
-    set(CMAKE_BUILD_TYPE Debug)
-    add_compile_options(-g -O0)
-else()
-    message("Release mode")
-    set(CMAKE_BUILD_TYPE Release)
-endif()
+#if (DEFINED ENV{DEBUG})
+#    message("Debug mode")
+#    set(CMAKE_BUILD_TYPE Debug)
+#    add_compile_options(-g -O0)
+#else()
+#    message("Release mode")
+#    set(CMAKE_BUILD_TYPE Release)
+#endif()
 
 # enable/disable cassert NDEBUG
 if (DEFINED ENV{ASSERT})

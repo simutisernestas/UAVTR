@@ -17,35 +17,33 @@
 
 #define VEL_MEAS 0
 
-class StateEstimationNode : public rclcpp::Node
-{
+class StateEstimationNode : public rclcpp::Node {
 public:
-    StateEstimationNode() : Node("state_estimation_node")
-    {
+    StateEstimationNode() : Node("state_estimation_node") {
         bbox_sub_ = create_subscription<vision_msgs::msg::Detection2D>(
-            "/bounding_box", 1, std::bind(&StateEstimationNode::bbox_callback, this, std::placeholders::_1));
+                "/bounding_box", 1, std::bind(&StateEstimationNode::bbox_callback, this, std::placeholders::_1));
         cam_info_sub_ = create_subscription<sensor_msgs::msg::CameraInfo>(
-            "/camera/color/camera_info", 1,
-            std::bind(&StateEstimationNode::cam_info_callback, this, std::placeholders::_1));
+                "/camera/color/camera_info", 1,
+                std::bind(&StateEstimationNode::cam_info_callback, this, std::placeholders::_1));
         cam_target_pos_pub_ = create_publisher<geometry_msgs::msg::PointStamped>(
-            "/cam_target_pos", 1);
+                "/cam_target_pos", 1);
         gt_pose_array_sub_ = create_subscription<geometry_msgs::msg::PoseArray>(
-            "/gz/gt_pose_array", 1,
-            std::bind(&StateEstimationNode::gt_pose_array_callback, this, std::placeholders::_1));
+                "/gz/gt_pose_array", 1,
+                std::bind(&StateEstimationNode::gt_pose_array_callback, this, std::placeholders::_1));
         gt_target_pos_pub_ = create_publisher<geometry_msgs::msg::PointStamped>(
-            "/gt_target_pos", 1);
+                "/gt_target_pos", 1);
         range_sub_ = create_subscription<sensor_msgs::msg::Range>(
-            "/teraranger_evo_40m", 1, std::bind(&StateEstimationNode::range_callback, this, std::placeholders::_1));
+                "/teraranger_evo_40m", 1, std::bind(&StateEstimationNode::range_callback, this, std::placeholders::_1));
 
         auto qos = rclcpp::QoS(rclcpp::KeepLast(1));
         qos.best_effort();
         air_data_sub_ = create_subscription<px4_msgs::msg::VehicleAirData>(
-            "/fmu/out/vehicle_air_data", qos,
-            std::bind(&StateEstimationNode::air_data_callback, this, std::placeholders::_1));
+                "/fmu/out/vehicle_air_data", qos,
+                std::bind(&StateEstimationNode::air_data_callback, this, std::placeholders::_1));
 
         imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
-            "/imu/data_raw", 10,
-            std::bind(&StateEstimationNode::imu_callback, this, std::placeholders::_1));
+                "/imu/data", 10,
+                std::bind(&StateEstimationNode::imu_callback, this, std::placeholders::_1));
 #if VEL_MEAS
         img_sub_ = create_subscription<sensor_msgs::msg::Image>(
             "/camera/color/image_raw", 1,
@@ -53,14 +51,15 @@ public:
 #endif
 
         tf_buffer_ =
-            std::make_unique<tf2_ros::Buffer>(this->get_clock());
+                std::make_unique<tf2_ros::Buffer>(this->get_clock());
         tf_listener_ =
-            std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
-        tf_timer_ = create_wall_timer(std::chrono::milliseconds(20), std::bind(&StateEstimationNode::tf_callback, this));
+                std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+        tf_timer_ = create_wall_timer(std::chrono::milliseconds(20),
+                                      std::bind(&StateEstimationNode::tf_callback, this));
 
         timesync_sub_ = create_subscription<px4_msgs::msg::TimesyncStatus>(
-            "/fmu/out/timesync_status", qos,
-            std::bind(&StateEstimationNode::timesync_callback, this, std::placeholders::_1));
+                "/fmu/out/timesync_status", qos,
+                std::bind(&StateEstimationNode::timesync_callback, this, std::placeholders::_1));
 
         estimator_ = std::make_unique<Estimator>();
     }
@@ -68,21 +67,35 @@ public:
 private:
     double offset_{0};
 
-    void timesync_callback(const px4_msgs::msg::TimesyncStatus::SharedPtr msg)
-    {
-        offset_ = (double)msg->observed_offset;
+    void timesync_callback(const px4_msgs::msg::TimesyncStatus::SharedPtr msg) {
+        assert(msg->estimated_offset == 0);
+        // TODO: handle with estiamted offset not 0
+        offset_ = (double) msg->observed_offset / 1e6;
     }
 
-    void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
-    {
-        if (!base_link_enu_)
+//    Eigen::Transform<double, 3, Eigen::Affine> get_base2odom_tf(const std_msgs::msg::Header &header) {
+//        auto time_point = offset_ + (header.stamp.sec + header.stamp.nanosec * 1e-9);
+//        auto time = rclcpp::Time(time_point * 1e9);
+//        geometry_msgs::msg::TransformStamped base_link_enu;
+//        bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
+//        if (!succ)
+//            return;
+//        return tf_msg_to_affine(base_link_enu);
+//    }
+
+    void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
+        auto time_point = (msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9);
+        auto time = rclcpp::Time(time_point * 1e9);
+        geometry_msgs::msg::TransformStamped base_link_enu;
+        bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
+        if (!succ)
             return;
-        auto base_T_odom = tf_msg_to_affine(*base_link_enu_);
+        auto base_T_odom = tf_msg_to_affine(base_link_enu);
 
         Eigen::Vector3d accel;
         accel << msg->linear_acceleration.x,
-            msg->linear_acceleration.y,
-            msg->linear_acceleration.z;
+                msg->linear_acceleration.y,
+                msg->linear_acceleration.z;
         accel = base_T_odom.rotation() * accel;
         accel[2] += 9.81;
 
@@ -93,56 +106,53 @@ private:
         geometry_msgs::msg::PointStamped pt_msgs;
         // pt_msgs.header.stamp = bbox->header.stamp;
         pt_msgs.header.frame_id = "odom";
-        pt_msgs.point.x = state.segment(0, 3).norm();
+//        pt_msgs.point.x = state.segment(0, 3).norm();
+        pt_msgs.point.x = state(0);
+        pt_msgs.point.y = state(1);
+        pt_msgs.point.z = state(2);
         cam_target_pos_pub_->publish(pt_msgs);
     }
 
-    bool is_K_received()
-    {
+    bool is_K_received() {
         return K_(0, 0) != 0;
     }
 
-    void air_data_callback(const px4_msgs::msg::VehicleAirData::SharedPtr msg)
-    {
+    void air_data_callback(const px4_msgs::msg::VehicleAirData::SharedPtr msg) {
         if (!simulation_) // above beach ground
             height_ = std::abs(-25.94229507446289 - msg->baro_alt_meter);
         else
             height_ = msg->baro_alt_meter;
     }
 
-    void range_callback(const sensor_msgs::msg::Range::SharedPtr msg)
-    {
+    void range_callback(const sensor_msgs::msg::Range::SharedPtr msg) {
         if (std::isnan(msg->range) || std::isinf(msg->range))
             return;
         // height_ = msg->range;
     }
 
-    void bbox_callback(const vision_msgs::msg::Detection2D::SharedPtr bbox)
-    {
+    void bbox_callback(const vision_msgs::msg::Detection2D::SharedPtr bbox) {
         if (height_ < 0 || std::isnan(height_) || std::isinf(height_))
             return;
         if (!is_K_received())
             return;
-        if (!image_tf_ || !base_link_enu_) //  || !base_link_enu_ || !tera_tf_
+        if (!image_tf_)
             return;
 
-        // that's what i should be doing ?
-        // auto time_point = (bbox->header.stamp.sec - offset_ / 1e6);
-        // auto time = rclcpp::Time(time_point * 1e9);
-        // geometry_msgs::msg::TransformStamped base_link_enu;
-        // bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
-        // if (!succ)
-        //     return;
-        // base_link_enu_ = std::make_unique<geometry_msgs::msg::TransformStamped>(base_link_enu);
-
+        // create time object from header stamp
+        auto time_point = offset_ + (bbox->header.stamp.sec + bbox->header.stamp.nanosec * 1e-9);
+        auto time = rclcpp::Time(time_point * 1e9);
+        geometry_msgs::msg::TransformStamped base_link_enu;
+        bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
+        if (!succ)
+            return;
+        auto base_T_odom = tf_msg_to_affine(base_link_enu);
         auto img_T_base = tf_msg_to_affine(*image_tf_);
         img_T_base.translation() = Eigen::Vector3d::Zero();
-        auto base_T_odom = tf_msg_to_affine(*base_link_enu_);
         // auto tera_T_base = tf_msg_to_affine(*tera_tf_);
 
         Eigen::Vector2d uv_point;
         uv_point << bbox->bbox.center.position.x,
-            bbox->bbox.center.position.y;
+                bbox->bbox.center.position.y;
 
         // TODO:
         // Eigen::Vector3d H_vec;
@@ -163,8 +173,7 @@ private:
         // cam_target_pos_pub_->publish(msg);
     }
 
-    void cam_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr msg)
-    {
+    void cam_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr msg) {
         // only do once
         if (is_K_received())
             return;
@@ -174,8 +183,7 @@ private:
 
         // TODO: scale does not appy for real data :<)
         static constexpr double scale = .5;
-        for (size_t i = 0; i < 9; i++)
-        {
+        for (size_t i = 0; i < 9; i++) {
             size_t row = std::floor(i / 3);
             size_t col = i % 3;
             if (row == 0 || row == 1)
@@ -185,8 +193,7 @@ private:
         }
     }
 
-    void gt_pose_array_callback(const geometry_msgs::msg::PoseArray::SharedPtr msg)
-    {
+    void gt_pose_array_callback(const geometry_msgs::msg::PoseArray::SharedPtr msg) {
         // take norm between points 0 and 1
         if (msg->poses.size() < 2)
             return;
@@ -204,41 +211,33 @@ private:
 
     bool tf_lookup_helper(geometry_msgs::msg::TransformStamped &tf,
                           const std::string &target_frame, const std::string &source_frame,
-                          const rclcpp::Time &time = rclcpp::Time(0))
-    {
-        try
-        {
+                          const rclcpp::Time &time = rclcpp::Time(0)) {
+        try {
             tf = tf_buffer_->lookupTransform(
-                target_frame, source_frame,
-                time);
+                    target_frame, source_frame,
+                    time, rclcpp::Duration::from_seconds(.05));
         }
-        catch (const tf2::TransformException &ex)
-        {
+        catch (const tf2::TransformException &ex) {
             // TOOD: handle better
             RCLCPP_INFO(
-                this->get_logger(), "Could not transform %s to %s: %s",
-                source_frame.c_str(), target_frame.c_str(), ex.what());
+                    this->get_logger(), "Could not transform %s to %s: %s",
+                    source_frame.c_str(), target_frame.c_str(), ex.what());
             return false;
         }
 
         return true;
     }
 
-    void tf_callback()
-    {
+    void tf_callback() {
         // TODO: tf from the real data
-        if (!image_tf_)
-        {
-            if (simulation_)
-            {
+        if (!image_tf_) {
+            if (simulation_) {
                 geometry_msgs::msg::TransformStamped image_tf;
                 std::string optical_frame = "camera_link_optical";
                 bool succes = tf_lookup_helper(image_tf, "base_link", optical_frame);
                 if (succes)
                     image_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>(image_tf);
-            }
-            else
-            {
+            } else {
                 // TODO: might be inverse
                 //  : "camera_color_optical_frame"
                 // - Translation: [0.115, -0.059, -0.071]
@@ -264,14 +263,9 @@ private:
         // tera_tf.transform.rotation.z = 0.0;
         // tera_tf.transform.rotation.w = 1.0;
         // tera_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>(tera_tf);
-
-        geometry_msgs::msg::TransformStamped base_link_enu;
-        tf_lookup_helper(base_link_enu, "odom", "base_link");
-        base_link_enu_ = std::make_unique<geometry_msgs::msg::TransformStamped>(base_link_enu);
     }
 
-    Eigen::Transform<double, 3, Eigen::Affine> tf_msg_to_affine(const geometry_msgs::msg::TransformStamped &tf_stamp)
-    {
+    Eigen::Transform<double, 3, Eigen::Affine> tf_msg_to_affine(const geometry_msgs::msg::TransformStamped &tf_stamp) {
         Eigen::Quaterniond rotation(tf_stamp.transform.rotation.w,
                                     tf_stamp.transform.rotation.x,
                                     tf_stamp.transform.rotation.y,
@@ -334,7 +328,6 @@ private:
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
     std::unique_ptr<geometry_msgs::msg::TransformStamped> image_tf_{nullptr};
     std::unique_ptr<geometry_msgs::msg::TransformStamped> tera_tf_{nullptr};
-    std::unique_ptr<geometry_msgs::msg::TransformStamped> base_link_enu_{nullptr};
 
     double height_{-1};
     Eigen::Matrix<double, 3, 3> K_;
@@ -343,8 +336,7 @@ private:
     const bool simulation_{false};
 };
 
-int main(int argc, char **argv)
-{
+int main(int argc, char **argv) {
     rclcpp::init(argc, argv);
     auto node = std::make_shared<StateEstimationNode>();
     rclcpp::spin(node);

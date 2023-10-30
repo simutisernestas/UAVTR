@@ -3,6 +3,7 @@
 
 Estimator::Estimator()
 {
+//  TODO: doesn't fit the topic delta
     const double dt = 0.005;
 
     Eigen::MatrixXd A(9, 9);
@@ -34,15 +35,15 @@ Estimator::Estimator()
         0, 0, 1, 0, 0, 0, 0, 0, 0;
 
     Eigen::MatrixXd Q(9, 9);
-    Q = Eigen::MatrixXd::Identity(9, 9) * 0.05;
+    Q = Eigen::MatrixXd::Identity(9, 9) * 3.0;
     Q(6, 6) = 0;
     Q(7, 7) = 0;
     Q(8, 8) = 0;
     Eigen::MatrixXd R(3, 3);
-    R = Eigen::MatrixXd::Identity(3, 3) * 100;
+    R = Eigen::MatrixXd::Identity(3, 3) * 2.0;
     R(3, 3) = .1;
     Eigen::MatrixXd P(9, 9);
-    P = Eigen::MatrixXd::Identity(9, 9) * 1000;
+    P = Eigen::MatrixXd::Identity(9, 9) * 1000.0;
 
     kf_ = std::make_unique<KalmanFilter>(dt, A, B, C, Q, R, P);
 }
@@ -73,6 +74,14 @@ Eigen::Vector3d Estimator::compute_pixel_rel_position(
     // std::cout << x_hat << std::endl;
     Pt << x_hat[0], x_hat[1], x_hat[2];
     return Pt;
+}
+
+void Estimator::update_imu_accel(const Eigen::Vector3d &accel)
+{
+    if (!kf_->is_initialized())
+        return;
+
+    kf_->predict(accel);
 }
 
 // Eigen::MatrixXd visjac_p(const Eigen::MatrixXd &uv,
@@ -199,11 +208,3 @@ Eigen::Vector3d Estimator::compute_pixel_rel_position(
 //     // std::cout << flow_vecs_vec << std::endl;
 //     std::cout << cam_R_enu * x << std::endl;
 // }
-
-void Estimator::update_imu_accel(const Eigen::Vector3d &accel)
-{
-    if (!kf_->is_initialized())
-        return;
-
-    kf_->predict(accel);
-}
