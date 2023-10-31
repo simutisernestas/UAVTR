@@ -53,6 +53,7 @@ public:
      * time step is assumed to remain constant.
      */
     void update(const Eigen::VectorXd &y);
+    void update(const Eigen::VectorXd &y, const Eigen::MatrixXd C_vel);
 
     void predict(const Eigen::VectorXd &u);
 

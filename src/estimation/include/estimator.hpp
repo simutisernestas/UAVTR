@@ -60,7 +60,7 @@ public:
 
     Eigen::Vector3d compute_pixel_rel_position(
         const Eigen::Vector2d &bbox_c, const Eigen::Matrix3d &cam_R_enu,
-        const Eigen::Matrix3d &K, const double height);
+        const Eigen::Matrix3d &K, const double height, bool update = true);
 
     void update_flow_velocity(cv::Mat &frame, const Eigen::Matrix3d &cam_R_enu,
                               const Eigen::Matrix3d &K, const double height);
