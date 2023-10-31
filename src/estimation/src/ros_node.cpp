@@ -42,7 +42,7 @@ public:
                 std::bind(&StateEstimationNode::air_data_callback, this, std::placeholders::_1));
 
         imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
-                "/imu/data", 10,
+                "/imu/data_raw", 10,
                 std::bind(&StateEstimationNode::imu_callback, this, std::placeholders::_1));
 #if VEL_MEAS
         img_sub_ = create_subscription<sensor_msgs::msg::Image>(
@@ -73,15 +73,15 @@ private:
         offset_ = (double) msg->observed_offset / 1e6;
     }
 
-//    Eigen::Transform<double, 3, Eigen::Affine> get_base2odom_tf(const std_msgs::msg::Header &header) {
-//        auto time_point = offset_ + (header.stamp.sec + header.stamp.nanosec * 1e-9);
-//        auto time = rclcpp::Time(time_point * 1e9);
-//        geometry_msgs::msg::TransformStamped base_link_enu;
-//        bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
-//        if (!succ)
-//            return;
-//        return tf_msg_to_affine(base_link_enu);
-//    }
+    //    Eigen::Transform<double, 3, Eigen::Affine> get_base2odom_tf(const std_msgs::msg::Header &header) {
+    //        auto time_point = offset_ + (header.stamp.sec + header.stamp.nanosec * 1e-9);
+    //        auto time = rclcpp::Time(time_point * 1e9);
+    //        geometry_msgs::msg::TransformStamped base_link_enu;
+    //        bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
+    //        if (!succ)
+    //            return;
+    //        return tf_msg_to_affine(base_link_enu);
+    //    }
 
     void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
         auto time_point = (msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9);
@@ -106,7 +106,7 @@ private:
         geometry_msgs::msg::PointStamped pt_msgs;
         // pt_msgs.header.stamp = bbox->header.stamp;
         pt_msgs.header.frame_id = "odom";
-//        pt_msgs.point.x = state.segment(0, 3).norm();
+        //        pt_msgs.point.x = state.segment(0, 3).norm();
         pt_msgs.point.x = state(0);
         pt_msgs.point.y = state(1);
         pt_msgs.point.z = state(2);
@@ -182,7 +182,7 @@ private:
             return;
 
         // TODO: scale does not appy for real data :<)
-        static constexpr double scale = .5;
+        static constexpr double scale = 1.0;
         for (size_t i = 0; i < 9; i++) {
             size_t row = std::floor(i / 3);
             size_t col = i % 3;
@@ -283,13 +283,21 @@ private:
         (void)msg;
         if (!is_K_received())
             return;
-        if (!image_tf_ || !base_link_enu_) //  || !base_link_enu_ || !tera_tf_
+        if (!image_tf_) //  || !tera_tf_
             return;
         if (height_ < 0 || std::isnan(height_) || std::isinf(height_))
             return;
 
+        // create time object from header stamp
+        auto time_point = offset_ + (msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9);
+        auto time = rclcpp::Time(time_point * 1e9);
+        geometry_msgs::msg::TransformStamped base_link_enu;
+        bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
+        if (!succ)
+            return;
+        auto base_T_odom = tf_msg_to_affine(base_link_enu);
         auto img_T_base = tf_msg_to_affine(*image_tf_);
-        auto base_T_odom = tf_msg_to_affine(*base_link_enu_);
+        img_T_base.translation() = Eigen::Vector3d::Zero();
         auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
 
         cv_bridge::CvImagePtr cv_ptr;
