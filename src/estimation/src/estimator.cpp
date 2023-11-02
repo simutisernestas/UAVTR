@@ -151,10 +151,8 @@ void Estimator::update_flow_velocity(cv::Mat &frame, const Eigen::Matrix3d &cam_
     cvtColor(frame, frame, COLOR_RGB2GRAY);
 
     static uint8_t k = 1;
-    if (k++ % 30 == 0)
-    {
+    if (p0_.size() < 30)
         goodFeaturesToTrack(*prev_frame_, p0_, 100, 0.3, 7, Mat(), 7, false, 0.04);
-    }
 
     std::vector<uchar> status;
     std::vector<float> err;
@@ -169,6 +167,9 @@ void Estimator::update_flow_velocity(cv::Mat &frame, const Eigen::Matrix3d &cam_
         good_new.push_back(p1_[i]);
         good_old.push_back(p0_[i]);
     }
+    if (good_old.size() < 5) {
+        return;
+    }
 
     // depths
     Eigen::VectorXd depth(good_old.size());
@@ -176,6 +177,11 @@ void Estimator::update_flow_velocity(cv::Mat &frame, const Eigen::Matrix3d &cam_
     {
         auto Pt = compute_pixel_rel_position(Eigen::Vector2d(good_old[i].x, good_old[i].y), cam_R_enu, K, height, false);
         depth(i) = Pt.norm();
+        if (depth(i) > 100)
+        {
+            p0_.clear();
+            return;
+        }
     }
     auto uv = Eigen::MatrixXd(2, good_old.size());
     for (uint i = 0; i < good_old.size(); i++)
