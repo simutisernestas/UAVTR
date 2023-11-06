@@ -171,31 +171,6 @@ plt.legend()
 
 
 # %%
-
-# plot x,y,z on seperate plots comparing ground truth and measured
-# they are not the same length
-plt.figure()
-plt.scatter(gt_time, gt_pos[:, 0], label="X gt")
-plt.scatter(meas_time, new_meas[:, 0], label="X meas")
-plt.legend()
-plt.figure()
-plt.scatter(gt_time, gt_pos[:, 1], label="Y gt")
-plt.scatter(meas_time, new_meas[:, 1], label="Y meas")
-plt.legend()
-plt.figure()
-plt.scatter(gt_time, gt_pos[:, 2], label="Z gt")
-plt.scatter(meas_time, new_meas[:, 2], label="Z meas")
-plt.legend()
-
-# plot norms
-plt.figure()
-plt.plot(gt_time, np.linalg.norm(gt_pos, axis=1), label="gt")
-plt.plot(meas_time, np.linalg.norm(new_meas, axis=1), label="meas")
-plt.legend()
-plt.show()
-
-# %%
-
 #  - [ ] So the orientation has some bias that cannot be determined; for filter tunning do this:
 # 	 - [ ] Take the magnitude from ground truth
 # 	 - [ ] Direction (unit vector) from the measurement

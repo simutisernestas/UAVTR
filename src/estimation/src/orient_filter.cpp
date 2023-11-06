@@ -63,6 +63,7 @@ private:
     FusionAhrs ahrs;
     tf2_ros::TransformBroadcaster tf_broadcaster_;
 
+    ///////// funcs from mavros ftf_frame_conversions.cpp
     Eigen::Quaterniond quaternion_from_rpy(const Eigen::Vector3d &rpy)
     {
         // YPR - ZYX
@@ -71,13 +72,13 @@ private:
             Eigen::AngleAxisd(rpy.y(), Eigen::Vector3d::UnitY()) *
             Eigen::AngleAxisd(rpy.x(), Eigen::Vector3d::UnitX()));
     }
-
     inline Eigen::Quaterniond quaternion_from_rpy(
         const double roll, const double pitch,
         const double yaw)
     {
         return quaternion_from_rpy(Eigen::Vector3d(roll, pitch, yaw));
     }
+    ///////// funcs from mavros ftf_frame_conversions.cpp
 
     void sensor_combined_callback(const px4_msgs::msg::SensorCombined::SharedPtr msg)
     {
