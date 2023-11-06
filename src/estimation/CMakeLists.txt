@@ -42,6 +42,7 @@ find_package(vision_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(px4_msgs REQUIRED)
 
@@ -55,11 +56,13 @@ ament_target_dependencies(estimator_lib Eigen3 OpenCV)
 
 add_executable(estimation_node src/ros_node.cpp)
 target_include_directories(estimation_node PUBLIC include ${EIGEN3_INCLUDE_DIR})
-ament_target_dependencies(estimation_node rclcpp sensor_msgs cv_bridge vision_msgs Eigen3 tf2_ros geometry_msgs px4_msgs)
+ament_target_dependencies(estimation_node rclcpp sensor_msgs cv_bridge vision_msgs Eigen3 tf2_ros geometry_msgs px4_msgs visualization_msgs)
 target_link_libraries(estimation_node estimator_lib kalman_lib)
 
 add_executable(imu_repub_node src/imu_repub.cpp)
-ament_target_dependencies(imu_repub_node rclcpp sensor_msgs px4_msgs)
+ament_target_dependencies(imu_repub_node rclcpp sensor_msgs px4_msgs tf2_ros geometry_msgs Eigen3)
+target_link_libraries(imu_repub_node /home/ernie/thesis/track/Fusion/build/Fusion/libFusion.a)
+target_include_directories(imu_repub_node PUBLIC /home/ernie/thesis/track/Fusion/Fusion ${EIGEN3_INCLUDE_DIR})
 
 if (TEST)
     find_package(GTest REQUIRED)

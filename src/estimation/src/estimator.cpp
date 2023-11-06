@@ -3,7 +3,8 @@
 
 Estimator::Estimator()
 {
-    //  TODO: doesn't fit the topic delta
+    // TODO: MUST BE VARIABLE
+    //       doesn't fit the topic delta
     const double dt = 0.005;
 
     Eigen::MatrixXd A(9, 9);
@@ -54,6 +55,20 @@ Estimator::Estimator()
         lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<double, 3>>(b, a);
 }
 
+// TODO: test if this actually overrides it
+void get_A(Eigen::MatrixXd &A, double dt)
+{
+    A << 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0, 0,
+        0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0,
+        0, 0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt,
+        0, 0, 0, 1, 0, 0, -dt, 0, 0,
+        0, 0, 0, 0, 1, 0, 0, -dt, 0,
+        0, 0, 0, 0, 0, 1, 0, 0, -dt,
+        0, 0, 0, 0, 0, 0, 1, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 1, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 1;
+}
+
 // TODO: rename
 Eigen::Vector3d Estimator::compute_pixel_rel_position(
     const Eigen::Vector2d &bbox_c, const Eigen::Matrix3d &cam_R_enu,
@@ -79,14 +94,14 @@ Eigen::Vector3d Estimator::compute_pixel_rel_position(
         x0 << Pt[0], Pt[1], Pt[2], 0, 0, 0, 0, 0, 0;
         kf_->init(0.005, x0);
     }
-    
+
     std::cout << "covariance: " << std::endl
               << kf_->covariance() << std::endl
               << std::endl;
     std::cout << "state" << std::endl
               << kf_->state() << std::endl
               << std::endl;
-    
+
     return Pt;
 }
 
@@ -167,7 +182,8 @@ void Estimator::update_flow_velocity(cv::Mat &frame, const Eigen::Matrix3d &cam_
         good_new.push_back(p1_[i]);
         good_old.push_back(p0_[i]);
     }
-    if (good_old.size() < 5) {
+    if (good_old.size() < 5)
+    {
         return;
     }
 
@@ -228,14 +244,14 @@ void Estimator::update_flow_velocity(cv::Mat &frame, const Eigen::Matrix3d &cam_
     lscg.compute(J);
     auto x = lscg.solve(flow_vecs_vec);
     // std::cout << flow_vecs_vec << std::endl;
-    std::cout << "VELOCITY FROM FLOW" << (cam_R_enu * x.segment(0,3)).transpose() << std::endl;
+    std::cout << "VELOCITY FROM FLOW" << (cam_R_enu * x.segment(0, 3)).transpose() << std::endl;
 
     if (!kf_->is_initialized())
         return;
 
     Eigen::MatrixXd C_vel(2, 9);
     C_vel << 0, 0, 0, 1, 0, 0, 0, 0, 0,
-             0, 0, 0, 0, 1, 0, 0, 0, 0;
+        0, 0, 0, 0, 1, 0, 0, 0, 0;
     kf_->update(x.segment(0, 2), C_vel);
 
     auto cov = kf_->covariance();

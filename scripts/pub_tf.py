@@ -65,6 +65,21 @@ class SensorTransformsPublisher(Node):
         altimeter_tf.transform.rotation.w = 1.0
         msg.transforms.append(altimeter_tf)
 
+        # Publish transform from camera_optical_frame to base_link
+
+        image_tf = TransformStamped()
+        image_tf.header.stamp = self.get_clock().now().to_msg()
+        image_tf.header.frame_id = 'base_link'
+        image_tf.child_frame_id = 'camera_optical_link'
+        image_tf.transform.translation.x = 0.115
+        image_tf.transform.translation.y = -0.059
+        image_tf.transform.translation.z = -0.071
+        image_tf.transform.rotation.x = 0.654
+        image_tf.transform.rotation.y = -0.652
+        image_tf.transform.rotation.z = 0.271
+        image_tf.transform.rotation.w = -0.272
+        msg.transforms.append(image_tf)
+
         self.transform_pub.publish(msg)
         self.once = True
 

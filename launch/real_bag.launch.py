@@ -21,7 +21,8 @@ def generate_launch_description():
 
     estimation = ExecuteProcess(
         cmd=["/home/ernie/thesis/track/src/estimation/build/estimation_node"],
-        # prefix=['xterm -fa "Monospace" -fs 14 -e gdb -tui -iex break -ex "b main" -ex run --args'],
+        # prefix=['xterm -fa "Monospace" -fs 14 -e gdb -tui -ex run --args'],
+        # -iex break -ex "b main"
         output='screen'
     )
 
@@ -44,12 +45,12 @@ def generate_launch_description():
         estimation,
         uncompress,
         imu_mag_repub,
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource([
-                PathJoinSubstitution([
-                    dir_path,
-                    "madgwick.launch.py"
-                ])
-            ]),
-        ),
+        # IncludeLaunchDescription(
+        #     PythonLaunchDescriptionSource([
+        #         PathJoinSubstitution([
+        #             dir_path,
+        #             "madgwick.launch.py"
+        #         ])
+        #     ]),
+        # ),
     ])

@@ -20,7 +20,9 @@ def generate_launch_description():
                 output='screen',
                 parameters=[
                     os.path.join(config_dir, 'imu_filter.yaml'),
-                    {'use_mag': True, 'world_frame': 'ned'}
+                    {'use_mag': True, 'world_frame': 'ned',
+                        "publish_debug_topics": True,
+                        "zeta": 0.1, "gain": .5}
                 ],
                 # remappings=[ # simulation
                 #     ('imu/data_raw', '/x500/imu'),

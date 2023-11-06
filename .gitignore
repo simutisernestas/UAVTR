@@ -11,3 +11,4 @@ data/
 **rosbag*
 metadata.yaml
 .idea/
+*.csv
