@@ -5,7 +5,7 @@ Estimator::Estimator()
 {
     // TODO: MUST BE VARIABLE
     //       doesn't fit the topic delta
-    const double dt = 0.005;
+    const double dt = 1.0 / 128.0;
 
     Eigen::MatrixXd A(9, 9);
     A << 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0, 0,
@@ -36,12 +36,12 @@ Estimator::Estimator()
         0, 0, 1, 0, 0, 0, 0, 0, 0;
 
     Eigen::MatrixXd Q(9, 9);
-    Q = Eigen::MatrixXd::Identity(9, 9) * 10;
+    Q = Eigen::MatrixXd::Identity(9, 9);
     Q(6, 6) = 0;
     Q(7, 7) = 0;
     Q(8, 8) = 0;
     Eigen::MatrixXd R(3, 3);
-    R = Eigen::MatrixXd::Identity(3, 3) * .1;
+    R = Eigen::MatrixXd::Identity(3, 3);
     // R(3, 3) = .1;
     Eigen::MatrixXd P(9, 9);
     P = Eigen::MatrixXd::Identity(9, 9) * 10.0;
@@ -110,13 +110,13 @@ void Estimator::update_imu_accel(const Eigen::Vector3d &accel)
     if (!kf_->is_initialized())
         return;
 
-    // copy accel vector into eigen vector
-    auto copy = accel;
-    // filter accel
-    for (int i = 0; i < 3; i++)
-        copy[i] = lp_acc_filter_arr_[i]->filter(copy[i]);
+    // // copy accel vector into eigen vector
+    // auto copy = accel;
+    // // filter accel
+    // for (int i = 0; i < 3; i++)
+    //     copy[i] = lp_acc_filter_arr_[i]->filter(copy[i]);
 
-    kf_->predict(copy);
+    kf_->predict(-accel);
 }
 
 Eigen::MatrixXd visjac_p(const Eigen::MatrixXd &uv,
@@ -165,7 +165,6 @@ void Estimator::update_flow_velocity(cv::Mat &frame, const Eigen::Matrix3d &cam_
 
     cvtColor(frame, frame, COLOR_RGB2GRAY);
 
-    static uint8_t k = 1;
     if (p0_.size() < 30)
         goodFeaturesToTrack(*prev_frame_, p0_, 100, 0.3, 7, Mat(), 7, false, 0.04);
 

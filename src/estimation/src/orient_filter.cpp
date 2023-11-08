@@ -46,10 +46,10 @@ private:
     const FusionMatrix accelerometerMisalignment = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
     const FusionVector accelerometerSensitivity = {1.0f, 1.0f, 1.0f};
     const FusionVector accelerometerOffset = {0.0f, 0.0f, 0.0f};
-    const FusionMatrix softIronMatrix = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+const FusionMatrix softIronMatrix = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
     const FusionVector hardIronOffset = {0.0f, 0.0f, 0.0f};
     const FusionAhrsSettings settings = {
-        .convention = FusionConventionNed,
+        .convention = FusionConventionEnu,
         .gain = 0.5f,
         .gyroscopeRange = 2000.0f, /* replace this with actual gyroscope range in degrees/s */
         .accelerationRejection = 10.0f,
@@ -139,9 +139,9 @@ private:
         auto timestamp_microseconds = msg->timestamp;
         imu_msg.header.stamp = rclcpp::Time(timestamp_microseconds * 1000);
         imu_msg.header.frame_id = "odom";
-        imu_msg.linear_acceleration.x = earth.axis.x;
-        imu_msg.linear_acceleration.y = earth.axis.y;
-        imu_msg.linear_acceleration.z = earth.axis.z;
+        imu_msg.linear_acceleration.x = earth.axis.x * g;
+        imu_msg.linear_acceleration.y = earth.axis.y * g;
+        imu_msg.linear_acceleration.z = earth.axis.z * g;
         imu_publisher_->publish(imu_msg);
         mag_msg_.header.stamp = imu_msg.header.stamp;
 

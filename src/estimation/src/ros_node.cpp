@@ -121,40 +121,38 @@ private:
     {
         auto time_point = (msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9);
         auto time = rclcpp::Time(time_point * 1e9);
-        geometry_msgs::msg::TransformStamped base_link_enu;
-        bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
-        if (!succ)
-            return;
-        auto base_T_odom = tf_msg_to_affine(base_link_enu);
+        // geometry_msgs::msg::TransformStamped base_link_enu;
+        // bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
+        // if (!succ)
+        //     return;
+        // auto base_T_odom = tf_msg_to_affine(base_link_enu);
 
         Eigen::Vector3d accel;
         accel << msg->linear_acceleration.x,
             msg->linear_acceleration.y,
             msg->linear_acceleration.z;
-        accel = base_T_odom.rotation() * accel;
-        accel[2] += 9.81;
+        // accel = base_T_odom.rotation() * accel;
+        // accel[2] += 9.81;
 
-        // publish imu in world frame
-        geometry_msgs::msg::Vector3Stamped acc_world;
-        acc_world.header.stamp = msg->header.stamp; // this will have to change to absolute
-        acc_world.header.frame_id = "odom";
-        acc_world.vector.x = accel[0];
-        acc_world.vector.y = accel[1];
-        acc_world.vector.z = accel[2];
-        imu_world_pub_->publish(acc_world);
+        // // publish imu in world frame
+        // geometry_msgs::msg::Vector3Stamped acc_world;
+        // acc_world.header.stamp = msg->header.stamp; // this will have to change to absolute
+        // acc_world.header.frame_id = "odom";
+        // acc_world.vector.x = accel[0];
+        // acc_world.vector.y = accel[1];
+        // acc_world.vector.z = accel[2];
+        // imu_world_pub_->publish(acc_world);
 
         estimator_->update_imu_accel(accel);
 
         auto state = estimator_->state();
-        // publish norm
-        // geometry_msgs::msg::PointStamped pt_msgs;
-        // // pt_msgs.header.stamp = bbox->header.stamp;
-        // pt_msgs.header.frame_id = "odom";
-        // //        pt_msgs.point.x = state.segment(0, 3).norm();
-        // pt_msgs.point.x = state(0);
-        // pt_msgs.point.y = state(1);
-        // pt_msgs.point.z = state(2);
-        // cam_target_pos_pub_->publish(pt_msgs);
+        geometry_msgs::msg::PointStamped pt_msg;
+        pt_msg.header.frame_id = "odom";
+        pt_msg.header.stamp = time;
+        pt_msg.point.x = state(0);
+        pt_msg.point.y = state(1);
+        pt_msg.point.z = state(2);
+        cam_target_pos_pub_->publish(pt_msg);
     }
 
     bool is_K_received()
@@ -212,13 +210,13 @@ private:
         std::cout << cam_R_enu << std::endl;
         Eigen::Vector3d Pt = estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_, height_);
 
-        geometry_msgs::msg::PointStamped pt_msgs;
-        pt_msgs.header.stamp = time; // this will have to change to absolute
-        pt_msgs.header.frame_id = "odom";
-        pt_msgs.point.x = Pt[0];
-        pt_msgs.point.y = Pt[1];
-        pt_msgs.point.z = Pt[2];
-        cam_target_pos_pub_->publish(pt_msgs);
+        // geometry_msgs::msg::PointStamped pt_msgs;
+        // pt_msgs.header.stamp = time; // this will have to change to absolute
+        // pt_msgs.header.frame_id = "odom";
+        // pt_msgs.point.x = Pt[0];
+        // pt_msgs.point.y = Pt[1];
+        // pt_msgs.point.z = Pt[2];
+        // cam_target_pos_pub_->publish(pt_msgs);
 
         RCLCPP_INFO(this->get_logger(), "xyz: %f %f %f; norm: %f",
                     Pt[0], Pt[1], Pt[2], Pt.norm());
