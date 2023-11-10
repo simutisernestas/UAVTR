@@ -102,7 +102,12 @@ private:
 
     void timesync_callback(const px4_msgs::msg::TimesyncStatus::SharedPtr msg)
     {
-        assert(msg->estimated_offset == 0);
+        if (simulation_ && msg->estimated_offset != 0)
+        {
+            offset_ = -(double)msg->estimated_offset / 1e6;
+            return;
+        }
+        // assert(msg->estimated_offset == 0);
         // TODO: handle with estiamted offset not 0
         offset_ = (double)msg->observed_offset / 1e6;
     }
@@ -120,6 +125,10 @@ private:
     void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
     {
         auto time_point = (msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9);
+        if (simulation_)
+        {
+            time_point -= offset_;
+        }
         auto time = rclcpp::Time(time_point * 1e9);
         // geometry_msgs::msg::TransformStamped base_link_enu;
         // bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
@@ -134,14 +143,17 @@ private:
         // accel = base_T_odom.rotation() * accel;
         // accel[2] += 9.81;
 
-        // // publish imu in world frame
-        // geometry_msgs::msg::Vector3Stamped acc_world;
-        // acc_world.header.stamp = msg->header.stamp; // this will have to change to absolute
-        // acc_world.header.frame_id = "odom";
-        // acc_world.vector.x = accel[0];
-        // acc_world.vector.y = accel[1];
-        // acc_world.vector.z = accel[2];
-        // imu_world_pub_->publish(acc_world);
+        if (simulation_)
+        {
+            // publish imu in world frame
+            geometry_msgs::msg::Vector3Stamped acc_world;
+            acc_world.header.stamp = time; // this will have to change to absolute
+            acc_world.header.frame_id = "odom";
+            acc_world.vector.x = accel[0];
+            acc_world.vector.y = accel[1];
+            acc_world.vector.z = accel[2];
+            imu_world_pub_->publish(acc_world);
+        }
 
         estimator_->update_imu_accel(accel);
 
@@ -223,6 +235,10 @@ private:
 
         // publish normalized vector to target
         visualization_msgs::msg::Marker vec_msgs{};
+        if (simulation_)
+        {
+            time = rclcpp::Time(bbox->header.stamp.sec * 1e9 + bbox->header.stamp.nanosec);
+        }
         vec_msgs.header.stamp = time; // this will have to change to absolute
         vec_msgs.header.frame_id = "odom";
         // Pt /= Pt.norm();
@@ -260,7 +276,9 @@ private:
             return;
 
         // TODO: scale does not appy for real data :<)
-        static constexpr double scale = 1.0;
+        static double scale{1.0};
+        if (simulation_)
+            scale = .5;
         for (size_t i = 0; i < 9; i++)
         {
             size_t row = std::floor(i / 3);
@@ -281,11 +299,13 @@ private:
         auto p1 = msg->poses[1];
         Eigen::Vector3d p0_vec(p0.position.x, p0.position.y, p0.position.z);
         Eigen::Vector3d p1_vec(p1.position.x, p1.position.y, p1.position.z);
-        auto norm = (p0_vec - p1_vec).norm();
+        auto diff = (p0_vec - p1_vec);
         auto gt_point = std::make_unique<geometry_msgs::msg::PointStamped>();
         gt_point->header.stamp = msg->header.stamp;
         gt_point->header.frame_id = "odom";
-        gt_point->point.x = norm;
+        gt_point->point.x = diff[0];
+        gt_point->point.y = diff[1];
+        gt_point->point.z = diff[2];
         gt_target_pos_pub_->publish(*gt_point);
     }
 
@@ -435,7 +455,7 @@ private:
     Eigen::Matrix<double, 3, 3> K_;
     std::unique_ptr<Estimator> estimator_{nullptr};
     rclcpp::Time imu_t;
-    const bool simulation_{false};
+    const bool simulation_{true};
 };
 
 int main(int argc, char **argv)

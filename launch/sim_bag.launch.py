@@ -16,7 +16,6 @@ def generate_launch_description():
     tracking = ExecuteProcess(
         cmd=['./tracking_ros_node', '--ros-args', '-r',
              '/camera/color/image_raw:=/x500/camera'],
-        # cmd=['./tracking_ros_node'],
         cwd='/home/ernie/thesis/track/src/detection/build',
         output='screen'
     )
@@ -29,24 +28,11 @@ def generate_launch_description():
         # prefix=['xterm -fa "Monospace" -fs 14 -e gdb -tui -iex break -ex "b main" -ex run --args'],
         output='screen'
     )
-    # estimation = ExecuteProcess(
-    #     cmd=["/home/ernie/thesis/track/src/estimation/build/filter_exe"],
-    #     prefix=['xterm -e gdb   -ex run --args'],
-    #     output='screen'
-    # )
 
-    uncompress = ExecuteProcess(
-        cmd=['ros2', 'run', 'image_transport', 'republish', 'compressed', 'raw', '--ros-args', '-r',
-             '/in/compressed:=/camera/color/image_raw/compressed', '-r', 'out:=/camera/color/image_raw'],
-        output='screen'
-    )
-
-    # play_bag_cmd = '''ros2 bag play latest-niceish-very-far/ --start-offset 80'''  #
     play_bag_cmd = '''ros2 bag play rosbag2_2023_10_20-14_06_24'''  #
     play_bag = ExecuteProcess(
         cmd=play_bag_cmd.split(),
         cwd="/home/ernie/thesis/ros_ws",
-        # cwd="/home/ernie/thesis/bags",
         output='screen'
     )
 
@@ -62,14 +48,13 @@ def generate_launch_description():
         tracking,
         estimation,
         robot_state_pub,
-        # uncompress,
         imu_mag_repub,
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource([
-                PathJoinSubstitution([
-                    dir_path,
-                    "madgwick.launch.py"
-                ])
-            ]),
-        ),
+        # IncludeLaunchDescription(
+        #     PythonLaunchDescriptionSource([
+        #         PathJoinSubstitution([
+        #             dir_path,
+        #             "madgwick.launch.py"
+        #         ])
+        #     ]),
+        # ),
     ])

@@ -1,4 +1,5 @@
 # %%
+from scipy.signal import butter, lfilter
 import okf
 import torch
 from scipy.signal import savgol_filter
@@ -14,7 +15,6 @@ import matplotlib.pyplot as plt
 import scipy.linalg as la
 from scipy import interpolate
 np.set_printoptions(precision=6, suppress=True)
-from scipy.signal import butter, lfilter
 
 
 # %%
@@ -43,27 +43,34 @@ meas_time = []
 acc = []
 acc_time = []
 for i, row in df.iterrows():
-    if not np.isnan(row["/gps_postproc/altitude"]):
-        dlat = row["/gps_postproc/latitude"]
-        dlng = row["/gps_postproc/longitude"]
-        dalt = row["/gps_postproc/altitude"]
-        time = row["/gps_postproc/header/stamp"]
-        pos = pm.geodetic2enu(lat, lng, alt, dlat, dlng, dalt)
-        gt_pos.append(pos)
+    if not np.isnan(row["/gt_target_pos/point/x"]):
+        # dlat = row["/gps_postproc/latitude"]
+        # dlng = row["/gps_postproc/longitude"]
+        # dalt = row["/gps_postproc/altitude"]
+        # time = row["/gps_postproc/header/stamp"]
+        # pos = pm.geodetic2enu(lat, lng, alt, dlat, dlng, dalt)
+        gt_pos.append([
+            row["/gt_target_pos/point/x"],
+            row["/gt_target_pos/point/y"],
+            row["/gt_target_pos/point/z"]
+        ])
+        time = row["/gt_target_pos/header/stamp"]
         gt_time.append(time)
     if not np.isnan(row["/vec_target/points.1/x"]):
         pos = (row["/vec_target/points.1/x"],
                row["/vec_target/points.1/y"],
                row["/vec_target/points.1/z"])
         meas_pos.append(pos)
-        meas_time.append(row["/vec_target/header/stamp"])
-    if not np.isnan(row["/imu/data_raw/header/stamp"]):
+        meas_time.append(
+            row["/vec_target/header/stamp"])
+    if not np.isnan(row["/imu/data_world/header/stamp"]):
         acc.append([
-            row["/imu/data_raw/linear_acceleration/x"],
-            row["/imu/data_raw/linear_acceleration/y"],
-            row["/imu/data_raw/linear_acceleration/z"]
+            row["/imu/data_world/vector/x"],
+            row["/imu/data_world/vector/y"],
+            row["/imu/data_world/vector/z"]
         ])
-        acc_time.append(row["/imu/data_raw/header/stamp"])
+        acc_time.append(
+            row["/imu/data_world/header/stamp"])
 
 # interpolate gt_pos to match meas_pos
 gt_pos = np.array(gt_pos)
@@ -91,33 +98,32 @@ plt.figure()
 plt.scatter(gt_time, gt_pos[:, 2], label="Z gt")
 plt.scatter(meas_time, meas_pos[:, 2], label="Z meas")
 plt.legend()
-# plt.show()
+plt.show()
 # plot norms
 plt.scatter(gt_time, np.linalg.norm(gt_pos, axis=1), label="gt")
 plt.scatter(meas_time, np.linalg.norm(meas_pos, axis=1), label="meas")
 plt.legend()
 plt.figure()
 
-#%%
+# filter_order = 2
+# cutoff_frequency = 1
+# b, a = butter(filter_order, cutoff_frequency,
+#               fs=200, btype="lowpass", analog=False)
 
-filter_order = 2
-cutoff_frequency = 1
-b, a = butter(filter_order, cutoff_frequency,
-                fs=200, btype="lowpass", analog=False)
+# filtered_acc_x = lfilter(b, a, acc[:, 0])
+# filtered_acc_y = lfilter(b, a, acc[:, 1])
+# filtered_acc_z = lfilter(b, a, acc[:, 2])
+# acc = np.stack([filtered_acc_x, filtered_acc_y, filtered_acc_z], axis=1)
+# plt.plot(acc)
 
-filtered_acc_x = lfilter(b, a, acc[:, 0])
-filtered_acc_y = lfilter(b, a, acc[:, 1])
-filtered_acc_z = lfilter(b, a, acc[:, 2])
-acc = np.stack([filtered_acc_x, filtered_acc_y, filtered_acc_z], axis=1)
+# %%
 
-plt.plot(acc)
-
-# N = 2
-# AXIS = 2
-# plt.scatter(acc_time[:-(N-1)],
-#             moving_average(acc[:, AXIS], n=N), label="acc", s=.1)
+N = 2
+AXIS = 0
+plt.scatter(acc_time[:-(N-1)],
+            moving_average(acc[:, AXIS], n=N), label="acc", s=.1)
 # plt.scatter(gt_time, gt_pos[:, AXIS] / 20, label="X pos gt", s=.1)
-# plt.legend()
+plt.legend()
 
 
 # %%
@@ -176,37 +182,49 @@ F = Ad
 
 H = np.array(C)
 
-# Q = np.eye(9)
-# Q[:3, :3] *= 5
-# Q[3:6, 3:6] *= 25
-# Q[6:, 6:] *= 2
-# R = np.eye(6)
-# R[:3, :3] *= 1
-# R[3:, 3:] *= 1
-Q = np.array([[1.2704093,0.3387564,-0.1016228,0.0538287,-0.1042093,-0.1407778,0.0349882,0.4591465,0.1045831,],
-[0.3387564,1.0396925,-0.4388455,0.1559671,-0.1836868,0.0252335,-0.1328360,-0.1558751,-0.2488221,],
-[-0.1016228,-0.4388455,2.2820917,0.0375517,0.4144597,0.1477960,0.2478412,-0.1909417,0.4877604,],
-[0.0538287,0.1559671,0.0375517,1.7676101,0.2196993,-0.0571371,0.2683862,-0.0208306,-0.3965752,],
-[-0.1042093,-0.1836868,0.4144597,0.2196993,2.3299122,-0.1522680,0.0965985,0.0571871,0.2888319,],
-[-0.1407778,0.0252335,0.1477960,-0.0571371,-0.1522680,1.5489994,0.2072999,0.1830806,-0.2765672,],
-[0.0349882,-0.1328360,0.2478412,0.2683862,0.0965985,0.2072999,1.2675340,0.3711843,-0.3719653,],
-[0.4591465,-0.1558751,-0.1909417,-0.0208306,0.0571871,0.1830806,0.3711843,1.4611577,-0.2356187,],
-[0.1045831,-0.2488221,0.4877604,-0.3965752,0.2888319,-0.2765672,-0.3719653,-0.2356187,1.6861314,],
-])
-R = np.array([[0.9490249,-0.3086884,0.1801264,-0.2939703,-0.1103068,-0.2462158,],
-[-0.3086884,0.9430487,0.0475007,0.3703759,0.0657637,0.0901225,],
-[0.1801264,0.0475007,0.9460025,-0.1757942,0.0019601,0.1842168,],
-[-0.2939703,0.3703759,-0.1757942,1.8988268,0.1393349,0.0434292,],
-[-0.1103068,0.0657637,0.0019601,0.1393349,0.5439642,0.1514782,],
-[-0.2462158,0.0901225,0.1842168,0.0434292,0.1514782,1.8458042,],
-])
-
+Q = np.eye(9)
+Q[:3, :3] *= 5
+Q[3:6, 3:6] *= 25
+Q[6:, 6:] *= 2
+R = np.eye(6)
+R[:3, :3] *= 1
+R[3:, 3:] *= 1
+Q = np.array([[0.0002730, -0.0730942, 0.0015254, 0.0010283, 0.0105967, -0.0003864, 0.0005567, -0.0009134, 0.0004319,],
+              [-0.0730942, 19.5677683, -0.4085797, -0.2752198, -2.8365703,
+                  0.1026148, -0.1485698, 0.2443645, -0.1165228,],
+              [0.0015254, -0.4085797, 0.1235749, -0.0283929, -0.0719825,
+                  0.4465410, -0.2375252, 0.0858468, 0.4884473,],
+              [0.0010283, -0.2752198, -0.0283929, 0.3074789, 0.0113581,
+               0.5610426, -0.0368077, 0.0247507, 0.1010197,],
+              [0.0105967, -2.8365703, -0.0719825, 0.0113581, 0.6296948, -
+               0.6627772, 0.5223519, -0.6293901, -0.6781707,],
+              [-0.0003864, 0.1026148, 0.4465410, 0.5610426, -0.6627772,
+               4.7292942, -1.5438142, 1.0392190, 2.0104655,],
+              [0.0005567, -0.1485698, -0.2375252, -0.0368077, 0.5223519, -
+               1.5438142, 1.4514090, -2.3024521, -1.2260295,],
+              [-0.0009134, 0.2443645, 0.0858468, 0.0247507, -0.6293901,
+               1.0392190, -2.3024521, 5.2198419, 0.1918878,],
+              [0.0004319, -0.1165228, 0.4884473, 0.1010197, -0.6781707,
+               2.0104655, -1.2260295, 0.1918878, 5.2376935,],
+              ])
+R = np.array([[71.1221847, -10.6691912, -7.8696962, -48.8067143, -23.8458910, -16.3731660,],
+              [-10.6691912, 4.8313547, -0.0089825,
+                  5.7083177, 4.9832018, 3.4255008,],
+              [-7.8696962, -0.0089825, 1.4453015,
+                  5.8237033, 1.9522835, 1.9565010,],
+              [-48.8067143, 5.7083177, 5.8237033,
+                  34.5160381, 15.9204568, 10.1253587,],
+              [-23.8458910, 4.9832018, 1.9522835,
+                  15.9204568, 9.4214830, 5.3278395,],
+              [-16.3731660, 3.4255008, 1.9565010,
+                  10.1253587, 5.3278395, 5.9373489,],
+              ])
 # Initial state estimate
 x_hat = np.zeros((9, 1))
-x_hat[:3] = meas_pos[0].reshape(3, 1)
+x_hat[:3] = gt_pos[0].reshape(3, 1)
 
 # Initial error covariance
-P = np.eye(9) * 10000
+P = np.eye(9) * 1000
 
 # data prep
 # print(len(meas_pos), len(acc))
@@ -214,19 +232,22 @@ first_acc_index = np.searchsorted(acc_time, meas_time[0])
 print(first_acc_index)
 last_pos_meas_index = 0
 timestamp = acc_time[first_acc_index-1]
-p_meas = None
-
+counter = 0
 record = []
 # Kalman Filter loop
 for i in range(acc[first_acc_index:].shape[0]):
     dt = acc_time[first_acc_index+i] - timestamp
     timestamp = acc_time[first_acc_index+i]
-    F = get_F(dt)
+    if dt > 0.0:
+        F = get_F(dt)
+    else:
+        continue
 
     # Predict step
     x_hat = F @ x_hat
     P = F @ P @ F.T + Q
 
+    p_meas = None
     acc_meas_time = acc_time[first_acc_index+i]
     if last_pos_meas_index == len(meas_time):
         print(f"Break on: {i}")
@@ -235,8 +256,9 @@ for i in range(acc[first_acc_index:].shape[0]):
         p_meas = meas_pos[last_pos_meas_index].reshape(3, 1)
         last_pos_meas_index += 1
 
+    counter += 1
     # Position update
-    if p_meas is not None:
+    if p_meas is not None:  # and counter % 2 != 0:
         # p_meas = meas_pos[last_pos_meas_index].reshape(3, 1)
         Hp = H[:3, :]
         K = P @ Hp.T @ np.linalg.inv(Hp @ P @ Hp.T + R[:3, :3])
@@ -262,18 +284,18 @@ plt.plot(meas_time, np.linalg.norm(meas_pos, axis=1),
          label="meas norm", linestyle="--")
 # plt.ylim(-10,40)
 plt.legend()
-plt.show()
+# plt.show()
 
 # plot axes of estimation
 plt.figure(dpi=200)
 plt.plot(acc_time[first_acc_index:first_acc_index+len(record)],
          record[:, 0], label="KF X")
 plt.plot(acc_time[first_acc_index:first_acc_index+len(record)],
-            record[:, 1], label="KF Y")
+         record[:, 1], label="KF Y")
 plt.plot(acc_time[first_acc_index:first_acc_index+len(record)],
-            record[:, 2], label="KF Z")
+         record[:, 2], label="KF Z")
 plt.legend()
-plt.show()
+# plt.show()
 
 
 # %%
@@ -321,14 +343,20 @@ interpolated_gt_pos = np.stack([interpolated_gt_x, interpolated_gt_y,
 gt_vel = np.stack([gt_vel_x, gt_vel_y, gt_vel_z], axis=1)
 gt_acc = np.stack([gt_acc_x, gt_acc_y, gt_acc_z], axis=1)
 
-plt.figure(dpi=300)
-plt.scatter(acc_time, acc[:, 0], label="real", s=.1)
-plt.scatter(acc_time[:-2], gt_acc_x, label="GT", s=.1)
-plt.legend()
+# plt.figure(dpi=300)
+# plt.scatter(acc_time, acc[:, 0], label="real", s=.1)
+# plt.scatter(acc_time[:-2], gt_acc_x, label="GT", s=.1)
+# plt.legend()
 # plt.show()
 
-# plt.plot(acc_time, interpolated_gt_pos, label="gt")
-# plt.plot(acc_time, interpolated_meas, linestyle="--", label="meas")
+plt.plot(acc_time, interpolated_gt_pos, label="gt")
+plt.plot(acc_time, interpolated_meas, linestyle="--", label="meas")
+# plt.show()
+
+# %%
+
+H.shape
+
 
 # %%
 
@@ -350,7 +378,7 @@ def initial_observation_to_state(z):
 
 
 def loss_fun():
-    return lambda pred, x: ((pred[:3]-x[:3])**2).sum()
+    return lambda pred, x: ((pred-x)**2).sum()
 
 
 def model_args():
@@ -369,6 +397,19 @@ def model_args():
 X = [np.hstack((interpolated_gt_pos[:-2, :],
                gt_vel[:-1, :], -gt_acc)).astype(np.float64)]
 Z = [np.hstack((interpolated_meas[:-2], acc[:-2])).astype(np.float64)]
+
+# split into itervals of 1000
+X = [
+    np.array_split(x, x.shape[0]//200)
+    for x in X
+]
+Z = [
+    np.array_split(z, z.shape[0]//200)
+    for z in Z
+]
+X = X[0]
+Z = Z[0]
+len(X), len(Z)
 
 # %%
 
@@ -389,19 +430,19 @@ def print_for_copy(np_array, matrix):
         print("],")
     print("])")
 
+
 # Run training
-
-
 print_for_copy(model.get_Q(), 'Q')
 print_for_copy(model.get_R(), 'R')
 
 # model.estimate_noise(X,Z)
 
-res, _ = okf.train(model, Z, X, verbose=1, n_epochs=5,
-                   batch_size=1, to_save=False, lr=1e-1, lr_decay=1.0)
+# for i in range(30):
+res, _ = okf.train(model, Z, X, verbose=1, n_epochs=10,
+                   batch_size=1, to_save=False, p_valid=0.0, noise_estimation_initialization=True, lr=0.1)
+print(res)
 
-# print(res)
-
+# %%
 print_for_copy(model.get_Q(), 'Q')
 print_for_copy(model.get_R(), 'R')
 # %%
