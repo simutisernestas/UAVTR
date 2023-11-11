@@ -69,6 +69,20 @@ void get_A(Eigen::MatrixXd &A, double dt)
         0, 0, 0, 0, 0, 0, 0, 0, 1;
 }
 
+void get_B(Eigen::MatrixXd &B, double dt)
+{
+    B.setZero();
+    B << -.5 * dt * dt, 0, 0,
+        0, -.5 * dt * dt, 0,
+        0, 0, -.5 * dt * dt,
+        -dt, 0, 0,
+        0, -dt, 0,
+        0, 0, -dt,
+        0, 0, 0,
+        0, 0, 0,
+        0, 0, 0;
+}
+
 // TODO: rename
 Eigen::Vector3d Estimator::compute_pixel_rel_position(
     const Eigen::Vector2d &bbox_c, const Eigen::Matrix3d &cam_R_enu,
@@ -125,7 +139,7 @@ void Estimator::update_height(const double height)
     kf_->update(h, C_height, R);
 }
 
-void Estimator::update_imu_accel(const Eigen::Vector3d &accel)
+void Estimator::update_imu_accel(const Eigen::Vector3d &accel, double dt)
 {
     if (!kf_->is_initialized())
         return;
@@ -136,7 +150,13 @@ void Estimator::update_imu_accel(const Eigen::Vector3d &accel)
     for (int i = 0; i < 3; i++)
         copy[i] = lp_acc_filter_arr_[i]->filter(copy[i]);
 
-    kf_->predict(accel);
+    // update A and B matrices
+    Eigen::MatrixXd A(9, 9);
+    get_A(A, dt);
+    Eigen::MatrixXd B(9, 3);
+    get_B(B, dt);
+
+    kf_->predict(accel, A, B);
 }
 
 Eigen::MatrixXd visjac_p(const Eigen::MatrixXd &uv,

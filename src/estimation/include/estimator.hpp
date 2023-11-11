@@ -65,7 +65,7 @@ public:
     void update_flow_velocity(cv::Mat &frame, const Eigen::Matrix3d &cam_R_enu,
                               const Eigen::Matrix3d &K, const double height);
 
-    void update_imu_accel(const Eigen::Vector3d &accel);
+    void update_imu_accel(const Eigen::Vector3d &accel, double dt);
 
     void update_height(const double height);
 

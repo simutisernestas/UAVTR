@@ -47,12 +47,25 @@ void KalmanFilter::init()
 
 void KalmanFilter::predict(const Eigen::VectorXd &u)
 {
-
     if (!initialized)
         throw std::runtime_error("Filter is not initialized!");
 
     x_hat_new = A * x_hat + B * u;
     P = A * P * A.transpose() + Q;
+    x_hat = x_hat_new;
+
+    t += dt;
+}
+
+void KalmanFilter::predict(const Eigen::VectorXd &u,
+                           const Eigen::MatrixXd &A_cus,
+                           const Eigen::MatrixXd &B_cus)
+{
+    if (!initialized)
+        throw std::runtime_error("Filter is not initialized!");
+
+    x_hat_new = A_cus * x_hat + B_cus * u;
+    P = A_cus * P * A_cus.transpose() + Q;
     x_hat = x_hat_new;
 
     t += dt;

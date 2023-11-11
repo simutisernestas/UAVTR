@@ -11,7 +11,8 @@
 
 #include <Eigen/Dense>
 
-class KalmanFilter {
+class KalmanFilter
+{
 
 public:
     /**
@@ -23,13 +24,13 @@ public:
      *   P - Estimate error covariance
      */
     KalmanFilter(
-            double dt,
-            const Eigen::MatrixXd &A,
-            const Eigen::MatrixXd &B,
-            const Eigen::MatrixXd &C,
-            const Eigen::MatrixXd &Q,
-            const Eigen::MatrixXd &R,
-            const Eigen::MatrixXd &P);
+        double dt,
+        const Eigen::MatrixXd &A,
+        const Eigen::MatrixXd &B,
+        const Eigen::MatrixXd &C,
+        const Eigen::MatrixXd &Q,
+        const Eigen::MatrixXd &R,
+        const Eigen::MatrixXd &P);
 
     /**
      * Create a blank estimator.
@@ -55,11 +56,14 @@ public:
     void update(const Eigen::VectorXd &y);
 
     // custom update
-    void update(const Eigen::VectorXd &y, 
+    void update(const Eigen::VectorXd &y,
                 const Eigen::MatrixXd &C_cus,
                 const Eigen::MatrixXd &R_cus);
 
     void predict(const Eigen::VectorXd &u);
+    void predict(const Eigen::VectorXd &u, 
+                 const Eigen::MatrixXd &A_cus, 
+                 const Eigen::MatrixXd &B_cus);
 
     /**
      * Update the estimated state based on measured values,

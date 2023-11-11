@@ -122,6 +122,8 @@ private:
     //        return tf_msg_to_affine(base_link_enu);
     //    }
 
+    double prev_imu_time_s = -1;
+
     void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
     {
         auto time_point = (msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9);
@@ -155,7 +157,14 @@ private:
             imu_world_pub_->publish(acc_world);
         }
 
-        estimator_->update_imu_accel(accel);
+        if (prev_imu_time_s < 0)
+        {
+            prev_imu_time_s = time_point;
+            return;
+        }
+        double dt = time_point - prev_imu_time_s;
+        prev_imu_time_s = time_point;
+        estimator_->update_imu_accel(accel, dt);
 
         auto state = estimator_->state();
         geometry_msgs::msg::PointStamped pt_msg;
@@ -456,7 +465,6 @@ private:
     double height_{-1};
     Eigen::Matrix<double, 3, 3> K_;
     std::unique_ptr<Estimator> estimator_{nullptr};
-    rclcpp::Time imu_t;
     const bool simulation_{false};
 };
 
