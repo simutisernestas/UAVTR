@@ -64,6 +64,7 @@ public:
     void predict(const Eigen::VectorXd &u, 
                  const Eigen::MatrixXd &A_cus, 
                  const Eigen::MatrixXd &B_cus);
+    void predict(const Eigen::MatrixXd &A);
 
     /**
      * Update the estimated state based on measured values,
