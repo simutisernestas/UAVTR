@@ -67,6 +67,8 @@ public:
 
     void update_imu_accel(const Eigen::Vector3d &accel);
 
+    void update_height(const double height);
+
     inline Eigen::VectorXd state() const { return kf_->state(); };
 
 private:

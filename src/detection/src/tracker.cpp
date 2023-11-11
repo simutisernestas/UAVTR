@@ -304,7 +304,7 @@ ObjDetertor::ObjDetertor() {
     Ort::SessionOptions sessionOptions;
     sessionOptions.SetExecutionMode(ExecutionMode::ORT_PARALLEL);
     sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-    sessionOptions.SetIntraOpNumThreads(3);
+    sessionOptions.SetIntraOpNumThreads(4);
 #if MODEL == 0
     _session = std::make_unique<Ort::Session>(_env, "../weights/detr.onnx", sessionOptions);
 #else

@@ -30,21 +30,21 @@ Estimator::Estimator()
         0, 0, 0,
         0, 0, 0;
 
-    Eigen::MatrixXd C(3, 9);
+    Eigen::MatrixXd C(2, 9);
     C << 1, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 1, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 1, 0, 0, 0, 0, 0, 0;
+        0, 1, 0, 0, 0, 0, 0, 0, 0;
 
     Eigen::MatrixXd Q(9, 9);
     Q = Eigen::MatrixXd::Identity(9, 9);
     Q(6, 6) = 0;
     Q(7, 7) = 0;
     Q(8, 8) = 0;
-    Eigen::MatrixXd R(3, 3);
-    R = Eigen::MatrixXd::Identity(3, 3);
-    // R(3, 3) = .1;
+
+    Eigen::MatrixXd R(2, 2);
+    R = Eigen::MatrixXd::Identity(2, 2) * 2.5;
+
     Eigen::MatrixXd P(9, 9);
-    P = Eigen::MatrixXd::Identity(9, 9) * 10.0;
+    P = Eigen::MatrixXd::Identity(9, 9) * 100.0;
 
     kf_ = std::make_unique<KalmanFilter>(dt, A, B, C, Q, R, P);
 
@@ -55,9 +55,9 @@ Estimator::Estimator()
         lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<double, 3>>(b, a);
 }
 
-// TODO: test if this actually overrides it
 void get_A(Eigen::MatrixXd &A, double dt)
 {
+    A.setZero();
     A << 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0, 0,
         0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0,
         0, 0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt,
@@ -87,7 +87,11 @@ Eigen::Vector3d Estimator::compute_pixel_rel_position(
         return Pt;
 
     if (kf_->is_initialized())
-        kf_->update(Pt);
+    {
+        Eigen::Vector2d xy_meas(2);
+        xy_meas << Pt[0], Pt[1];
+        kf_->update(xy_meas);
+    }
     else
     {
         Eigen::VectorXd x0(9);
@@ -105,18 +109,34 @@ Eigen::Vector3d Estimator::compute_pixel_rel_position(
     return Pt;
 }
 
+void Estimator::update_height(const double height)
+{
+    if (!kf_->is_initialized())
+        return;
+
+    static Eigen::MatrixXd C_height(1, 9);
+    C_height << 0, 0, 1, 0, 0, 0, 0, 0, 0;
+    static Eigen::MatrixXd R(1, 1);
+    R << 0.1; // height measurement noise
+
+    Eigen::VectorXd h(1);
+    h << -height;
+    // the relative height is negative
+    kf_->update(h, C_height, R);
+}
+
 void Estimator::update_imu_accel(const Eigen::Vector3d &accel)
 {
     if (!kf_->is_initialized())
         return;
 
-    // // copy accel vector into eigen vector
-    // auto copy = accel;
-    // // filter accel
-    // for (int i = 0; i < 3; i++)
-    //     copy[i] = lp_acc_filter_arr_[i]->filter(copy[i]);
+    // copy accel vector into eigen vector
+    auto copy = accel;
+    // filter accel
+    for (int i = 0; i < 3; i++)
+        copy[i] = lp_acc_filter_arr_[i]->filter(copy[i]);
 
-    kf_->predict(-accel);
+    kf_->predict(accel);
 }
 
 Eigen::MatrixXd visjac_p(const Eigen::MatrixXd &uv,
@@ -150,6 +170,7 @@ Eigen::MatrixXd visjac_p(const Eigen::MatrixXd &uv,
     return L;
 }
 
+#if 0
 void Estimator::update_flow_velocity(cv::Mat &frame, const Eigen::Matrix3d &cam_R_enu,
                                      const Eigen::Matrix3d &K, const double height)
 {
@@ -260,3 +281,4 @@ void Estimator::update_flow_velocity(cv::Mat &frame, const Eigen::Matrix3d &cam_
             if (std::isnan(cov(i, j)))
                 throw std::runtime_error("covariance is nan");
 }
+#endif

@@ -178,6 +178,8 @@ private:
             height_ = std::abs(-25.94229507446289 - msg->baro_alt_meter);
         else
             height_ = msg->baro_alt_meter;
+
+        estimator_->update_height(height_);
     }
 
     void range_callback(const sensor_msgs::msg::Range::SharedPtr msg)
@@ -219,7 +221,7 @@ private:
         // H_vec = base_T_odom * tera_T_base * H_vec;
 
         auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
-        std::cout << cam_R_enu << std::endl;
+        // std::cout << cam_R_enu << std::endl;
         Eigen::Vector3d Pt = estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_, height_);
 
         // geometry_msgs::msg::PointStamped pt_msgs;
@@ -455,7 +457,7 @@ private:
     Eigen::Matrix<double, 3, 3> K_;
     std::unique_ptr<Estimator> estimator_{nullptr};
     rclcpp::Time imu_t;
-    const bool simulation_{true};
+    const bool simulation_{false};
 };
 
 int main(int argc, char **argv)
