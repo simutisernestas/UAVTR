@@ -2,6 +2,7 @@
 
 #include "Eigen/Dense"
 #include "opencv2/opencv.hpp"
+#include <opencv2/optflow.hpp>
 #include "kalman.hpp"
 
 #include <cassert>
@@ -78,4 +79,5 @@ private:
 
     typedef LowPassFilter<double, 3> LPF;
     std::array<std::unique_ptr<LPF>, 3> lp_acc_filter_arr_;
+    cv::Ptr<cv::optflow::DenseRLOFOpticalFlow> optflow = cv::optflow::DenseRLOFOpticalFlow::create();
 };

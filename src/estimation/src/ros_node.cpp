@@ -19,7 +19,7 @@
 #include "sensor_msgs/msg/nav_sat_fix.hpp"
 #include "visualization_msgs/msg/marker.hpp"
 
-#define VEL_MEAS 0
+#define VEL_MEAS 1
 
 class StateEstimationNode : public rclcpp::Node
 {
@@ -50,6 +50,9 @@ public:
         imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
             "/imu/data_raw", 10,
             std::bind(&StateEstimationNode::imu_callback, this, std::placeholders::_1));
+        // imu_cam_sub_ = create_subscription<sensor_msgs::msg::Imu>(
+        //     "/camera/imu", 10,
+        //     std::bind(&StateEstimationNode::imu_cam_callback, this, std::placeholders::_1));
 
         imu_world_pub_ = create_publisher<geometry_msgs::msg::Vector3Stamped>(
             "/imu/data_world", 10);
@@ -124,6 +127,29 @@ private:
 
     double prev_imu_time_s = -1;
 
+    // void imu_cam_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
+    // {
+    // auto time_point = offset_ + (msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9);
+    // if (simulation_)
+    //     time_point -= offset_;
+    // auto time = rclcpp::Time(time_point * 1e9);
+
+    // geometry_msgs::msg::TransformStamped base_link_imu_cam;
+    // bool succ = tf_lookup_helper(base_link_imu_cam, "odom", "camera_accel_optical_frame", time);
+    // if (!succ)
+    //     return;
+    // auto imu_T_odom = tf_msg_to_affine(base_link_imu_cam);
+
+    // Eigen::Vector3d accel;
+    // accel << msg->linear_acceleration.x,
+    //     msg->linear_acceleration.y,
+    //     msg->linear_acceleration.z;
+    // accel = imu_T_odom.rotation() * accel;
+    // accel[2] -= 9.81;
+
+    // RCLCPP_INFO(this->get_logger(), "imu_cam: %f %f %f", accel[0], accel[1], accel[2]);
+    // }
+
     void imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg)
     {
         auto time_point = (msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9);
@@ -132,10 +158,13 @@ private:
             time_point -= offset_;
         }
         auto time = rclcpp::Time(time_point * 1e9);
-        // geometry_msgs::msg::TransformStamped base_link_enu;
-        // bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
-        // if (!succ)
-        //     return;
+
+        // geometry_msgs::msg::TransformStamped base_link_imu_cam;
+        // bool succ = tf_lookup_helper(base_link_imu_cam, "odom", "camera_imu_frame", time);
+        // if (succ)
+        // {
+        //     RCLCPP_INFO(this->get_logger(), "got tf!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        // }
         // auto base_T_odom = tf_msg_to_affine(base_link_enu);
 
         Eigen::Vector3d accel;
@@ -163,6 +192,7 @@ private:
             return;
         }
         double dt = time_point - prev_imu_time_s;
+        assert(dt > 0);
         prev_imu_time_s = time_point;
         estimator_->update_imu_accel(accel, dt);
 
@@ -400,7 +430,6 @@ private:
 #if VEL_MEAS
     void img_callback(const sensor_msgs::msg::Image::SharedPtr msg)
     {
-        (void)msg;
         if (!is_K_received())
             return;
         if (!image_tf_) //  || !tera_tf_
@@ -448,6 +477,7 @@ private:
     rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr imu_world_pub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gt_pose_array_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+    // rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_cam_sub_;
     rclcpp::Subscription<px4_msgs::msg::TimesyncStatus>::SharedPtr timesync_sub_;
     rclcpp::Subscription<px4_msgs::msg::SensorGps>::SharedPtr gps_sub_;
     rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr gps_pub_;

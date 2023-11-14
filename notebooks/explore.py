@@ -20,7 +20,7 @@ from scipy.signal import butter, lfilter
 # %%
 
 # read cvs file record.csv
-df = pd.read_csv('full1.csv')
+df = pd.read_csv('real.csv')
 df.columns, len(df)
 
 # %%
@@ -42,6 +42,8 @@ meas_pos = []
 meas_time = []
 acc = []
 acc_time = []
+est_pos = []
+est_time = []
 for i, row in df.iterrows():
     if not np.isnan(row["/gps_postproc/altitude"]):
         dlat = row["/gps_postproc/latitude"]
@@ -64,11 +66,22 @@ for i, row in df.iterrows():
             row["/imu/data_raw/linear_acceleration/z"]
         ])
         acc_time.append(row["/imu/data_raw/header/stamp"])
+    if not np.isnan(row["/cam_target_pos/header/stamp"]):
+        pos = [row["/cam_target_pos/point/x"],
+               row["/cam_target_pos/point/y"],
+               row["/cam_target_pos/point/z"]]
+        est_pos.append(pos)
+        est_time.append(row["/cam_target_pos/header/stamp"])
 
 # interpolate gt_pos to match meas_pos
 gt_pos = np.array(gt_pos)
 meas_pos = np.array(meas_pos)
 acc = np.array(acc)
+acc_time = np.array(acc_time)
+gt_time = np.array(gt_time)
+meas_time = np.array(meas_time)
+est_pos = np.array(est_pos)
+est_time = np.array(est_time)
 print(len(gt_pos), len(meas_pos), len(acc))
 
 
@@ -77,24 +90,27 @@ def moving_average(a, n=3):
     ret[n:] = ret[n:] - ret[:-n]
     return ret[n - 1:] / n
 
+#%%
+est_pos
+
 # %%
 
 
 plt.scatter(gt_time, gt_pos[:, 0], label="X gt")
-plt.scatter(meas_time, meas_pos[:, 0], label="X meas")
+plt.scatter(est_time, est_pos[:, 0], label="X meas")
 plt.legend()
 plt.figure()
 plt.scatter(gt_time, gt_pos[:, 1], label="Y gt")
-plt.scatter(meas_time, meas_pos[:, 1], label="Y meas")
+plt.scatter(est_time, est_pos[:, 1], label="Y meas")
 plt.legend()
 plt.figure()
 plt.scatter(gt_time, gt_pos[:, 2], label="Z gt")
-plt.scatter(meas_time, meas_pos[:, 2], label="Z meas")
+plt.scatter(est_time, est_pos[:, 2], label="Z meas")
 plt.legend()
 # plt.show()
 # plot norms
 plt.scatter(gt_time, np.linalg.norm(gt_pos, axis=1), label="gt")
-plt.scatter(meas_time, np.linalg.norm(meas_pos, axis=1), label="meas")
+plt.scatter(est_time, np.linalg.norm(est_pos, axis=1), label="meas")
 plt.legend()
 plt.figure()
 
@@ -183,22 +199,22 @@ H = np.array(C)
 # R = np.eye(6)
 # R[:3, :3] *= 1
 # R[3:, 3:] *= 1
-Q = np.array([[1.2704093,0.3387564,-0.1016228,0.0538287,-0.1042093,-0.1407778,0.0349882,0.4591465,0.1045831,],
-[0.3387564,1.0396925,-0.4388455,0.1559671,-0.1836868,0.0252335,-0.1328360,-0.1558751,-0.2488221,],
-[-0.1016228,-0.4388455,2.2820917,0.0375517,0.4144597,0.1477960,0.2478412,-0.1909417,0.4877604,],
-[0.0538287,0.1559671,0.0375517,1.7676101,0.2196993,-0.0571371,0.2683862,-0.0208306,-0.3965752,],
-[-0.1042093,-0.1836868,0.4144597,0.2196993,2.3299122,-0.1522680,0.0965985,0.0571871,0.2888319,],
-[-0.1407778,0.0252335,0.1477960,-0.0571371,-0.1522680,1.5489994,0.2072999,0.1830806,-0.2765672,],
-[0.0349882,-0.1328360,0.2478412,0.2683862,0.0965985,0.2072999,1.2675340,0.3711843,-0.3719653,],
-[0.4591465,-0.1558751,-0.1909417,-0.0208306,0.0571871,0.1830806,0.3711843,1.4611577,-0.2356187,],
-[0.1045831,-0.2488221,0.4877604,-0.3965752,0.2888319,-0.2765672,-0.3719653,-0.2356187,1.6861314,],
+Q = np.array([[0.0000143,0.0000074,0.0000016,0.0000001,-0.0000001,-0.0000001,-0.0000028,0.0000220,0.0000218,],
+[0.0000074,0.0000102,0.0000011,0.0000001,0.0000000,-0.0000000,-0.0000174,0.0000199,0.0000023,],
+[0.0000016,0.0000011,0.0000030,0.0000001,-0.0000000,-0.0000000,-0.0000085,0.0000051,0.0000014,],
+[0.0000001,0.0000001,0.0000001,0.0000052,0.0000020,0.0000003,-0.0006218,-0.0002983,-0.0000428,],
+[-0.0000001,0.0000000,-0.0000000,0.0000020,0.0000044,0.0000006,-0.0002984,-0.0004917,-0.0000827,],
+[-0.0000001,-0.0000000,-0.0000000,0.0000003,0.0000006,0.0000029,-0.0000425,-0.0000822,-0.0002806,],
+[-0.0000028,-0.0000174,-0.0000085,-0.0006218,-0.0002984,-0.0000425,0.1594761,0.0763861,0.0109084,],
+[0.0000220,0.0000199,0.0000051,-0.0002983,-0.0004917,-0.0000822,0.0763861,0.1260474,0.0210887,],
+[0.0000218,0.0000023,0.0000014,-0.0000428,-0.0000827,-0.0002806,0.0109084,0.0210887,0.0720185,],
 ])
-R = np.array([[0.9490249,-0.3086884,0.1801264,-0.2939703,-0.1103068,-0.2462158,],
-[-0.3086884,0.9430487,0.0475007,0.3703759,0.0657637,0.0901225,],
-[0.1801264,0.0475007,0.9460025,-0.1757942,0.0019601,0.1842168,],
-[-0.2939703,0.3703759,-0.1757942,1.8988268,0.1393349,0.0434292,],
-[-0.1103068,0.0657637,0.0019601,0.1393349,0.5439642,0.1514782,],
-[-0.2462158,0.0901225,0.1842168,0.0434292,0.1514782,1.8458042,],
+R = np.array([[17.3425122,11.5436677,2.1551933,0.0472867,0.0922534,-0.0238766,],
+[11.5436677,16.8411307,2.6780333,0.2360581,0.0377527,-0.0631562,],
+[2.1551933,2.6780333,2.1660042,0.2607522,0.0661012,-0.0224623,],
+[0.0472867,0.2360581,0.2607522,0.2605860,0.0667360,0.0160195,],
+[0.0922534,0.0377527,0.0661012,0.0667360,0.2314712,0.0447116,],
+[-0.0238766,-0.0631562,-0.0224623,0.0160195,0.0447116,0.1799458,],
 ])
 
 # Initial state estimate
@@ -214,7 +230,6 @@ first_acc_index = np.searchsorted(acc_time, meas_time[0])
 print(first_acc_index)
 last_pos_meas_index = 0
 timestamp = acc_time[first_acc_index-1]
-p_meas = None
 
 record = []
 # Kalman Filter loop
@@ -227,6 +242,7 @@ for i in range(acc[first_acc_index:].shape[0]):
     x_hat = F @ x_hat
     P = F @ P @ F.T + Q
 
+    p_meas = None
     acc_meas_time = acc_time[first_acc_index+i]
     if last_pos_meas_index == len(meas_time):
         print(f"Break on: {i}")
@@ -377,28 +393,32 @@ okf_model_args = model_args()
 print('---------------\nModel arguments:\n', okf_model_args)
 model = okf.OKF(**okf_model_args, optimize=True, model_name='OKF_REAL')
 
-# %%
-
+#%%
 
 def print_for_copy(np_array, matrix):
     print(f"{matrix} = np.array([", end="")
     for row in np_array:
         print("[", end="")
         for el in row:
-            print(f"{el:.7f},", end="")
+            print(f"{el:.7e},", end="")
         print("],")
     print("])")
 
-# Run training
+model.estimate_noise(X,Z)
+print_for_copy(model.get_Q(), "Q")
+print_for_copy(model.get_R(), "R")
 
+# %%
+
+# Run training
 
 print_for_copy(model.get_Q(), 'Q')
 print_for_copy(model.get_R(), 'R')
 
 # model.estimate_noise(X,Z)
 
-res, _ = okf.train(model, Z, X, verbose=1, n_epochs=5,
-                   batch_size=1, to_save=False, lr=1e-1, lr_decay=1.0)
+res, _ = okf.train(model, Z, X, verbose=1, n_epochs=0,
+                   batch_size=1, to_save=False)
 
 # print(res)
 

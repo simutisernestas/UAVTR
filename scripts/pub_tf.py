@@ -22,7 +22,7 @@ class SensorTransformsPublisher(Node):
 
         # Publish transform for sensor 1
         sensor1_transform = TransformStamped()
-        sensor1_transform.header.stamp = self.get_clock().now().to_msg()
+        # sensor1_transform.header.stamp = self.get_clock().now().to_msg()
         sensor1_transform.header.frame_id = 'base_link'
         sensor1_transform.child_frame_id = 'camera_link'
         sensor1_transform.transform.translation.x = 0.115
@@ -39,7 +39,7 @@ class SensorTransformsPublisher(Node):
 
         # Publish transform for gps sensor
         sensor2_transform = TransformStamped()
-        sensor2_transform.header.stamp = self.get_clock().now().to_msg()
+        # sensor2_transform.header.stamp = self.get_clock().now().to_msg()
         sensor2_transform.header.frame_id = 'base_link'
         sensor2_transform.child_frame_id = 'gps_link'
         sensor2_transform.transform.translation.x = -0.115
@@ -53,7 +53,7 @@ class SensorTransformsPublisher(Node):
 
         # Publish transform for altimeter
         altimeter_tf = TransformStamped()
-        altimeter_tf.header.stamp = self.get_clock().now().to_msg()
+        # altimeter_tf.header.stamp = self.get_clock().now().to_msg()
         altimeter_tf.header.frame_id = 'base_link'
         altimeter_tf.child_frame_id = 'teraranger_evo_40m'
         altimeter_tf.transform.translation.x = -0.133
