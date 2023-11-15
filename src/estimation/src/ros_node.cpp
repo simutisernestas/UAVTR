@@ -446,7 +446,7 @@ private:
             return;
         auto base_T_odom = tf_msg_to_affine(base_link_enu);
         auto img_T_base = tf_msg_to_affine(*image_tf_);
-        img_T_base.translation() = Eigen::Vector3d::Zero();
+        Eigen::Vector3d r = base_T_odom.rotation() * img_T_base.translation(); // = Eigen::Vector3d::Zero();
         auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
 
         cv_bridge::CvImagePtr cv_ptr;
@@ -463,7 +463,16 @@ private:
         if (cv_ptr->image.cols > 1000)
             cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(), 0.5, 0.5);
 
-        estimator_->update_flow_velocity(cv_ptr->image, cam_R_enu, K_, height_);
+        Eigen::Vector3d vel_enu = estimator_->update_flow_velocity(cv_ptr->image, cam_R_enu, r, K_, height_);
+        // TODO: already published in sim!!!
+        // construct Vector3Stamped message
+        geometry_msgs::msg::Vector3Stamped vel_msg;
+        vel_msg.header.stamp = time; // this will have to change to absolute
+        vel_msg.header.frame_id = "odom";
+        vel_msg.vector.x = vel_enu[0];
+        vel_msg.vector.y = vel_enu[1];
+        vel_msg.vector.z = vel_enu[2];
+        imu_world_pub_->publish(vel_msg);
     }
 #endif
 

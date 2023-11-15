@@ -99,9 +99,9 @@ const FusionMatrix softIronMatrix = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0
         mag = AIRCRAFT_BASELINK_AFFINE * mag;
 
         const static float rad2deg = 180.0f / M_PI;
-        FusionVector gyroscope = {gyro[0] * rad2deg,
-                                  gyro[1] * rad2deg,
-                                  gyro[2] * rad2deg};
+        FusionVector gyroscope = {{static_cast<float>(gyro[0] * rad2deg),
+                                  static_cast<float>(gyro[1] * rad2deg),
+                                  static_cast<float>(gyro[2] * rad2deg)}};
         const static float g = 9.81f;
         FusionVector accelerometer = {accel[0] / g,
                                       accel[1] / g,
