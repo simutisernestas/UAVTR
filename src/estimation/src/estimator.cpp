@@ -6,36 +6,13 @@
 Estimator::Estimator() {
     const double dt = 1.0 / 128.0;
     Eigen::MatrixXd A(12, 12);
-    A << 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0, 0, -.5 * dt * dt, 0, 0,
-            0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0, 0, -.5 * dt * dt, 0,
-            0, 0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0, 0, -.5 * dt * dt,
-            0, 0, 0, 1, 0, 0, -dt, 0, 0, -dt, 0, 0,
-            0, 0, 0, 0, 1, 0, 0, -dt, 0, 0, -dt, 0,
-            0, 0, 0, 0, 0, 1, 0, 0, -dt, 0, 0, -dt,
-            0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1;
-
-    Eigen::MatrixXd B(9, 3);
-    B << -.5 * dt * dt, 0, 0,
-            0, -.5 * dt * dt, 0,
-            0, 0, -.5 * dt * dt,
-            -dt, 0, 0,
-            0, -dt, 0,
-            0, 0, -dt,
-            0, 0, 0,
-            0, 0, 0,
-            0, 0, 0;
+    get_A(A, dt);
 
     Eigen::MatrixXd C(2, 12);
     C << 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
 
     Eigen::MatrixXd Q(12, 12);
-    // Q = Eigen::MatrixXd::Identity(12, 12) * .5;
     Q.block(9, 9, 3, 3) = Eigen::MatrixXd::Zero(3, 3);
     Eigen::MatrixXd Q99(9, 9);
     Q99
@@ -50,22 +27,14 @@ Estimator::Estimator() {
             1.2655392e-05, 3.6906130e-06, -2.6607292e-07, -3.3572126e-05, -6.9801495e-05, -2.7096335e-04, 8.6542333e-03, 1.8099087e-02, 6.9678758e-02;
     Q.block(0, 0, 9, 9) = Q99;
 
-    // R = np.array([[  1.0550187e+01,3.4368357e+00,2.7349897e+00,1.0717672e-01,2.8714117e-01,-8.2645767e-03,],
-    // [3.4368357e+00,2.6576614e+00,1.3028051e+00,5.8013531e-02,2.4486553e-01,2.4525120e-02,],
-    // [2.7349897e+00,1.3028051e+00,1.5327067e+00,1.1493263e-01,3.8987427e-02,3.1687897e-02,],
-    // [1.0717672e-01,5.8013531e-02,1.1493263e-01,2.0988398e-01,2.0624759e-02,1.2513926e-02,],
-    // [2.8714117e-01,2.4486553e-01,3.8987427e-02,2.0624759e-02,2.2076985e-01,4.5288393e-02,],
-    // [-8.2645767e-03,2.4525120e-02,3.1687897e-02,1.2513926e-02,4.5288393e-02,1.9426574e-01,],
-    // ])
-
     Eigen::MatrixXd R(2, 2);
     R << 1.0550187e+01, 3.4368357e+00,
             3.4368357e+00, 2.6576614e+00;
 
     Eigen::MatrixXd P(12, 12);
-    P = Eigen::MatrixXd::Identity(12, 12) * 100.0;
+    P = Eigen::MatrixXd::Identity(12, 12) * 10.0;
 
-    kf_ = std::make_unique<KalmanFilter>(dt, A, B, C, Q, R, P);
+    kf_ = std::make_unique<KalmanFilter>(A, C, Q, R, P);
 
     const std::array<double, 3> a = {1.0, -1.56101808, 0.64135154};
     const std::array<double, 3> b = {0.02008337, 0.04016673, 0.02008337};
@@ -78,14 +47,14 @@ Estimator::Estimator() {
     optflow_->setGridStep({16, 16}); // increasing this reduces runtime
 }
 
-void get_A(Eigen::MatrixXd &A, double dt) {
+void Estimator::get_A(Eigen::MatrixXd &A, double dt) {
     A.setZero();
-    A << 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0, 0, -.5 * dt * dt, 0, 0,
-            0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0, 0, -.5 * dt * dt, 0,
-            0, 0, 1, 0, 0, dt, 0, 0, -.5 * dt * dt, 0, 0, -.5 * dt * dt,
-            0, 0, 0, 1, 0, 0, -dt, 0, 0, -dt, 0, 0,
-            0, 0, 0, 0, 1, 0, 0, -dt, 0, 0, -dt, 0,
-            0, 0, 0, 0, 0, 1, 0, 0, -dt, 0, 0, -dt,
+    A << 1, 0, 0, dt, 0, 0, 0, 0, 0, -0, 0, 0,
+            0, 1, 0, 0, dt, 0, 0, 0, 0, 0, -0, 0,
+            0, 0, 1, 0, 0, dt, 0, 0, 0, 0, 0, -0,
+            0, 0, 0, 1, 0, 0, dt, 0, 0, -dt, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt, 0,
+            0, 0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt,
             0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
@@ -94,20 +63,6 @@ void get_A(Eigen::MatrixXd &A, double dt) {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1;
 }
 
-void get_B(Eigen::MatrixXd &B, double dt) {
-    B.setZero();
-    B << -.5 * dt * dt, 0, 0,
-            0, -.5 * dt * dt, 0,
-            0, 0, -.5 * dt * dt,
-            -dt, 0, 0,
-            0, -dt, 0,
-            0, 0, -dt,
-            0, 0, 0,
-            0, 0, 0,
-            0, 0, 0;
-}
-
-// TODO: rename
 Eigen::Vector3d Estimator::compute_pixel_rel_position(
         const Eigen::Vector2d &bbox_c, const Eigen::Matrix3d &cam_R_enu,
         const Eigen::Matrix3d &K, const double height, bool update) {
@@ -130,7 +85,7 @@ Eigen::Vector3d Estimator::compute_pixel_rel_position(
     } else {
         Eigen::VectorXd x0(12);
         x0 << Pt[0], Pt[1], Pt[2], 0, 0, 0, 0, 0, 0, 0, 0, 0;
-        kf_->init(0.005, x0);
+        kf_->init(x0);
     }
 
     std::cout << "covariance: " << std::endl
@@ -172,23 +127,18 @@ void Estimator::update_imu_accel(const Eigen::Vector3d &accel, double dt) {
     Eigen::MatrixXd A(12, 12);
     get_A(A, dt);
 
-    // Eigen::MatrixXd B(9, 3);
-    // get_B(B, dt);
-    // kf_->predict(accel, A, B);
-
     kf_->predict(A);
 
-    // update C matrix
     static Eigen::MatrixXd C_accel(3, 12);
-    C_accel << 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0;
+    C_accel << 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0;
     static Eigen::MatrixXd R_accel(3, 3);
     R_accel << 2.0988398e-01, 2.0624759e-02, 1.2513926e-02,
             2.0624759e-02, 2.2076985e-01, 4.5288393e-02,
             1.2513926e-02, 4.5288393e-02, 1.9426574e-01;
 
-    kf_->update(accel, C_accel, R_accel);
+    kf_->update(copy, C_accel, R_accel);
 }
 
 #if 1
@@ -228,9 +178,9 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
     // >> outlier_percentage = .75
     // >>> np.log(1 - 0.999) / np.log(1 - (1 - outlier_percentage) ** n_samples)
     // 438.63339476983924
-    size_t n_iterations = 439;
-    size_t n_samples{6}; // minimum required to fit model
-    size_t n_points = flow_vectors.rows() / 2;
+    const size_t n_iterations = 439;
+    const size_t n_samples{6}; // minimum required to fit model
+    const size_t n_points = flow_vectors.rows() / 2;
 
     std::random_device rd;                                  // obtain a random number from hardware
     std::mt19937 gen(rd());                                 // seed the generator
@@ -267,11 +217,6 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
         // solve
         solve_sampled(sample_idxs, x_est);
 
-        // compute error
-        // std::cout << "x_est: " << x_est << std::endl;
-        // std::cout << "J: " << J.cols() << std::endl;
-//        assert(J.rows() == flow_vectors.rows());
-//        assert(J.cols() == x_est.rows());
         Eigen::VectorXd error = J * x_est - flow_vectors;
 
         // compute inliers
@@ -281,99 +226,92 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
             auto error_y = error(i * 2 + 1);
             double error_norm = std::sqrt(error_x * error_x + error_y * error_y);
             error_sum += error_norm;
-            if (error_norm < 10) // TODO: this is pixels, with 10 get anywhere from 50 to 4000 inliers
+            if (error_norm < 30)
                 inlier_idxs.push_back(i);
         }
         error_sum /= (double) n_points;
-//        std::cout << "Error avg:" << error_sum << std::endl;
-//        std::cout << "Inliers:" << inlier_idxs.size() << std::endl;
-//        const double allowed_error_perc = 0.1;
-//        const double allowed_error = allowed_error_perc * error_sum;
-//        for (size_t i{0}; i < n_points; ++i) {
-//            auto error_x = error(i * 2);
-//            auto error_y = error(i * 2 + 1);
-//            double error_norm = std::sqrt(error_x * error_x + error_y * error_y);
-//
-//        }
 
         if (error_sum < min_error) {
             best_inliers = inlier_idxs;
             min_error = error_sum;
         }
 
-        if (best_inliers.size() > 0.7 * n_points)
+        if (static_cast<double>(best_inliers.size()) > 0.7 * static_cast<double>(n_points))
             break;
 
         inlier_idxs.clear();
     }
     std::cout << "Min error: " << min_error << std::endl;
+    std::cout << "Best inliers size: " << best_inliers.size() << std::endl;
 
-    std::cout << "Return:" << std::endl;
+    if (static_cast<double>(best_inliers.size()) < 0.25 * static_cast<double>(n_points)) {
+        cam_vel_est = Eigen::VectorXd::Zero(J.cols());
+        return;
+    }
+
     J_samples.resize(best_inliers.size() * 2, J.cols());
     flow_samples.resize(best_inliers.size() * 2);
     solve_sampled(best_inliers, cam_vel_est);
-    std::cout << "Best inliers size: " << best_inliers.size() << std::endl;
 }
 
-Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, const Eigen::Matrix3d &cam_R_enu,
+Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, const Eigen::Matrix3d &cam_R_enu,
                                                 const Eigen::Vector3d &r, const Eigen::Matrix3d &K,
                                                 const double height) {
     if (!prev_frame_) {
-        prev_frame_ = std::make_unique<cv::Mat>(frame);
+        this->pre_frame_time_ = time;
+        this->prev_frame_ = std::make_shared<cv::Mat>(frame);
         return {0, 0, 0};
     }
 
     cv::Mat flow;
     optflow_->calc(*prev_frame_, frame, flow);
-    // TODO: here depending on which frame is used later the sign could be flipped ?
-    // TODO: also depths could be computed wrong ?
 
-    for (int y = 0; y < frame.rows; y += 16) {
-        for (int x = 0; x < frame.cols; x += 16) {
+//######################    DRAWING
+    cv::Mat drawing_frame = frame.clone();
+    for (int y = 0; y < drawing_frame.rows; y += 16) {
+        for (int x = 0; x < drawing_frame.cols; x += 16) {
             // Get the flow from `flow`, which is a 2-channel matrix
             const cv::Point2f &fxy = flow.at<cv::Point2f>(y, x);
-            // Draw lines on `frame` to represent flow
-            cv::line(frame, cv::Point(x, y), cv::Point(cvRound(x + fxy.x), cvRound(y + fxy.y)), cv::Scalar(0, 255, 0));
-            cv::circle(frame, cv::Point(x, y), 2, cv::Scalar(0, 255, 0), -1);
+            // Draw lines on `drawing_frame` to represent flow
+            cv::line(drawing_frame, cv::Point(x, y), cv::Point(cvRound(x + fxy.x), cvRound(y + fxy.y)),
+                     cv::Scalar(0, 255, 0));
+            cv::circle(drawing_frame, cv::Point(x, y), 2, cv::Scalar(0, 255, 0), -1);
         }
     }
+//######################    DRAWING
 
-    // extract the dominant flow direction
-    int every_nth = 16;
+    int every_nth = 8;
     std::vector<cv::Point2f> flow_vecs;
     flow_vecs.reserve(frame.rows * frame.cols / (every_nth * every_nth));
     std::vector<cv::Point> samples;
     samples.reserve(frame.rows * frame.cols / (every_nth * every_nth));
-    // 4800 data points each iteration
-// TODO: should start a bit further from edges
-// TODO: also points far away with high x i.e. row might distort here ???
-    for (int row = every_nth; row < frame.rows; row += every_nth) {
-        for (int col = every_nth; col < frame.cols; col += every_nth) {
+    for (int row = every_nth; row < (frame.rows - every_nth); row += every_nth) {
+        for (int col = every_nth; col < (frame.cols - every_nth); col += every_nth) {
             // Get the flow from `flow`, which is a 2-channel matrix
             const cv::Point2f &fxy = -flow.at<cv::Point2f>(row, col);
             flow_vecs.push_back(fxy);
             samples.emplace_back(row, col);
         }
     }
+
+//######################    DRAWING
     auto dominant_flow_vec = std::accumulate(flow_vecs.begin(), flow_vecs.end(), cv::Point2f(0, 0));
     dominant_flow_vec.y /= (float) flow_vecs.size();
     dominant_flow_vec.x /= (float) flow_vecs.size();
-
-    if (std::abs(dominant_flow_vec.x) > 100 || std::abs(dominant_flow_vec.y) > 100) {
-        std::cout << "dominant flow vector too high: " << dominant_flow_vec << std::endl;
-        *prev_frame_ = frame;
-        return {0, 0, 0};
-    }
-
     // show the dominant flow vector on the image
-    cv::line(frame, cv::Point(frame.cols / 2, frame.rows / 2),
-             cv::Point(cvRound(frame.cols / 2 + dominant_flow_vec.x), cvRound(frame.rows / 2 + dominant_flow_vec.y)),
+    cv::line(drawing_frame, cv::Point(drawing_frame.cols / 2, drawing_frame.rows / 2),
+             cv::Point(cvRound(drawing_frame.cols / 2 + dominant_flow_vec.x),
+                       cvRound(drawing_frame.rows / 2 + dominant_flow_vec.y)),
              cv::Scalar(0, 0, 255), 5);
+    // Display the image with vectors
+    cv::imshow("Optical Flow Vectors", drawing_frame);
+    cv::waitKey(1);
+//######################    DRAWING
 
     Eigen::VectorXd depth(samples.size());
     Eigen::MatrixXd uv = Eigen::MatrixXd(2, samples.size());
     Eigen::VectorXd flow_eigen(2 * flow_vecs.size());
-    const double dt = 1.0 / 12.528; // TODO: get actual delta here
+    const double dt = time - pre_frame_time_;
     for (size_t i = 0; i < samples.size(); i++) {
         // fill in pixel depths
         const Eigen::Vector3d Pt = compute_pixel_rel_position(
@@ -399,31 +337,27 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, const Eigen::Mat
     cam_vel_est.setZero();
     RANSAC_vel_regression(J, flow_eigen, cam_vel_est);
 
-    // check for all zeros
-    if (cam_vel_est.norm() < 1e-6) {
-        std::cout << "cam_vel_est is all zeros" << std::endl;
-        *prev_frame_ = frame;
-        return {0, 0, 0};
-    }
 
-    Eigen::VectorXd lsq_sol = (J.transpose() * J).ldlt().solve(J.transpose() * flow_eigen);
-
-//    std::cout << "###############################" << std::endl;
-    // r is already in world frame
     Eigen::Vector3d v_com_enu = cam_R_enu * cam_vel_est.segment(0, 3);
     Eigen::Vector3d w_com_enu = cam_R_enu * cam_vel_est.segment(3, 3);
-//    std::cout << "before VEL com w:\n" << v_com_enu << std::endl;
-    v_com_enu = v_com_enu - w_com_enu.cross(r);
-//    std::cout << "after VEL com w:\n" << v_com_enu << std::endl;
-//    std::cout << "WWW com w:\n" << w_com_enu << std::endl;
-//    std::cout << lsq_sol << std::endl;
-//    std::cout << "###############################\n" << std::endl;
-//    std::cout << "arm w comtrib: " << w_com_enu.cross(r) << std::endl;
+    v_com_enu = v_com_enu - w_com_enu.cross(-r);
 
-    // Display the image with vectors
-    cv::imshow("Optical Flow Vectors", frame);
-    cv::waitKey(1);
+    // check for all zeros
+    if (cam_vel_est.norm() > 1e-2 && kf_->is_initialized()) {
+        // update C matrix
+        static Eigen::MatrixXd C_vel(3, 12);
+        C_vel << 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0;
+        static Eigen::MatrixXd R_vel(3, 3);
+        R_vel << 0.1, 0, 0,
+                0, 0.1, 0,
+                0, 0, 0.1;
 
+        kf_->update(v_com_enu, C_vel, R_vel);
+    }
+
+    this->pre_frame_time_ = time;
     *prev_frame_ = frame;
     return v_com_enu;
 }

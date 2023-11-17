@@ -58,7 +58,7 @@ public:
             const Eigen::Vector2d &bbox_c, const Eigen::Matrix3d &cam_R_enu,
             const Eigen::Matrix3d &K, double height, bool update = true);
 
-    Eigen::Vector3d update_flow_velocity(cv::Mat &frame, const Eigen::Matrix3d &cam_R_enu,
+    Eigen::Vector3d update_flow_velocity(cv::Mat &frame, double time, const Eigen::Matrix3d &cam_R_enu,
                                          const Eigen::Vector3d &r, const Eigen::Matrix3d &K, double height);
 
     void update_imu_accel(const Eigen::Vector3d &accel, double dt);
@@ -68,9 +68,14 @@ public:
     [[nodiscard]] inline Eigen::VectorXd state() const { return kf_->state(); };
 
 private:
-    std::unique_ptr<cv::Mat> prev_frame_{nullptr};
+    static void get_A(Eigen::MatrixXd &A, double dt);
+
     std::unique_ptr<KalmanFilter> kf_;
+
     typedef LowPassFilter<double, 3> LPF;
     std::array<std::unique_ptr<LPF>, 3> lp_acc_filter_arr_;
+
+    std::shared_ptr<cv::Mat> prev_frame_{nullptr};
+    double pre_frame_time_{-1};
     cv::Ptr<cv::optflow::DenseRLOFOpticalFlow> optflow_ = cv::optflow::DenseRLOFOpticalFlow::create();
 };

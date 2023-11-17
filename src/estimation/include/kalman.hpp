@@ -24,9 +24,7 @@ public:
      *   P - Estimate error covariance
      */
     KalmanFilter(
-        double dt,
         const Eigen::MatrixXd &A,
-        const Eigen::MatrixXd &B,
         const Eigen::MatrixXd &C,
         const Eigen::MatrixXd &Q,
         const Eigen::MatrixXd &R,
@@ -37,22 +35,13 @@ public:
      */
     KalmanFilter();
 
-    /**
-     * Initialize the filter with initial states as zero.
-     */
-    void init();
-
     inline bool is_initialized() { return initialized; }
 
     /**
      * Initialize the filter with a guess for initial states.
      */
-    void init(double t0, const Eigen::VectorXd &x0);
+    void init(const Eigen::VectorXd &x0);
 
-    /**
-     * Update the estimated state based on measured values. The
-     * time step is assumed to remain constant.
-     */
     void update(const Eigen::VectorXd &y);
 
     // custom update
@@ -60,24 +49,12 @@ public:
                 const Eigen::MatrixXd &C_cus,
                 const Eigen::MatrixXd &R_cus);
 
-    void predict(const Eigen::VectorXd &u);
-    void predict(const Eigen::VectorXd &u, 
-                 const Eigen::MatrixXd &A_cus, 
-                 const Eigen::MatrixXd &B_cus);
     void predict(const Eigen::MatrixXd &A);
-
-    /**
-     * Update the estimated state based on measured values,
-     * using the given time step and dynamics matrix.
-     */
-    void update(const Eigen::VectorXd &y, double dt, const Eigen::MatrixXd A);
 
     /**
      * Return the current state and time.
      */
     Eigen::VectorXd state() { return x_hat; };
-
-    double time() { return t; };
 
     Eigen::MatrixXd covariance() { return P; };
 
@@ -86,13 +63,7 @@ private:
     Eigen::MatrixXd A, B, C, Q, R, P, K, P0;
 
     // System dimensions
-    int m, n;
-
-    // Initial and current time
-    double t0, t;
-
-    // Discrete time step
-    double dt;
+    int n;
 
     // Is the filter initialized?
     bool initialized;
@@ -101,5 +72,7 @@ private:
     Eigen::MatrixXd I;
 
     // Estimated states
-    Eigen::VectorXd x_hat, x_hat_new;
+    Eigen::VectorXd x_hat;
+
+    std::mutex mtx_;
 };
