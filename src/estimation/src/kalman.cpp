@@ -22,8 +22,6 @@ KalmanFilter::KalmanFilter(
     I.setIdentity();
 }
 
-KalmanFilter::KalmanFilter() = default;
-
 void KalmanFilter::init(const Eigen::VectorXd &x0) {
     // scoped lock
     std::scoped_lock lock(mtx_);
@@ -48,7 +46,8 @@ void KalmanFilter::update(const Eigen::VectorXd &y) {
 
     K = P * C.transpose() * (C * P * C.transpose() + R).inverse();
     x_hat += K * (y - C * x_hat);
-    P = (I - K * C) * P;
+    Eigen::MatrixXd IKC = (I - K * C);
+    P = IKC * P * IKC.transpose() + K * R * K.transpose();
 }
 
 void KalmanFilter::update(const Eigen::VectorXd &y,
@@ -60,6 +59,7 @@ void KalmanFilter::update(const Eigen::VectorXd &y,
 
     K = P * C_cus.transpose() * (C_cus * P * C_cus.transpose() + R_cus).inverse();
     x_hat += K * (y - C_cus * x_hat);
-    P = (I - K * C_cus) * P;
+    Eigen::MatrixXd IKC = (I - K * C_cus);
+    P = IKC * P * IKC.transpose() + K * R_cus * K.transpose();
 }
 

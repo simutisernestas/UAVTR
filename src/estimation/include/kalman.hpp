@@ -11,8 +11,7 @@
 
 #include <Eigen/Dense>
 
-class KalmanFilter
-{
+class KalmanFilter {
 
 public:
     /**
@@ -24,18 +23,13 @@ public:
      *   P - Estimate error covariance
      */
     KalmanFilter(
-        const Eigen::MatrixXd &A,
-        const Eigen::MatrixXd &C,
-        const Eigen::MatrixXd &Q,
-        const Eigen::MatrixXd &R,
-        const Eigen::MatrixXd &P);
+            const Eigen::MatrixXd &A,
+            const Eigen::MatrixXd &C,
+            const Eigen::MatrixXd &Q,
+            const Eigen::MatrixXd &R,
+            const Eigen::MatrixXd &P);
 
-    /**
-     * Create a blank estimator.
-     */
-    KalmanFilter();
-
-    inline bool is_initialized() { return initialized; }
+    [[nodiscard]] inline bool is_initialized() const { return initialized; }
 
     /**
      * Initialize the filter with a guess for initial states.
