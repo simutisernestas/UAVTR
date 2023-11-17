@@ -337,7 +337,6 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     cam_vel_est.setZero();
     RANSAC_vel_regression(J, flow_eigen, cam_vel_est);
 
-
     Eigen::Vector3d v_com_enu = cam_R_enu * cam_vel_est.segment(0, 3);
     Eigen::Vector3d w_com_enu = cam_R_enu * cam_vel_est.segment(3, 3);
     v_com_enu = v_com_enu - w_com_enu.cross(-r);
