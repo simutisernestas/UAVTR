@@ -339,7 +339,7 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
 
     Eigen::Vector3d v_com_enu = cam_R_enu * cam_vel_est.segment(0, 3);
     Eigen::Vector3d w_com_enu = cam_R_enu * cam_vel_est.segment(3, 3);
-    v_com_enu = v_com_enu - w_com_enu.cross(-r);
+    v_com_enu = v_com_enu - w_com_enu.cross(r);
 
     // check for all zeros
     if (cam_vel_est.norm() > 1e-2 && kf_->is_initialized()) {

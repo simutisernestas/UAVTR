@@ -345,8 +345,8 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
         return;
     auto base_T_odom = tf_msg_to_affine(base_link_enu);
     auto img_T_base = tf_msg_to_affine(*image_tf_);
-    Eigen::Vector3d r = base_T_odom.rotation() * img_T_base.translation(); // = Eigen::Vector3d::Zero();
-    auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
+    // multiply affines
+    auto cam_T_enu = base_T_odom * img_T_base;
 
     cv_bridge::CvImagePtr cv_ptr;
     try {
@@ -361,7 +361,8 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
     if (simulation_)
         cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(), 0.5, 0.5);
 
-    Eigen::Vector3d vel_enu = estimator_->update_flow_velocity(cv_ptr->image, time_point, cam_R_enu, r, K_, h);
+    Eigen::Vector3d vel_enu = estimator_->update_flow_velocity(cv_ptr->image, time_point, cam_T_enu.rotation(),
+                                                               cam_T_enu.translation(), K_, h);
     geometry_msgs::msg::Vector3Stamped vel_msg;
     vel_msg.header.stamp = time; // this will have to change to absolute
     vel_msg.header.frame_id = "odom";
