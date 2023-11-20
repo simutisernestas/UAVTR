@@ -16,20 +16,21 @@ Estimator::Estimator() {
     Q.block(9, 9, 3, 3) = Eigen::MatrixXd::Zero(3, 3);
     Eigen::MatrixXd Q99(9, 9);
     Q99
-            << 9.2297163e-06, 1.7489764e-06, 9.8769633e-07, 9.8379522e-08, -8.3961406e-09, -7.7924722e-08, -5.1577410e-06, 4.8649296e-06, 1.2655392e-05,
-            1.7489764e-06, 3.6980000e-06, 7.7610747e-07, 7.2662781e-08, 2.1758865e-08, -1.2657726e-08, -1.1019557e-05, 6.1990057e-06, 3.6906130e-06,
-            9.8769633e-07, 7.7610747e-07, 3.0083441e-06, 9.4196289e-08, 4.9950499e-08, 1.9305785e-08, -8.7744011e-06, -1.5469293e-06, -2.6607292e-07,
-            9.8379522e-08, 7.2662781e-08, 9.4196289e-08, 4.4736172e-06, 1.2455506e-06, 2.3520657e-07, -5.0299648e-04, -1.8283247e-04, -3.3572126e-05,
-            -8.3961406e-09, 2.1758865e-08, 4.9950499e-08, 1.2455506e-06, 3.4215782e-06, 4.6726025e-07, -1.8273460e-04, -3.3796436e-04, -6.9801495e-05,
-            -7.7924722e-08, -1.2657726e-08, 1.9305785e-08, 2.3520657e-07, 4.6726025e-07, 2.8831977e-06, -3.4125542e-05, -7.0074971e-05, -2.7096335e-04,
-            -5.1577410e-06, -1.1019557e-05, -8.7744011e-06, -5.0299648e-04, -1.8273460e-04, -3.4125542e-05, 1.2915180e-01, 4.6890670e-02, 8.6542333e-03,
-            4.8649296e-06, 6.1990057e-06, -1.5469293e-06, -1.8283247e-04, -3.3796436e-04, -7.0074971e-05, 4.6890670e-02, 8.6584708e-02, 1.8099087e-02,
-            1.2655392e-05, 3.6906130e-06, -2.6607292e-07, -3.3572126e-05, -6.9801495e-05, -2.7096335e-04, 8.6542333e-03, 1.8099087e-02, 6.9678758e-02;
+            << 1.4327232e-05, 4.5542407e-05, -3.6177772e-05, 3.8054527e-05, -3.7679753e-05, 3.7981345e-05, -3.6543158e-05, 6.6228309e-05, -1.5780837e-05,
+            4.5542407e-05, 1.5206209e-04, -8.7649881e-05, 1.4784123e-04, -9.2957250e-05, 1.4787818e-04, -1.6386951e-04, 1.9778008e-04, -8.1902863e-05,
+            -3.6177772e-05, -8.7649881e-05, 1.9678981e-04, -1.2330969e-05, 1.7859111e-04, 2.2915255e-05, -7.7550530e-05, -1.9246018e-04, -6.0079266e-05,
+            3.8054527e-05, 1.4784123e-04, -1.2330969e-05, 4.0092404e-04, 4.2468562e-05, 2.0720649e-04, 1.9879875e-04, 3.7377742e-04, -3.4079141e-04,
+            -3.7679753e-05, -9.2957250e-05, 1.7859111e-04, 4.2468562e-05, 3.8693461e-04, -2.2824766e-04, -5.0098784e-04, -1.2712694e-04, -2.5829339e-05,
+            3.7981345e-05, 1.4787818e-04, 2.2915255e-05, 2.0720649e-04, -2.2824766e-04, 5.3843447e-04, 3.5249679e-04, 6.1598909e-05, -7.0989167e-05,
+            -3.6543158e-05, -1.6386951e-04, -7.7550530e-05, 1.9879875e-04, -5.0098784e-04, 3.5249679e-04, 1.5456325e-01, 6.5116601e-02, 1.1024973e-02,
+            6.6228309e-05, 1.9778008e-04, -1.9246018e-04, 3.7377742e-04, -1.2712694e-04, 6.1598909e-05, 6.5116601e-02, 1.2050196e-01, 1.9366697e-02,
+            -1.5780837e-05, -8.1902863e-05, -6.0079266e-05, -3.4079141e-04, -2.5829339e-05, -7.0989167e-05, 1.1024973e-02, 1.9366697e-02, 6.7944942e-02;
+
     Q.block(0, 0, 9, 9) = Q99;
 
     Eigen::MatrixXd R(2, 2);
-    R << 1.0550187e+01, 3.4368357e+00,
-            3.4368357e+00, 2.6576614e+00;
+    R << 1.7650208e+01, 1.2699096e+01,
+            1.2699096e+01, 1.5283947e+01;
 
     Eigen::MatrixXd P(12, 12);
     P = Eigen::MatrixXd::Identity(12, 12) * 10.0;
@@ -49,12 +50,14 @@ Estimator::Estimator() {
 
 void Estimator::get_A(Eigen::MatrixXd &A, double dt) {
     A.setZero();
-    A << 1, 0, 0, dt, 0, 0, 0, 0, 0, -0, 0, 0,
-            0, 1, 0, 0, dt, 0, 0, 0, 0, 0, -0, 0,
-            0, 0, 1, 0, 0, dt, 0, 0, 0, 0, 0, -0,
-            0, 0, 0, 1, 0, 0, dt, 0, 0, -dt, 0, 0,
-            0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt, 0,
-            0, 0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt,
+    // incorporate IMU after tests
+    double ddt2 = dt * dt * .5 * 0.0;
+    A << 1, 0, 0, dt, 0, 0, ddt2, 0, 0, 0, 0, 0,
+            0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, 0, 0,
+            0, 0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, 0,
+            0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
@@ -88,12 +91,12 @@ Eigen::Vector3d Estimator::compute_pixel_rel_position(
         kf_->init(x0);
     }
 
-    std::cout << "covariance: " << std::endl
-              << kf_->covariance() << std::endl
-              << std::endl;
-    std::cout << "state" << std::endl
-              << kf_->state() << std::endl
-              << std::endl;
+//    std::cout << "covariance: " << std::endl
+//              << kf_->covariance() << std::endl
+//              << std::endl;
+//    std::cout << "state" << std::endl
+//              << kf_->state() << std::endl
+//              << std::endl;
 
     return Pt;
 }
@@ -105,7 +108,7 @@ void Estimator::update_height(const double height) {
     static Eigen::MatrixXd C_height(1, 12);
     C_height << 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
     static Eigen::MatrixXd R(1, 1);
-    R << 1.5327067e+00; // height measurement noise
+    R << 2.3927872e+00; // height measurement noise
 
     Eigen::VectorXd h(1);
     h << -height;
@@ -134,11 +137,11 @@ void Estimator::update_imu_accel(const Eigen::Vector3d &accel, double dt) {
             0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0;
     static Eigen::MatrixXd R_accel(3, 3);
-    R_accel << 2.0988398e-01, 2.0624759e-02, 1.2513926e-02,
-            2.0624759e-02, 2.2076985e-01, 4.5288393e-02,
-            1.2513926e-02, 4.5288393e-02, 1.9426574e-01;
+    R_accel << 4.3669211e+00, 3.1101683e-01, -7.3201366e-02,
+            3.1101683e-01, 4.1195669e+00, -3.5575474e-01,
+            7.3201366e-02, -3.5575474e-01, 1.9104830e+00;
 
-    kf_->update(copy, C_accel, R_accel);
+    kf_->update(accel, C_accel, R_accel);
 }
 
 #if 1
@@ -179,7 +182,7 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
     // >>> np.log(1 - 0.999) / np.log(1 - (1 - outlier_percentage) ** n_samples)
     // 438.63339476983924
     const size_t n_iterations = 439;
-    const size_t n_samples{6}; // minimum required to fit model
+    const size_t n_samples{3}; // minimum required to fit model
     const size_t n_points = flow_vectors.rows() / 2;
 
     std::random_device rd;                                  // obtain a random number from hardware
@@ -205,6 +208,24 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
         sol = (J_samples.transpose() * J_samples).ldlt().solve(J_samples.transpose() * flow_samples);
     };
 
+    // compute median absolute deviation (MAD) for the target flow vectors, y = flow_vectors
+    double residual_threshold{};
+    {
+        std::vector<double> abs_flow;
+        abs_flow.reserve(n_points);
+        for (size_t i{0}; i < n_points; ++i) {
+            auto error_x = flow_vectors(i * 2);
+            auto error_y = flow_vectors(i * 2 + 1);
+            double error_norm = std::sqrt(error_x * error_x + error_y * error_y);
+            abs_flow.push_back(error_norm);
+        }
+        std::sort(abs_flow.begin(), abs_flow.end());
+        auto median = abs_flow[abs_flow.size() / 2];
+        std::for_each(abs_flow.begin(), abs_flow.end(), [median](double &x) { x = std::abs(x - median); });
+        std::sort(abs_flow.begin(), abs_flow.end());
+        residual_threshold = abs_flow[abs_flow.size() / 2];
+    }
+
     Eigen::VectorXd x_est(J.cols());
     std::vector<size_t> inlier_idxs;
     inlier_idxs.reserve(n_points);
@@ -225,29 +246,37 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
             auto error_x = error(i * 2);
             auto error_y = error(i * 2 + 1);
             double error_norm = std::sqrt(error_x * error_x + error_y * error_y);
+            if (std::isnan(error_norm) || std::isinf(error_norm))
+                continue;
             error_sum += error_norm;
-            if (error_norm < 30)
+            if (error_norm < residual_threshold)
                 inlier_idxs.push_back(i);
         }
         error_sum /= (double) n_points;
 
-        if (error_sum < min_error) {
+//        if (error_sum < min_error) {
+//            best_inliers = inlier_idxs;
+//            min_error = error_sum;
+//        }
+
+        if (best_inliers.size() < inlier_idxs.size()) {
             best_inliers = inlier_idxs;
             min_error = error_sum;
         }
 
-        if (static_cast<double>(best_inliers.size()) > 0.7 * static_cast<double>(n_points))
+        if (static_cast<double>(best_inliers.size()) > 0.75 * static_cast<double>(n_points))
             break;
 
         inlier_idxs.clear();
     }
     std::cout << "Min error: " << min_error << std::endl;
     std::cout << "Best inliers size: " << best_inliers.size() << std::endl;
+    assert(min_error < 200);
 
-    if (static_cast<double>(best_inliers.size()) < 0.25 * static_cast<double>(n_points)) {
-        cam_vel_est = Eigen::VectorXd::Zero(J.cols());
-        return;
-    }
+//    if (static_cast<double>(best_inliers.size()) < 0.5 * static_cast<double>(n_points)) {
+//        cam_vel_est = Eigen::VectorXd::Zero(J.cols());
+//        return;
+//    }
 
     J_samples.resize(best_inliers.size() * 2, J.cols());
     flow_samples.resize(best_inliers.size() * 2);
@@ -256,7 +285,7 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
 
 Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, const Eigen::Matrix3d &cam_R_enu,
                                                 const Eigen::Vector3d &r, const Eigen::Matrix3d &K,
-                                                const double height) {
+                                                const double height, const Eigen::Vector3d &omega) {
     if (!prev_frame_) {
         this->pre_frame_time_ = time;
         this->prev_frame_ = std::make_shared<cv::Mat>(frame);
@@ -337,9 +366,13 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     cam_vel_est.setZero();
     RANSAC_vel_regression(J, flow_eigen, cam_vel_est);
 
+//    cam_vel_est = (J.transpose() * J).ldlt().solve(J.transpose() * flow_eigen);
+
     Eigen::Vector3d v_com_enu = cam_R_enu * cam_vel_est.segment(0, 3);
     Eigen::Vector3d w_com_enu = cam_R_enu * cam_vel_est.segment(3, 3);
     v_com_enu = v_com_enu - w_com_enu.cross(r);
+
+//    v_com_enu -= omega.cross(r);
 
     // check for all zeros
     if (cam_vel_est.norm() > 1e-2 && kf_->is_initialized()) {
@@ -349,9 +382,9 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
                 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0;
         static Eigen::MatrixXd R_vel(3, 3);
-        R_vel << 0.1, 0, 0,
-                0, 0.1, 0,
-                0, 0, 0.1;
+        R_vel << 3.3457488e+00, 2.0952617e+00, 5.4171535e-01,
+                2.0952617e+00, 5.3969640e+00, 7.7712646e-01,
+                5.4171535e-01, 7.7712646e-01, 1.7101273e+00;
 
         kf_->update(v_com_enu, C_vel, R_vel);
     }

@@ -46,6 +46,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(px4_msgs REQUIRED)
+find_package(image_geometry REQUIRED)
 
 add_library(kalman_lib SHARED src/kalman.cpp)
 target_include_directories(kalman_lib PUBLIC include ${EIGEN3_INCLUDE_DIR})
@@ -57,7 +58,7 @@ ament_target_dependencies(estimator_lib Eigen3 OpenCV)
 
 add_executable(estimation_node src/estimator_ros_node.cpp)
 target_include_directories(estimation_node PUBLIC include ${EIGEN3_INCLUDE_DIR})
-ament_target_dependencies(estimation_node rclcpp sensor_msgs cv_bridge vision_msgs Eigen3 tf2_ros geometry_msgs px4_msgs visualization_msgs)
+ament_target_dependencies(estimation_node rclcpp sensor_msgs cv_bridge vision_msgs Eigen3 tf2_ros geometry_msgs px4_msgs visualization_msgs image_geometry)
 target_link_libraries(estimation_node estimator_lib kalman_lib)
 
 add_executable(orientation_filter src/orient_filter.cpp)

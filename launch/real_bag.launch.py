@@ -24,7 +24,7 @@ def generate_launch_description():
         cwd='/home/ernie/thesis/track/src/estimation/build',
         # prefix=['xterm -fa "Monospace" -fs 14 -e gdb --args'],
         # prefix=['xterm  -e gdb -ex "b main" --args'],
-        # -iex break -ex "b main" -tui 
+        # -iex break -ex "b main" -tui
         output='screen'
     )
 
@@ -34,7 +34,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    play_bag_cmd = '''ros2 bag play ./18_0/rosbag2_2023_10_18-12_24_19 --start-offset 150 -l'''
+    play_bag_cmd = '''ros2 bag play ./18_0/rosbag2_2023_10_18-12_24_19 --start-offset 150'''
     play_bag = ExecuteProcess(
         cmd=play_bag_cmd.split(),
         cwd="/home/ernie/thesis/bags",
@@ -44,7 +44,7 @@ def generate_launch_description():
     return LaunchDescription([
         play_bag,
         tracking,
-        # estimation,
+        estimation,
         uncompress,
         imu_mag_repub,
         # IncludeLaunchDescription(

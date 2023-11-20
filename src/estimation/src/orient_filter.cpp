@@ -8,23 +8,22 @@
 #include "tf2_ros/transform_broadcaster.h"
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include <Eigen/Dense>
+#include "FusionMath.h"
 
 using std::placeholders::_1;
 
 #define SAMPLE_RATE (128)
 
-class SensorTranslator : public rclcpp::Node
-{
+class SensorTranslator : public rclcpp::Node {
 public:
-    SensorTranslator() : Node("sensor_translator"), tf_broadcaster_(this)
-    {
+    SensorTranslator() : Node("sensor_translator"), tf_broadcaster_(this) {
         imu_publisher_ = this->create_publisher<sensor_msgs::msg::Imu>("imu/data_raw", 10);
         auto qos = rclcpp::QoS(rclcpp::KeepLast(10));
         qos.best_effort();
         sensor_combined_subscription_ = this->create_subscription<px4_msgs::msg::SensorCombined>(
-            "/fmu/out/sensor_combined", qos, std::bind(&SensorTranslator::sensor_combined_callback, this, _1));
+                "/fmu/out/sensor_combined", qos, std::bind(&SensorTranslator::sensor_combined_callback, this, _1));
         sensor_mag_subscription_ = this->create_subscription<px4_msgs::msg::SensorMag>(
-            "/fmu/out/sensor_mag", qos, std::bind(&SensorTranslator::sensor_mag_callback, this, _1));
+                "/fmu/out/sensor_mag", qos, std::bind(&SensorTranslator::sensor_mag_callback, this, _1));
 
         FusionOffsetInitialise(&offset, SAMPLE_RATE);
         FusionAhrsInitialise(&ahrs);
@@ -46,41 +45,38 @@ private:
     const FusionMatrix accelerometerMisalignment = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
     const FusionVector accelerometerSensitivity = {1.0f, 1.0f, 1.0f};
     const FusionVector accelerometerOffset = {0.0f, 0.0f, 0.0f};
-const FusionMatrix softIronMatrix = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
+    const FusionMatrix softIronMatrix = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
     const FusionVector hardIronOffset = {0.0f, 0.0f, 0.0f};
     const FusionAhrsSettings settings = {
-        .convention = FusionConventionEnu,
-        .gain = 0.5f,
-        .gyroscopeRange = 2000.0f, /* replace this with actual gyroscope range in degrees/s */
-        .accelerationRejection = 10.0f,
-        .magneticRejection = 10.0f,
-        .recoveryTriggerPeriod = 5 * SAMPLE_RATE, /* 5 seconds */
+            .convention = FusionConventionEnu,
+            .gain = 0.5f,
+            .gyroscopeRange = 2000.0f, /* replace this with actual gyroscope range in degrees/s */
+            .accelerationRejection = 10.0f,
+            .magneticRejection = 10.0f,
+            .recoveryTriggerPeriod = 5 * SAMPLE_RATE, /* 5 seconds */
     };
     FusionOffset offset;
     FusionAhrs ahrs;
     tf2_ros::TransformBroadcaster tf_broadcaster_;
 
     ///////// funcs from mavros ftf_frame_conversions.cpp
-    Eigen::Quaterniond quaternion_from_rpy(const Eigen::Vector3d &rpy)
-    {
+    Eigen::Quaterniond quaternion_from_rpy(const Eigen::Vector3d &rpy) {
         // YPR - ZYX
         return Eigen::Quaterniond(
-            Eigen::AngleAxisd(rpy.z(), Eigen::Vector3d::UnitZ()) *
-            Eigen::AngleAxisd(rpy.y(), Eigen::Vector3d::UnitY()) *
-            Eigen::AngleAxisd(rpy.x(), Eigen::Vector3d::UnitX()));
+                Eigen::AngleAxisd(rpy.z(), Eigen::Vector3d::UnitZ()) *
+                Eigen::AngleAxisd(rpy.y(), Eigen::Vector3d::UnitY()) *
+                Eigen::AngleAxisd(rpy.x(), Eigen::Vector3d::UnitX()));
     }
+
     inline Eigen::Quaterniond quaternion_from_rpy(
-        const double roll, const double pitch,
-        const double yaw)
-    {
+            const double roll, const double pitch,
+            const double yaw) {
         return quaternion_from_rpy(Eigen::Vector3d(roll, pitch, yaw));
     }
     ///////// funcs from mavros ftf_frame_conversions.cpp
 
-    void sensor_combined_callback(const px4_msgs::msg::SensorCombined::SharedPtr msg)
-    {
-        if (last_timestamp_ == 0)
-        {
+    void sensor_combined_callback(const px4_msgs::msg::SensorCombined::SharedPtr msg) {
+        if (last_timestamp_ == 0) {
             last_timestamp_ = msg->timestamp;
             return;
         }
@@ -100,20 +96,21 @@ const FusionMatrix softIronMatrix = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0
 
         const static float rad2deg = 180.0f / M_PI;
         FusionVector gyroscope = {{static_cast<float>(gyro[0] * rad2deg),
-                                  static_cast<float>(gyro[1] * rad2deg),
-                                  static_cast<float>(gyro[2] * rad2deg)}};
-        const static float g = 9.81f;
-        FusionVector accelerometer = {accel[0] / g,
-                                      accel[1] / g,
-                                      accel[2] / g};
-        FusionVector magnetometer = {mag[0],
-                                     mag[1],
-                                     mag[2]};
+                                   static_cast<float>(gyro[1] * rad2deg),
+                                   static_cast<float>(gyro[2] * rad2deg)}};
+        const static float g = 9.81555f;
+        FusionVector accelerometer = {{static_cast<float>(accel[0]) / g,
+                                       static_cast<float>(accel[1]) / g,
+                                       static_cast<float>(accel[0]) / g
+                                      }};
+        FusionVector magnetometer = {{static_cast<float>(mag[0]),
+                                      static_cast<float>(mag[1]),
+                                      static_cast<float>(mag[2])}};
         // Update gyroscope offset correction algorithm
         gyroscope = FusionOffsetUpdate(&offset, gyroscope);
         // Calculate delta time
         const uint64_t delta = msg->timestamp - last_timestamp_; // microseconds
-        const float dt = (float)delta / 1000000.0f;              // seconds
+        const float dt = (float) delta / 1000000.0f;              // seconds
         last_timestamp_ = msg->timestamp;
 
         // Update gyroscope AHRS algorithm
@@ -134,6 +131,22 @@ const FusionMatrix softIronMatrix = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0
         // Get acceleration in world frame
         const FusionVector earth = FusionAhrsGetEarthAcceleration(&ahrs);
 
+        // Compute angular velocity in world frame from successive quaternions
+        Eigen::Vector3d omega{0, 0, 0};
+        if (prev_q_.element.w == -1) {
+            prev_q_ = quaternion;
+        } else {
+            FusionQuaternion q1_inv = {
+                    {prev_q_.element.w, -prev_q_.element.x, -prev_q_.element.y, -prev_q_.element.z}};
+            auto delta_q = FusionQuaternionMultiply(quaternion, q1_inv);
+            auto euler = FusionQuaternionToEuler(delta_q);
+            const float deg2rad = M_PI / 180.0f;
+            omega[0] = (euler.angle.roll * deg2rad) / dt;
+            omega[1] = (euler.angle.pitch * deg2rad) / dt;
+            omega[2] = (euler.angle.yaw * deg2rad) / dt;
+            prev_q_ = quaternion;
+        }
+
         // publish IMU
         sensor_msgs::msg::Imu imu_msg{};
         auto timestamp_microseconds = msg->timestamp;
@@ -142,8 +155,10 @@ const FusionMatrix softIronMatrix = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0
         imu_msg.linear_acceleration.x = earth.axis.x * g;
         imu_msg.linear_acceleration.y = earth.axis.y * g;
         imu_msg.linear_acceleration.z = earth.axis.z * g;
+        imu_msg.angular_velocity.x = omega[0];
+        imu_msg.angular_velocity.y = omega[1];
+        imu_msg.angular_velocity.z = omega[2];
         imu_publisher_->publish(imu_msg);
-        mag_msg_.header.stamp = imu_msg.header.stamp;
 
 #ifdef DEBUG
         const FusionEuler euler = FusionQuaternionToEuler(FusionAhrsGetQuaternion(&ahrs));
@@ -161,8 +176,7 @@ const FusionMatrix softIronMatrix = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0
 #endif
     }
 
-    void sensor_mag_callback(const px4_msgs::msg::SensorMag::SharedPtr msg)
-    {
+    void sensor_mag_callback(const px4_msgs::msg::SensorMag::SharedPtr msg) {
         sensor_msgs::msg::MagneticField mag_msg{};
         auto timestamp_microseconds = msg->timestamp;
         mag_msg.header.stamp = rclcpp::Time(timestamp_microseconds * 1000);
@@ -202,10 +216,10 @@ const FusionMatrix softIronMatrix = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher_;
     rclcpp::Subscription<px4_msgs::msg::SensorCombined>::SharedPtr sensor_combined_subscription_;
     rclcpp::Subscription<px4_msgs::msg::SensorMag>::SharedPtr sensor_mag_subscription_;
+    FusionQuaternion prev_q_{{-1, -1, -1, -1}};
 };
 
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
     rclcpp::init(argc, argv);
     auto sensor_translator = std::make_shared<SensorTranslator>();
     rclcpp::executors::StaticSingleThreadedExecutor executor;

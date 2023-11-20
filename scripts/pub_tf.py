@@ -27,7 +27,7 @@ class SensorTransformsPublisher(Node):
         sensor1_transform.child_frame_id = 'camera_link'
         sensor1_transform.transform.translation.x = 0.115
         sensor1_transform.transform.translation.y = 0.0
-        sensor1_transform.transform.translation.z = -0.071
+        sensor1_transform.transform.translation.z = 0.0
         # >>> import transforms3d as tf
         # >>> tf.euler.euler2quat(0,math.radians(45),0,'sxyz')
         # array([0.92387953, 0.        , 0.38268343, 0.        ]) w x y z

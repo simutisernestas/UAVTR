@@ -153,6 +153,10 @@ void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr ms
         state_msg.poses[i].position.z = state(i * 3 + 2);
     }
     state_pub_->publish(state_msg);
+
+    omega_z_.store(msg->angular_velocity.z);
+    omega_x_.store(msg->angular_velocity.x);
+    omega_y_.store(msg->angular_velocity.y);
 }
 
 void StateEstimationNode::air_data_callback(const px4_msgs::msg::VehicleAirData::SharedPtr msg) {
@@ -237,18 +241,27 @@ void StateEstimationNode::cam_info_callback(const sensor_msgs::msg::CameraInfo::
     if (msg->header.frame_id == "x500_0/OakD-Lite/base_link/StereoOV7251")
         return;
 
-    // TODO: scale does not appy for real data :<)
-    static double scale{1.0};
-    if (simulation_)
-        scale = .5;
+    cam_model_.fromCameraInfo(*msg);
+    cv::Matx<double, 3, 3> cvK = cam_model_.intrinsicMatrix();
+    // convert to eigen
     for (size_t i = 0; i < 9; i++) {
         size_t row = std::floor(i / 3);
         size_t col = i % 3;
-        if (row == 0 || row == 1)
-            K_(row, col) = msg->k[i] * scale;
-        else
-            K_(row, col) = msg->k[i];
+        K_(row, col) = cvK.operator()(row, col);
     }
+
+// TODO: scale does not appy for real data :<)
+//    static double scale{1.0};
+//    if (simulation_)
+//        scale = .5;
+//    for (size_t i = 0; i < 9; i++) {
+//        size_t row = std::floor(i / 3);
+//        size_t col = i % 3;
+//        if (row == 0 || row == 1)
+//            K_(row, col) = msg->k[i] * scale;
+//        else
+//            K_(row, col) = msg->k[i];
+//    }
 }
 
 void StateEstimationNode::gt_pose_array_callback(const geometry_msgs::msg::PoseArray::SharedPtr msg) {
@@ -300,6 +313,8 @@ void StateEstimationNode::tf_callback() {
             // camera_color_optical_frame -> base_link
             // - Translation: [0.115, -0.059, -0.071]
             // - Rotation: in Quaternion [0.654, -0.652, 0.271, -0.272]
+//            - Translation: [0.115, -0.059, 0.000]
+//            - Rotation: in Quaternion [0.654, -0.652, 0.271, -0.272]
             image_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>();
             image_tf_->transform.translation.x = 0.115;
             image_tf_->transform.translation.y = -0.059;
@@ -357,12 +372,37 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
         return;
     }
     if (!cv_ptr) return;
+    cv::Mat rectified;
+    cam_model_.rectifyImage(cv_ptr->image, rectified);
 
     if (simulation_)
         cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(), 0.5, 0.5);
 
-    Eigen::Vector3d vel_enu = estimator_->update_flow_velocity(cv_ptr->image, time_point, cam_T_enu.rotation(),
-                                                               cam_T_enu.translation(), K_, h);
+    double omega_z = omega_z_.load();
+    double omega_x = omega_x_.load();
+    double omega_y = omega_y_.load();
+    Eigen::Vector3d omega(omega_x, omega_y, omega_z);
+
+    Eigen::Vector3d vel_enu = estimator_->update_flow_velocity(rectified, time_point, cam_T_enu.rotation(),
+                                                               cam_T_enu.translation(), K_, h, omega);
+
+
+//    Eigen::Vector3d v_compensation = omega.cross(-cam_T_enu.translation());
+//    // test if attenuates the velocity or increases it
+//    {
+//        Eigen::Vector3d v_test = vel_enu + v_compensation;
+//        if (v_test.norm() > vel_enu.norm())
+//            std::cout << "1 Increasing velocity" << std::endl;
+//        else
+//            std::cout << "1 Decreasing velocity" << std::endl;
+//        Eigen::Vector3d v_test2 = vel_enu - v_compensation;
+//        if (v_test2.norm() > vel_enu.norm())
+//            std::cout << "2 Increasing velocity" << std::endl;
+//        else
+//            std::cout << "2 Decreasing velocity" << std::endl;
+//    }
+//    vel_enu -= v_compensation;
+
     geometry_msgs::msg::Vector3Stamped vel_msg;
     vel_msg.header.stamp = time; // this will have to change to absolute
     vel_msg.header.frame_id = "odom";

@@ -20,6 +20,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include "sensor_msgs/msg/nav_sat_fix.hpp"
 #include "visualization_msgs/msg/marker.hpp"
+#include "image_geometry/pinhole_camera_model.h"
 
 #define VEL_MEAS 1
 
@@ -95,4 +96,9 @@ private:
     std::unique_ptr<Estimator> estimator_{nullptr};
     bool simulation_;
     std::mutex mtx_;
+    std::atomic<double> omega_z_{-99};
+    std::atomic<double> omega_x_{-99};
+    std::atomic<double> omega_y_{-99};
+
+    image_geometry::PinholeCameraModel cam_model_;
 }; // class StateEstimationNode
