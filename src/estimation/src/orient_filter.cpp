@@ -94,18 +94,15 @@ private:
         Eigen::Vector3d mag(mag_msg_.magnetic_field.x, mag_msg_.magnetic_field.y, mag_msg_.magnetic_field.z);
         mag = AIRCRAFT_BASELINK_AFFINE * mag;
 
+        // prepare data for fusion
         const static float rad2deg = 180.0f / M_PI;
-        FusionVector gyroscope = {{static_cast<float>(gyro[0] * rad2deg),
-                                   static_cast<float>(gyro[1] * rad2deg),
-                                   static_cast<float>(gyro[2] * rad2deg)}};
+        gyro *= rad2deg;
+        FusionVector gyroscope = {gyro[0], gyro[1], gyro[2]};
         const static float g = 9.81555f;
-        FusionVector accelerometer = {{static_cast<float>(accel[0]) / g,
-                                       static_cast<float>(accel[1]) / g,
-                                       static_cast<float>(accel[0]) / g
-                                      }};
-        FusionVector magnetometer = {{static_cast<float>(mag[0]),
-                                      static_cast<float>(mag[1]),
-                                      static_cast<float>(mag[2])}};
+        accel /= g;
+        FusionVector accelerometer = {accel[0], accel[1], accel[2]};
+        FusionVector magnetometer = {mag[0], mag[1], mag[2]};
+
         // Update gyroscope offset correction algorithm
         gyroscope = FusionOffsetUpdate(&offset, gyroscope);
         // Calculate delta time

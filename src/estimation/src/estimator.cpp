@@ -51,13 +51,13 @@ Estimator::Estimator() {
 void Estimator::get_A(Eigen::MatrixXd &A, double dt) {
     A.setZero();
     // incorporate IMU after tests
-    double ddt2 = dt * dt * .5 * 0.0;
-    A << 1, 0, 0, dt, 0, 0, ddt2, 0, 0, 0, 0, 0,
+    double ddt2 = dt * dt * .5;
+    A <<    1, 0, 0, dt, 0, 0, ddt2, 0, 0, 0, 0, 0,
             0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, 0, 0,
             0, 0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, 0,
-            0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 1, 0, 0, dt, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, dt, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 1, 0, 0, dt, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
@@ -271,7 +271,10 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
     }
     std::cout << "Min error: " << min_error << std::endl;
     std::cout << "Best inliers size: " << best_inliers.size() << std::endl;
-    assert(min_error < 200);
+    if (min_error > 100) { // TODO: investigate
+        cam_vel_est = Eigen::VectorXd::Zero(J.cols());
+        return;
+    }
 
 //    if (static_cast<double>(best_inliers.size()) < 0.5 * static_cast<double>(n_points)) {
 //        cam_vel_est = Eigen::VectorXd::Zero(J.cols());
@@ -372,7 +375,7 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     Eigen::Vector3d w_com_enu = cam_R_enu * cam_vel_est.segment(3, 3);
     v_com_enu = v_com_enu - w_com_enu.cross(r);
 
-//    v_com_enu -= omega.cross(r);
+    v_com_enu -= omega.cross(r);
 
     // check for all zeros
     if (cam_vel_est.norm() > 1e-2 && kf_->is_initialized()) {

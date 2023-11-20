@@ -197,6 +197,8 @@ void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::Sha
     Eigen::Vector2d uv_point;
     uv_point << bbox->bbox.center.position.x,
             bbox->bbox.center.position.y;
+    auto rect_point = cam_model_.rectifyPoint(cv::Point2d(uv_point[0], uv_point[1]));
+    uv_point << rect_point.x, rect_point.y;
 
     auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
     Eigen::Vector3d Pt = estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_, h);

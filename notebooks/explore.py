@@ -56,13 +56,13 @@ for i, row in df.iterrows():
         meas_pos.append(pos)
         meas_time.append(row["/vec_target/header/stamp"])
 
-    if not np.isnan(row["/imu/data_raw/header/stamp"]):
-        acc.append([
-            row["/imu/data_raw/linear_acceleration/x"],
-            row["/imu/data_raw/linear_acceleration/y"],
-            row["/imu/data_raw/linear_acceleration/z"]
-        ])
-        acc_time.append(row["/imu/data_raw/header/stamp"])
+    # if not np.isnan(row["/imu/data_raw/header/stamp"]):
+    #     acc.append([
+    #         row["/imu/data_raw/linear_acceleration/x"],
+    #         row["/imu/data_raw/linear_acceleration/y"],
+    #         row["/imu/data_raw/linear_acceleration/z"]
+    #     ])
+    #     acc_time.append(row["/imu/data_raw/header/stamp"])
 
     if not np.isnan(row["/state/header/stamp"]):
         pos = [row["/state/poses.0/position/x"],
