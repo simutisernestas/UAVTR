@@ -55,3 +55,33 @@ adjT = np.block([[R, skew_symmetric(t) @ R],
 
 np.allclose((adjT @ twist)[:3], v_corrected), v_body, v_corrected
 
+# %%
+
+# integrate angular velocity
+
+# def skew_symmetric(v):
+#     return np.array([[0, -v[2], v[1]],
+#                         [v[2], 0, -v[0]],
+#                         [-v[1], v[0], 0]])
+# dR = np.eye(3) + skew_symmetric(int_motion[3:])
+# finalR = camera1.pose.R @ dR
+
+
+
+# %%
+# dump
+
+# pose2 = pose * spatialmath.SE3.Tx(int_motion[0]) * \
+#     spatialmath.SE3.Ty(int_motion[1]) * \
+#     spatialmath.SE3.Tz(int_motion[2]) * \
+#     spatialmath.SE3.RPY(int_motion[3:])
+# camera2 = mv.CentralCamera(f=f, rho=rho, pp=(u0, v0),
+#                            imagesize=(IMAGE_WIDTH, IMAGE_HEIGHT),
+#                            pose=pose2, noise=noise)
+# print(int_motion)
+# np.random.shuffle(int_motion[3:])
+# print(int_motion)
+# # swap 3 and 5
+# int_motion[3], int_motion[5] = int_motion[5], int_motion[3]
+# camera2 = copy.copy(camera1)
+# camera2.pose @= spatialmath.SE3.Delta(int_motion)
