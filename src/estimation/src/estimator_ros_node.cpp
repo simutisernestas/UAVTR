@@ -385,9 +385,11 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
     double omega_y = omega_y_.load();
     Eigen::Vector3d omega(omega_x, omega_y, omega_z);
 
-    Eigen::Vector3d vel_enu = estimator_->update_flow_velocity(rectified, time_point, cam_T_enu.rotation(),
+    Eigen::Vector3d vel_enu = estimator_->update_flow_velocity(rectified,
+                                                               time_point, cam_T_enu.rotation(),
                                                                cam_T_enu.translation(), K_, h, omega);
 
+    // start by integrating angular velocity
 
 //    Eigen::Vector3d v_compensation = omega.cross(-cam_T_enu.translation());
 //    // test if attenuates the velocity or increases it

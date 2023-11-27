@@ -10,11 +10,11 @@ message("##### MY CONFIG #####")
 message("#####################")
 
 if (DEFINED ENV{DEBUG})
-   message("Debug mode")
-   set(CMAKE_BUILD_TYPE Debug)
-   add_compile_options(-g -O0)
-   add_compile_definitions("DEBUG=1")
-endif()
+    message("Debug mode")
+    set(CMAKE_BUILD_TYPE Debug)
+    add_compile_options(-g -O0)
+    add_compile_definitions("DEBUG=1")
+endif ()
 
 # enable/disable cassert NDEBUG
 if (DEFINED ENV{DISABLE_ASSERT})
@@ -66,6 +66,7 @@ ament_target_dependencies(orientation_filter rclcpp sensor_msgs px4_msgs tf2_ros
 target_link_libraries(orientation_filter /home/ernie/thesis/track/Fusion/build/Fusion/libFusion.a)
 target_include_directories(orientation_filter PUBLIC /home/ernie/thesis/track/Fusion/Fusion ${EIGEN3_INCLUDE_DIR})
 
-if (TEST)
-    find_package(GTest REQUIRED)
-endif ()
+find_package(GTest REQUIRED)
+add_executable(flow_velocity_test test/test_flow_velocity.cpp)
+include_directories(flow_velocity_test PUBLIC ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR} include ${EIGEN3_INCLUDE_DIR})
+target_link_libraries(flow_velocity_test gtest gtest_main estimator_lib kalman_lib ${EIGEN3_LIBRARIES})

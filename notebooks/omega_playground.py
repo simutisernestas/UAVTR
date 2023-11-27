@@ -3,6 +3,7 @@ import numpy as np
 import transforms3d as tf
 # %%
 
+
 def angular_velocities(q1, q2, dt):
     return (2 / dt) * np.array([
         q1[0]*q2[1] - q1[1]*q2[0] - q1[2]*q2[3] + q1[3]*q2[2],
@@ -26,6 +27,17 @@ w2 = np.array(euler) / dt
 
 w, w2
 
+# %%
+
+R1 = tf.quaternions.quat2mat(q1)
+R2 = tf.quaternions.quat2mat(q2)
+dt = 1
+dR = R2 @ R1.T
+# w3 = np.array(tf.euler.mat2euler(dR, 'sxyz')) / dt
+w3, mag = tf.axangles.mat2axangle(dR)
+np.allclose(w2, w3*mag, atol=1e-3)
+
+
 # %%%
 
 T = np.array([[-0.69055, -0.476984, 0.544549, 0.0451919],
@@ -43,6 +55,7 @@ twist = np.concatenate([v_cam, w_cam])
 v_body = R @ v_cam
 w_body = R @ w_cam
 v_corrected = v_body - np.cross(w_body, t)
+
 
 def skew_symmetric(v):
     return np.array([[0, -v[2], v[1]],
@@ -65,7 +78,6 @@ np.allclose((adjT @ twist)[:3], v_corrected), v_body, v_corrected
 #                         [-v[1], v[0], 0]])
 # dR = np.eye(3) + skew_symmetric(int_motion[3:])
 # finalR = camera1.pose.R @ dR
-
 
 
 # %%

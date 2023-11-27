@@ -68,6 +68,15 @@ public:
 
     [[nodiscard]] inline Eigen::VectorXd state() const { return kf_->state(); };
 
+    static void visjac_p(const Eigen::MatrixXd &uv,
+                         const Eigen::VectorXd &depth,
+                         const Eigen::Matrix3d &K,
+                         Eigen::MatrixXd &L);
+
+    static void compute_velocity(const Eigen::MatrixXd &J,
+                          const Eigen::VectorXd &flow,
+                          Eigen::VectorXd &vel);
+
 private:
     static void get_A(Eigen::MatrixXd &A, double dt);
 
@@ -78,5 +87,6 @@ private:
 
     std::shared_ptr<cv::Mat> prev_frame_{nullptr};
     double pre_frame_time_{-1};
+    Eigen::Matrix3d prev_cam_R_enu_{};
     cv::Ptr<cv::optflow::DenseRLOFOpticalFlow> optflow_ = cv::optflow::DenseRLOFOpticalFlow::create();
 };
