@@ -387,7 +387,7 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
 
     Eigen::Vector3d vel_enu = estimator_->update_flow_velocity(rectified,
                                                                time_point, cam_T_enu.rotation(),
-                                                               cam_T_enu.translation(), K_, h, omega);
+                                                               cam_T_enu.translation(), K_, h, omega,{0,0,0});
 
     // start by integrating angular velocity
 

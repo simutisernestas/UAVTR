@@ -2,6 +2,7 @@
 #include <Eigen/Sparse>
 #include <numeric>
 #include <random>
+#include <fstream>
 
 Estimator::Estimator() {
     const double dt = 1.0 / 128.0;
@@ -34,9 +35,9 @@ Estimator::Estimator() {
     Q.block(6, 6, 3, 3) = Eigen::MatrixXd::Identity(3, 3);
     Q *= acc_variance;
 
-    std::cout << "Q: " << std::endl
-              << Q << std::endl
-              << std::endl;
+//    std::cout << "Q: " << std::endl
+//              << Q << std::endl
+//              << std::endl;
 
     Eigen::MatrixXd R(2, 2);
     R << 1.7650208e+01, 1.2699096e+01,
@@ -51,12 +52,12 @@ Estimator::Estimator() {
     const std::array<double, 3> b = {0.02008337, 0.04016673, 0.02008337};
     // Create a low pass filter objects.
     for (int i = 0; i < 3; i++)
-        lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<double, 3>>(b, a);
+        lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<double, 3 >>(b, a);
 
-    std::cout << "A: " << std::endl;
-    std::cout << A << std::endl;
+//    std::cout << "A: " << std::endl;
+//    std::cout << A << std::endl;
 
-    optflow_->setGridStep({16, 16}); // increasing this reduces runtime
+    optflow_->setGridStep({6, 6}); // increasing this reduces runtime
 }
 
 void Estimator::get_A(Eigen::MatrixXd &A, double dt) {
@@ -185,7 +186,7 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
     // >> outlier_percentage = .75
     // >>> np.log(1 - 0.999) / np.log(1 - (1 - outlier_percentage) ** n_samples)
     // 438.63339476983924
-    const size_t n_iterations = 439;
+    const size_t n_iterations = 4390;
     const size_t n_samples{3}; // minimum required to fit model
     const size_t n_points = flow_vectors.rows() / 2;
 
@@ -212,7 +213,9 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
         sol = (J_samples.transpose() * J_samples).ldlt().solve(J_samples.transpose() * flow_samples);
     };
 
+    assert(J.cols() == 3);
     Eigen::VectorXd x_est(J.cols());
+    Eigen::VectorXd best_x_est(J.cols());
     std::vector<size_t> inlier_idxs;
     inlier_idxs.reserve(n_points);
     for (size_t iter{0}; iter <= n_iterations; ++iter) {
@@ -232,17 +235,24 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
             const double error_x = error(i * 2);
             const double error_y = error(i * 2 + 1);
             const double error_norm = std::abs(error_x) + std::abs(error_y);
-            if (std::isnan(error_norm) || std::isinf(error_norm))
+            if (std::isnan(error_norm) || std::isinf(error_norm)) {
+                std::cout << "error norm is nan or inf" << std::endl;
                 continue;
-            error_sum += error_norm;
-            if (error_norm < 10)
+            }
+            if (error_norm < 3) {
                 inlier_idxs.push_back(i);
+            }
+            error_sum += error_norm;
         }
         error_sum /= (double) n_points;
 
         if (best_inliers.size() < inlier_idxs.size()) {
+//        if (error_sum < min_error) {
+            best_x_est = x_est;
             best_inliers = inlier_idxs;
             min_error = error_sum;
+            std::cout << "Min error: " << min_error << std::endl;
+            std::cout << "Best inliers size: " << best_inliers.size() << std::endl;
         }
 
         if (static_cast<double>(best_inliers.size()) > 0.75 * static_cast<double>(n_points))
@@ -250,17 +260,16 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
 
         inlier_idxs.clear();
     }
-    std::cout << "Min error: " << min_error << std::endl;
-    std::cout << "Best inliers size: " << best_inliers.size() << std::endl;
     if (min_error > 100) { // TODO: investigate
         cam_vel_est = Eigen::VectorXd::Zero(J.cols());
         return;
     }
-
-    if (static_cast<double>(best_inliers.size()) < 0.5 * static_cast<double>(n_points)) {
-        cam_vel_est = Eigen::VectorXd::Zero(J.cols());
-        return;
-    }
+    cam_vel_est = best_x_est;
+    return;
+//    if (static_cast<double>(best_inliers.size()) < 0.5 * static_cast<double>(n_points)) {
+//        cam_vel_est = Eigen::VectorXd::Zero(J.cols());
+//        return;
+//    }
 
     J_samples.resize(best_inliers.size() * 2, J.cols());
     flow_samples.resize(best_inliers.size() * 2);
@@ -269,7 +278,8 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
 
 Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, const Eigen::Matrix3d &cam_R_enu,
                                                 const Eigen::Vector3d &r, const Eigen::Matrix3d &K,
-                                                const double height, const Eigen::Vector3d &omega) {
+                                                const double height, const Eigen::Vector3d &omega,
+                                                const Eigen::Vector3d &drone_omega) {
     if (!prev_frame_) {
         this->pre_frame_time_ = time;
         this->prev_cam_R_enu_ = cam_R_enu;
@@ -277,13 +287,32 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
         return {0, 0, 0};
     }
 
-    // compute rotation difference
-    Eigen::Matrix3d cam_R_enu_diff = cam_R_enu * prev_cam_R_enu_.transpose();
-    // convert to angular velocity
-    Eigen::AngleAxisd orientation_change(cam_R_enu_diff);
-    Eigen::Vector3d angular_velocity =
-            orientation_change.angle() * orientation_change.axis() / (time - pre_frame_time_);
-    std::cout << angular_velocity << std::endl;
+//    std::cout << "K" << std::endl << K << std::endl;
+//    exit(0);
+
+//    static int count{0};
+//    count++;
+//    if (count == 2) {
+//        // dump everything to a file
+//        cv::imwrite("/tmp/frame0.png", *prev_frame_);
+//        cv::imwrite("/tmp/frame1.png", frame);
+//        // open a text file
+//        std::ofstream file("/tmp/flowinfo.txt");
+//        file << "time:" << time << std::endl;
+//        file << "prev_time:" << pre_frame_time_ << std::endl;
+//        file << "cam_R_enu:" << cam_R_enu << std::endl;
+//        file << "height:" << height << std::endl;
+//        file << "r:" << r << std::endl;
+//        exit(0);
+//    }
+
+//    // compute rotation difference
+//    Eigen::Matrix3d cam_R_enu_diff = cam_R_enu * prev_cam_R_enu_.transpose();
+//    // convert to angular velocity
+//    Eigen::AngleAxisd orientation_change(cam_R_enu_diff);
+//    Eigen::Vector3d angular_velocity =
+//            orientation_change.angle() * orientation_change.axis() / (time - pre_frame_time_);
+//    std::cout << angular_velocity << std::endl;
 
     cv::Mat flow;
     optflow_->calc(*prev_frame_, frame, flow);
@@ -302,12 +331,12 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     }
 //######################    DRAWING
 
-    int every_nth = 6;
+    int every_nth = 4;
     std::vector<cv::Point2f> flow_vecs;
     flow_vecs.reserve(frame.rows * frame.cols / (every_nth * every_nth));
     std::vector<cv::Point> samples;
     samples.reserve(frame.rows * frame.cols / (every_nth * every_nth));
-    for (int row = every_nth; row < (frame.rows - every_nth); row += every_nth) {
+    for (int row = (int) (frame.rows * .80); row < (frame.rows - every_nth); row += every_nth) {
         for (int col = every_nth; col < (frame.cols - every_nth); col += every_nth) {
             // Get the flow from `flow`, which is a 2-channel matrix
             const cv::Point2f &fxy = -flow.at<cv::Point2f>(row, col);
@@ -336,15 +365,17 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     const double dt = time - pre_frame_time_;
     for (size_t i = 0; i < samples.size(); i++) {
         // fill in pixel depths
-//        TODO: these are not pixels depths, but rather Z components of the pixel coordinates
-        const Eigen::Vector3d Pt = compute_pixel_rel_position(
-                Eigen::Vector2d(samples[i].x, samples[i].y), cam_R_enu, K, height, false);
-        const double pixel_depth = Pt.norm();
-        if (pixel_depth > 100)
-            continue;
-        if (flow_vecs[i].x == 0 && flow_vecs[i].y == 0)
-            continue;
-        depth(i) = pixel_depth;
+        const double Z = get_pixel_z_in_camera_frame(
+                Eigen::Vector2d(samples[i].x, samples[i].y), cam_R_enu, K, height);
+        if (Z < 0 || Z > 100) {
+            this->pre_frame_time_ = time;
+            *prev_frame_ = frame;
+            this->prev_cam_R_enu_ = cam_R_enu;
+            return {0, 0, 0};
+        }
+//        if (flow_vecs[i].x == 0 && flow_vecs[i].y == 0)
+//            continue;
+        depth(i) = Z;
 
         // store the uv coordinates
         uv(0, i) = static_cast<double>(samples[i].x);
@@ -360,15 +391,36 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     for (long i = 0; i < J.rows(); i++) {
         Eigen::Vector3d Jw;
         Jw << J(i, 3), J(i, 4), J(i, 5);
-        flow_eigen(i) -= Jw.dot(angular_velocity);
+        flow_eigen(i) -= Jw.dot(omega);
     }
 
+//    // get jacobian for principal point
+//    Eigen::MatrixXd J_pp(2, 3);
+//    Eigen::Vector2d pp = K.block(0, 2, 2, 1);
+//    const double Z = get_pixel_z_in_camera_frame(
+//            pp, cam_R_enu, K, height);
+//    auto pp_depth = Eigen::VectorXd(1);
+//    pp_depth << Z;
+//    visjac_p(pp, pp_depth, K, J_pp);
+//    Eigen::VectorXd cam_vel_est;
+//
+//    Eigen::Vector2d dominant(0, 0);
+//    for (int i = 0; i < flow_eigen.rows() / 2; ++i) {
+//        dominant[0] += flow_eigen(2 * i);
+//        dominant[1] += flow_eigen(2 * i + 1);
+//    }
+//    dominant /= (double) flow_eigen.rows() / 2;
+//
+//    compute_velocity(J_pp.block(0, 0, J_pp.rows(), 3),
+//                     dominant, cam_vel_est);
+//    return cam_R_enu * cam_vel_est;
+
     Eigen::VectorXd cam_vel_est;
-    cam_vel_est.setZero();
     RANSAC_vel_regression(J.block(0, 0, J.rows(), 3), flow_eigen, cam_vel_est);
+//    compute_velocity(J.block(0, 0, J.rows(), 3), flow_eigen, cam_vel_est);
 
     Eigen::Vector3d v_com_enu = cam_R_enu * cam_vel_est.segment(0, 3);
-    v_com_enu -= angular_velocity.cross(r);
+    v_com_enu -= drone_omega.cross(r);
 
     if (cam_vel_est.norm() > 1e-1 && kf_->is_initialized()) {
         static Eigen::MatrixXd C_vel(2, 12);

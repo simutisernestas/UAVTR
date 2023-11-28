@@ -60,7 +60,7 @@ public:
 
     Eigen::Vector3d update_flow_velocity(cv::Mat &frame, double time, const Eigen::Matrix3d &cam_R_enu,
                                          const Eigen::Vector3d &r, const Eigen::Matrix3d &K, double height,
-                                         const Eigen::Vector3d &omega);
+                                         const Eigen::Vector3d &omega, const Eigen::Vector3d &drone_omega);
 
     void update_imu_accel(const Eigen::Vector3d &accel, double dt);
 
@@ -74,8 +74,23 @@ public:
                          Eigen::MatrixXd &L);
 
     static void compute_velocity(const Eigen::MatrixXd &J,
-                          const Eigen::VectorXd &flow,
-                          Eigen::VectorXd &vel);
+                                 const Eigen::VectorXd &flow,
+                                 Eigen::VectorXd &vel);
+
+    static double get_pixel_z_in_camera_frame(
+            const Eigen::Vector2d &pixel, const Eigen::Matrix3d &cam_R_enu,
+            const Eigen::Matrix3d &K, const double height) {
+        Eigen::Matrix<double, 3, 3> Kinv = K.inverse();
+        Eigen::Vector3d lr{0, 0, -1};
+        Eigen::Vector3d Puv_hom{pixel[0], pixel[1], 1};
+        Eigen::Vector3d Pc = Kinv * Puv_hom;
+        Eigen::Vector3d ls = cam_R_enu * (Pc / Pc.norm());
+        double d = height / (lr.transpose() * ls);
+        Eigen::Vector3d Pt = ls * d;
+        // transform back to camera frame
+        Pt = cam_R_enu.inverse() * Pt;
+        return Pt[2];
+    }
 
 private:
     static void get_A(Eigen::MatrixXd &A, double dt);
