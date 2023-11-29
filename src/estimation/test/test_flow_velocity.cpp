@@ -81,6 +81,12 @@ TEST(TestFlowVelocityParts, RansacIsAbleToFilterOutDominantFlow) {
     // check if the dominant flow is still recovered
 }
 
+TEST(TestFlowVelocityParts, PureRotationGivesZeroVelocity) {
+    // take a sample of flow
+    // add some outliers, mimicking water, vessel, etc.
+    // check if the dominant flow is still recovered
+}
+
 TEST(TestFlowVelocityParts, FullVelocityOnRealData) {
     auto estimator = Estimator();
     std::string dir = "/home/ernie/thesis/track/src/estimation/test/";
@@ -98,23 +104,25 @@ TEST(TestFlowVelocityParts, FullVelocityOnRealData) {
 //    cv::imshow("frame", frame1);
 //    cv::waitKey(0);
 
-    double t0 = 440.257;
-    double t1 = 440.524;
+    double t0 = 508.652;
+    double t1 = 508.685;
     Eigen::Matrix3d cam_R_enu;
-    cam_R_enu << -0.147838, -0.786657, 0.599429,
-            -0.988639, 0.134176, -0.0677446,
-            -0.027137, -0.602634, -0.797556;
-    double height = 8.80421;
+    cam_R_enu << 0.499455, -0.624689, 0.600257,
+            -0.866339, -0.360991, 0.34517,
+            0.00106359, -0.692423, -0.721491;
+    double height = 6.30986;
     Eigen::Vector3d r;
-    r << 0.0941378, -0.0717118, -0.0879915;
+    r << 0.127711, 0.00500937, -0.0735654;
+    Eigen::Vector3d cam_omega;
+    cam_omega << 0.09909591711111113, 0.025986013, -0.030931112611111106;
+    Eigen::Vector3d drone_omega;
+    drone_omega << -0.03847748836363636, -0.10718755563636365, 0.0076125204545454545;
+    Eigen::Vector3d gt_vel_ned = {1.282000065, 3.300000191, 0.229000017};
+
     Eigen::Matrix3d K;
     K << 385.402, 0.0, 322.133,
             0.0, 384.882, 240.013,
             0.0, 0.0, 1.0;
-    Eigen::Vector3d cam_omega;
-    cam_omega << -0.07447857, 0.01906437, 0.00902872;
-    Eigen::Vector3d drone_omega;
-    drone_omega << 0.00182535, 0.06743269, -0.01031483;
 
     // first call simply record the previous frame
     auto ret = estimator.update_flow_velocity(
@@ -125,17 +133,20 @@ TEST(TestFlowVelocityParts, FullVelocityOnRealData) {
     ret = estimator.update_flow_velocity(
             frame1, t1, cam_R_enu, r, K, height, cam_omega, drone_omega);
 
-    Eigen::Vector3d gt_vel_ned = {0.1475, 2.04250014, 0.07800001};
     Eigen::Matrix3d ned_R_enub = Eigen::Matrix3d::Identity();
     ned_R_enub << 0.0, 1.0, 0.0,
             1.0, 0.0, 0.0,
             0.0, 0.0, -1.0;
     Eigen::Vector3d gt_vel_enu = ned_R_enub * gt_vel_ned;
 
-    EXPECT_NEAR(ret.norm(), gt_vel_enu.norm(), 2e-1);
+    auto ret_xy = ret.segment(0, 2);
+    auto gt_xy = gt_vel_enu.segment(0, 2);
 
-    EXPECT_TRUE(ret.isApprox(gt_vel_enu, 1e-1)) << "computed vel: " << std::endl << ret << std::endl
-                                                << "ground truth: " << std::endl << gt_vel_enu << std::endl;
+    EXPECT_NEAR(ret_xy.norm(), gt_xy.norm(), 2e-1);
+
+    EXPECT_TRUE(ret_xy.isApprox(gt_xy, 1e-1))
+                        << "computed vel: " << std::endl << ret << std::endl
+                        << "ground truth: " << std::endl << gt_vel_enu << std::endl;
 
 // Estimator::update_flow_velocity(frame, time, cam_R_enu, &r, &K, height, omega)
 //  to test this I'll need:

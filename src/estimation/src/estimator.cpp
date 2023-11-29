@@ -35,10 +35,6 @@ Estimator::Estimator() {
     Q.block(6, 6, 3, 3) = Eigen::MatrixXd::Identity(3, 3);
     Q *= acc_variance;
 
-//    std::cout << "Q: " << std::endl
-//              << Q << std::endl
-//              << std::endl;
-
     Eigen::MatrixXd R(2, 2);
     R << 1.7650208e+01, 1.2699096e+01,
             1.2699096e+01, 1.5283947e+01;
@@ -53,9 +49,6 @@ Estimator::Estimator() {
     // Create a low pass filter objects.
     for (int i = 0; i < 3; i++)
         lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<double, 3 >>(b, a);
-
-//    std::cout << "A: " << std::endl;
-//    std::cout << A << std::endl;
 
     optflow_->setGridStep({6, 6}); // increasing this reduces runtime
 }
@@ -237,20 +230,20 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
             const double error_norm = std::abs(error_x) + std::abs(error_y);
             if (std::isnan(error_norm) || std::isinf(error_norm)) {
                 std::cout << "error norm is nan or inf" << std::endl;
-                continue;
+                cam_vel_est = Eigen::VectorXd::Zero(J.cols());
+                return;
             }
             if (error_norm < 3) {
                 inlier_idxs.push_back(i);
+                error_sum += error_norm;
             }
-            error_sum += error_norm;
         }
-        error_sum /= (double) n_points;
+        error_sum /= (double) inlier_idxs.size();
 
         if (best_inliers.size() < inlier_idxs.size()) {
-//        if (error_sum < min_error) {
-            best_x_est = x_est;
             best_inliers = inlier_idxs;
             min_error = error_sum;
+            std::cout << "iteration " << iter << std::endl;
             std::cout << "Min error: " << min_error << std::endl;
             std::cout << "Best inliers size: " << best_inliers.size() << std::endl;
         }
@@ -260,13 +253,7 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
 
         inlier_idxs.clear();
     }
-    if (min_error > 100) { // TODO: investigate
-        cam_vel_est = Eigen::VectorXd::Zero(J.cols());
-        return;
-    }
-    cam_vel_est = best_x_est;
-    return;
-//    if (static_cast<double>(best_inliers.size()) < 0.5 * static_cast<double>(n_points)) {
+//    if (best_inliers.size() < 100) {
 //        cam_vel_est = Eigen::VectorXd::Zero(J.cols());
 //        return;
 //    }
@@ -282,37 +269,28 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
                                                 const Eigen::Vector3d &drone_omega) {
     if (!prev_frame_) {
         this->pre_frame_time_ = time;
-        this->prev_cam_R_enu_ = cam_R_enu;
         this->prev_frame_ = std::make_shared<cv::Mat>(frame);
         return {0, 0, 0};
     }
 
-//    std::cout << "K" << std::endl << K << std::endl;
-//    exit(0);
-
-//    static int count{0};
-//    count++;
-//    if (count == 2) {
-//        // dump everything to a file
-//        cv::imwrite("/tmp/frame0.png", *prev_frame_);
-//        cv::imwrite("/tmp/frame1.png", frame);
-//        // open a text file
-//        std::ofstream file("/tmp/flowinfo.txt");
-//        file << "time:" << time << std::endl;
-//        file << "prev_time:" << pre_frame_time_ << std::endl;
-//        file << "cam_R_enu:" << cam_R_enu << std::endl;
-//        file << "height:" << height << std::endl;
-//        file << "r:" << r << std::endl;
-//        exit(0);
-//    }
-
-//    // compute rotation difference
-//    Eigen::Matrix3d cam_R_enu_diff = cam_R_enu * prev_cam_R_enu_.transpose();
-//    // convert to angular velocity
-//    Eigen::AngleAxisd orientation_change(cam_R_enu_diff);
-//    Eigen::Vector3d angular_velocity =
-//            orientation_change.angle() * orientation_change.axis() / (time - pre_frame_time_);
-//    std::cout << angular_velocity << std::endl;
+#ifdef SAVEOUT
+    static int count{0};
+    count++;
+    if (count == 1) {
+        // dump everything to a file
+        cv::imwrite("/tmp/frame0.png", *prev_frame_);
+        cv::imwrite("/tmp/frame1.png", frame);
+        // open a text file
+        std::ofstream file("/tmp/flowinfo.txt");
+        file << "time:" << time << std::endl;
+        file << "prev_time:" << pre_frame_time_ << std::endl;
+        file << "cam_R_enu:" << cam_R_enu << std::endl;
+        file << "height:" << height << std::endl;
+        file << "r:" << r << std::endl;
+        file << "K:" << std::endl << K << std::endl;
+        exit(0);
+    }
+#endif
 
     cv::Mat flow;
     optflow_->calc(*prev_frame_, frame, flow);
@@ -331,15 +309,16 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     }
 //######################    DRAWING
 
-    int every_nth = 4;
+    int every_nth = 8;
     std::vector<cv::Point2f> flow_vecs;
     flow_vecs.reserve(frame.rows * frame.cols / (every_nth * every_nth));
     std::vector<cv::Point> samples;
     samples.reserve(frame.rows * frame.cols / (every_nth * every_nth));
-    for (int row = (int) (frame.rows * .80); row < (frame.rows - every_nth); row += every_nth) {
-        for (int col = every_nth; col < (frame.cols - every_nth); col += every_nth) {
+    // the multiplies are orientation dependant
+    for (int row = (int) every_nth; row < (frame.rows - every_nth); row += every_nth) {
+        for (int col = (int) every_nth; col < (frame.cols - every_nth); col += every_nth) {
             // Get the flow from `flow`, which is a 2-channel matrix
-            const cv::Point2f &fxy = -flow.at<cv::Point2f>(row, col);
+            const cv::Point2f &fxy = flow.at<cv::Point2f>(row, col);
             flow_vecs.push_back(fxy);
             samples.emplace_back(row, col);
         }
@@ -359,65 +338,59 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     cv::waitKey(1);
 //######################    DRAWING
 
+    const double MAX_Z = 40;
     Eigen::VectorXd depth(samples.size());
     Eigen::MatrixXd uv = Eigen::MatrixXd(2, samples.size());
     Eigen::VectorXd flow_eigen(2 * flow_vecs.size());
     const double dt = time - pre_frame_time_;
+    assert(dt > 0);
+    long insert_idx = 0;
     for (size_t i = 0; i < samples.size(); i++) {
-        // fill in pixel depths
+        bool is_flow_present = (flow_vecs[i].x != 0 && flow_vecs[i].y != 0);
+        if (!is_flow_present)
+            continue;
+
         const double Z = get_pixel_z_in_camera_frame(
                 Eigen::Vector2d(samples[i].x, samples[i].y), cam_R_enu, K, height);
-        if (Z < 0 || Z > 100) {
-            this->pre_frame_time_ = time;
-            *prev_frame_ = frame;
-            this->prev_cam_R_enu_ = cam_R_enu;
-            return {0, 0, 0};
-        }
-//        if (flow_vecs[i].x == 0 && flow_vecs[i].y == 0)
-//            continue;
-        depth(i) = Z;
+        if (Z < 0 || Z > MAX_Z)
+            continue;
 
-        // store the uv coordinates
-        uv(0, i) = static_cast<double>(samples[i].x);
-        uv(1, i) = static_cast<double>(samples[i].y);
-
-        flow_eigen(2 * i) = flow_vecs[i].x / dt;
-        flow_eigen(2 * i + 1) = flow_vecs[i].y / dt;
+        depth(insert_idx) = Z;
+        uv(0, insert_idx) = static_cast<double>(samples[i].x);
+        uv(1, insert_idx) = static_cast<double>(samples[i].y);
+        flow_eigen(2 * insert_idx) = flow_vecs[i].x / dt;
+        flow_eigen(2 * insert_idx + 1) = flow_vecs[i].y / dt;
+        ++insert_idx;
     }
+    if (insert_idx == 0) {
+        this->pre_frame_time_ = time;
+        *prev_frame_ = frame;
+        return {0, 0, 0};
+    }
+
+    // resize the matrices to fit the filled values
+    depth.conservativeResize(insert_idx);
+    uv.conservativeResize(Eigen::NoChange, insert_idx);
+    flow_eigen.conservativeResize(2 * insert_idx);
+
     Eigen::MatrixXd J; // Jacobian
     visjac_p(uv, depth, K, J);
 
-    // subtract angular velocity part of the flow, to improve accuracy
+//    // subtract angular velocity part of the flow, to improve accuracy
+//    Eigen::Vector3d z_vel = {0, 0, -0.24866668}; // enu
+//    // convert to camera frame
+//    z_vel = cam_R_enu.transpose() * z_vel;
     for (long i = 0; i < J.rows(); i++) {
-        Eigen::Vector3d Jw;
-        Jw << J(i, 3), J(i, 4), J(i, 5);
+        Eigen::Vector3d Jw = {J(i, 3), J(i, 4), J(i, 5)};
         flow_eigen(i) -= Jw.dot(omega);
+//        Eigen::Vector3d Jv = {J(i, 0), J(i, 1), J(i, 2)};
+//        flow_eigen(i) -= Jv.dot(z_vel);
+//        auto v_due_to_angular_velocity = drone_omega.cross(r);
+//        flow_eigen(i) -= Jv.dot(v_due_to_angular_velocity);
     }
-
-//    // get jacobian for principal point
-//    Eigen::MatrixXd J_pp(2, 3);
-//    Eigen::Vector2d pp = K.block(0, 2, 2, 1);
-//    const double Z = get_pixel_z_in_camera_frame(
-//            pp, cam_R_enu, K, height);
-//    auto pp_depth = Eigen::VectorXd(1);
-//    pp_depth << Z;
-//    visjac_p(pp, pp_depth, K, J_pp);
-//    Eigen::VectorXd cam_vel_est;
-//
-//    Eigen::Vector2d dominant(0, 0);
-//    for (int i = 0; i < flow_eigen.rows() / 2; ++i) {
-//        dominant[0] += flow_eigen(2 * i);
-//        dominant[1] += flow_eigen(2 * i + 1);
-//    }
-//    dominant /= (double) flow_eigen.rows() / 2;
-//
-//    compute_velocity(J_pp.block(0, 0, J_pp.rows(), 3),
-//                     dominant, cam_vel_est);
-//    return cam_R_enu * cam_vel_est;
 
     Eigen::VectorXd cam_vel_est;
     RANSAC_vel_regression(J.block(0, 0, J.rows(), 3), flow_eigen, cam_vel_est);
-//    compute_velocity(J.block(0, 0, J.rows(), 3), flow_eigen, cam_vel_est);
 
     Eigen::Vector3d v_com_enu = cam_R_enu * cam_vel_est.segment(0, 3);
     v_com_enu -= drone_omega.cross(r);
@@ -435,7 +408,6 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
 
     this->pre_frame_time_ = time;
     *prev_frame_ = frame;
-    this->prev_cam_R_enu_ = cam_R_enu;
     return v_com_enu;
 }
 

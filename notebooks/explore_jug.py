@@ -20,7 +20,7 @@ np.set_printoptions(precision=6, suppress=True)
 # %%
 
 # read cvs file record.csv
-df = pd.read_csv('../real2.csv')
+df = pd.read_csv('../state.csv')
 df.columns, len(df)
 
 # %%

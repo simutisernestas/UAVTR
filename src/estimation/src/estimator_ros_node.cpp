@@ -1,7 +1,6 @@
 #include "estimator_ros_node.hpp"
 
 StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
-#if VEL_MEAS
     {
         vel_meas_callback_group_ = this->create_callback_group(
                 rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -11,7 +10,6 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
                 "/camera/color/image_raw", 1,
                 std::bind(&StateEstimationNode::img_callback, this, std::placeholders::_1), options);
     }
-#endif
     {
         target_bbox_callback_group_ = this->create_callback_group(
                 rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -31,41 +29,39 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
                 std::bind(&StateEstimationNode::imu_callback, this, std::placeholders::_1), options);
     }
 
+    cam_imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
+            "/camera/imu", 20,
+            std::bind(&StateEstimationNode::cam_imu_callback, this, std::placeholders::_1));
     cam_info_sub_ = create_subscription<sensor_msgs::msg::CameraInfo>(
             "/camera/color/camera_info", 1,
             std::bind(&StateEstimationNode::cam_info_callback, this, std::placeholders::_1));
-    cam_target_pos_pub_ = create_publisher<geometry_msgs::msg::PointStamped>(
-            "/cam_target_pos", 1);
     gt_pose_array_sub_ = create_subscription<geometry_msgs::msg::PoseArray>(
             "/gz/gt_pose_array", 1,
             std::bind(&StateEstimationNode::gt_pose_array_callback, this, std::placeholders::_1));
-    gt_target_pos_pub_ = create_publisher<geometry_msgs::msg::PointStamped>(
-            "/gt_target_pos", 1);
-    range_sub_ = create_subscription<sensor_msgs::msg::Range>(
-            "/teraranger_evo_40m", 1, std::bind(&StateEstimationNode::range_callback, this, std::placeholders::_1));
-
-    state_pub_ = create_publisher<geometry_msgs::msg::PoseArray>(
-            "/state", 1);
-
+//    range_sub_ = create_subscription<sensor_msgs::msg::Range>(
+//            "/teraranger_evo_40m", 1, std::bind(&StateEstimationNode::range_callback, this, std::placeholders::_1));
     auto qos = rclcpp::QoS(rclcpp::KeepLast(1));
     qos.best_effort();
     air_data_sub_ = create_subscription<px4_msgs::msg::VehicleAirData>(
             "/fmu/out/vehicle_air_data", qos,
             std::bind(&StateEstimationNode::air_data_callback, this, std::placeholders::_1));
-
-//    imu_cam_sub_ = create_subscription<sensor_msgs::msg::Imu>(
-//         "/camera/imu", 10,
-//         std::bind(&StateEstimationNode::imu_cam_callback, this, std::placeholders::_1));
-
-    imu_world_pub_ = create_publisher<geometry_msgs::msg::Vector3Stamped>(
-            "/imu/data_world", 10);
-
     gps_sub_ = create_subscription<px4_msgs::msg::SensorGps>(
             "/fmu/out/vehicle_gps_position", qos,
             std::bind(&StateEstimationNode::gps_callback, this, std::placeholders::_1));
+    timesync_sub_ = create_subscription<px4_msgs::msg::TimesyncStatus>(
+            "/fmu/out/timesync_status", qos,
+            std::bind(&StateEstimationNode::timesync_callback, this, std::placeholders::_1));
+
+    cam_target_pos_pub_ = create_publisher<geometry_msgs::msg::PointStamped>(
+            "/cam_target_pos", 1);
+    gt_target_pos_pub_ = create_publisher<geometry_msgs::msg::PointStamped>(
+            "/gt_target_pos", 1);
+    imu_world_pub_ = create_publisher<geometry_msgs::msg::Vector3Stamped>(
+            "/imu/data_world", 10);
     gps_pub_ = create_publisher<sensor_msgs::msg::NavSatFix>(
             "/gps_postproc", qos);
-
+    state_pub_ = create_publisher<geometry_msgs::msg::PoseArray>(
+            "/state", 1);
     vec_pub_ = create_publisher<visualization_msgs::msg::Marker>(
             "/vec_target", 10);
 
@@ -76,14 +72,12 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
     tf_timer_ = create_wall_timer(std::chrono::milliseconds(1000),
                                   std::bind(&StateEstimationNode::tf_callback, this));
 
-    timesync_sub_ = create_subscription<px4_msgs::msg::TimesyncStatus>(
-            "/fmu/out/timesync_status", qos,
-            std::bind(&StateEstimationNode::timesync_callback, this, std::placeholders::_1));
-
     estimator_ = std::make_unique<Estimator>();
 
     declare_parameter<bool>("simulation", false);
     get_parameter("simulation", simulation_);
+
+    cam_ang_vel_accumulator_ = std::make_unique<CamAngVelAccumulator>();
 }
 
 void StateEstimationNode::gps_callback(const px4_msgs::msg::SensorGps::SharedPtr msg) {
@@ -153,10 +147,6 @@ void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr ms
         state_msg.poses[i].position.z = state(i * 3 + 2);
     }
     state_pub_->publish(state_msg);
-
-    omega_z_.store(msg->angular_velocity.z);
-    omega_x_.store(msg->angular_velocity.x);
-    omega_y_.store(msg->angular_velocity.y);
 }
 
 void StateEstimationNode::air_data_callback(const px4_msgs::msg::VehicleAirData::SharedPtr msg) {
@@ -168,11 +158,11 @@ void StateEstimationNode::air_data_callback(const px4_msgs::msg::VehicleAirData:
     estimator_->update_height(height_);
 }
 
-void StateEstimationNode::range_callback(const sensor_msgs::msg::Range::SharedPtr msg) {
-    if (std::isnan(msg->range) || std::isinf(msg->range))
-        return;
-    // TODO: deal with measurement
-}
+//void StateEstimationNode::range_callback(const sensor_msgs::msg::Range::SharedPtr msg) {
+//    if (std::isnan(msg->range) || std::isinf(msg->range))
+//        return;
+//    // TODO: deal with measurement
+//}
 
 void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::SharedPtr bbox) {
     auto h = height_.load();
@@ -251,19 +241,6 @@ void StateEstimationNode::cam_info_callback(const sensor_msgs::msg::CameraInfo::
         size_t col = i % 3;
         K_(row, col) = cvK.operator()(row, col);
     }
-
-// TODO: scale does not appy for real data :<)
-//    static double scale{1.0};
-//    if (simulation_)
-//        scale = .5;
-//    for (size_t i = 0; i < 9; i++) {
-//        size_t row = std::floor(i / 3);
-//        size_t col = i % 3;
-//        if (row == 0 || row == 1)
-//            K_(row, col) = msg->k[i] * scale;
-//        else
-//            K_(row, col) = msg->k[i];
-//    }
 }
 
 void StateEstimationNode::gt_pose_array_callback(const geometry_msgs::msg::PoseArray::SharedPtr msg) {
@@ -313,10 +290,6 @@ void StateEstimationNode::tf_callback() {
                 image_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>(image_tf);
         } else {
             // camera_color_optical_frame -> base_link
-            // - Translation: [0.115, -0.059, -0.071]
-            // - Rotation: in Quaternion [0.654, -0.652, 0.271, -0.272]
-//            - Translation: [0.115, -0.059, 0.000]
-//            - Rotation: in Quaternion [0.654, -0.652, 0.271, -0.272]
             image_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>();
             image_tf_->transform.translation.x = 0.115;
             image_tf_->transform.translation.y = -0.059;
@@ -342,12 +315,10 @@ StateEstimationNode::tf_msg_to_affine(geometry_msgs::msg::TransformStamped &tf_s
     return transform;
 }
 
-#if VEL_MEAS
-
 void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr msg) {
     if (!is_K_received())
         return;
-    if (!image_tf_) //  || !tera_tf_
+    if (!image_tf_)
         return;
     double h = height_.load();
     if (h < 0 || std::isnan(h) || std::isinf(h))
@@ -380,32 +351,12 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
     if (simulation_)
         cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(), 0.5, 0.5);
 
-    double omega_z = omega_z_.load();
-    double omega_x = omega_x_.load();
-    double omega_y = omega_y_.load();
-    Eigen::Vector3d omega(omega_x, omega_y, omega_z);
+    auto omega = cam_ang_vel_accumulator_->get_ang_vel();
 
     Eigen::Vector3d vel_enu = estimator_->update_flow_velocity(rectified,
                                                                time_point, cam_T_enu.rotation(),
-                                                               cam_T_enu.translation(), K_, h, omega,{0,0,0});
-
-    // start by integrating angular velocity
-
-//    Eigen::Vector3d v_compensation = omega.cross(-cam_T_enu.translation());
-//    // test if attenuates the velocity or increases it
-//    {
-//        Eigen::Vector3d v_test = vel_enu + v_compensation;
-//        if (v_test.norm() > vel_enu.norm())
-//            std::cout << "1 Increasing velocity" << std::endl;
-//        else
-//            std::cout << "1 Decreasing velocity" << std::endl;
-//        Eigen::Vector3d v_test2 = vel_enu - v_compensation;
-//        if (v_test2.norm() > vel_enu.norm())
-//            std::cout << "2 Increasing velocity" << std::endl;
-//        else
-//            std::cout << "2 Decreasing velocity" << std::endl;
-//    }
-//    vel_enu -= v_compensation;
+                                                               cam_T_enu.translation(), K_, h,
+                                                               omega, {0, 0, 0});
 
     geometry_msgs::msg::Vector3Stamped vel_msg;
     vel_msg.header.stamp = time; // this will have to change to absolute
@@ -416,7 +367,13 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
     imu_world_pub_->publish(vel_msg);
 }
 
-#endif
+void StateEstimationNode::cam_imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
+    // accumulate angular velocity into a vector
+    cam_ang_vel_accumulator_->add(
+            msg->angular_velocity.x,
+            msg->angular_velocity.y,
+            msg->angular_velocity.z);
+}
 
 int main(int argc, char **argv) {
     rclcpp::init(argc, argv);

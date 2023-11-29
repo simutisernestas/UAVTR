@@ -102,6 +102,5 @@ private:
 
     std::shared_ptr<cv::Mat> prev_frame_{nullptr};
     double pre_frame_time_{-1};
-    Eigen::Matrix3d prev_cam_R_enu_{};
     cv::Ptr<cv::optflow::DenseRLOFOpticalFlow> optflow_ = cv::optflow::DenseRLOFOpticalFlow::create();
 };

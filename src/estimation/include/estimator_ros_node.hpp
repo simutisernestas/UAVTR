@@ -22,7 +22,41 @@
 #include "visualization_msgs/msg/marker.hpp"
 #include "image_geometry/pinhole_camera_model.h"
 
-#define VEL_MEAS 1
+struct CamAngVelAccumulator {
+    CamAngVelAccumulator() : x(0), y(0), z(0),
+                             ang_vel_count(0) {}
+
+    void add(const float x_add, const float y_add, const float z_add) {
+        std::scoped_lock lock(mtx);
+        x += x_add;
+        y += y_add;
+        z += z_add;
+        ang_vel_count++;
+    }
+
+    void reset() {
+        x = y = z = 0;
+        ang_vel_count = 0;
+    }
+
+    [[nodiscard]] Eigen::Vector3d get_ang_vel() {
+        std::scoped_lock lock(mtx);
+
+        if (ang_vel_count == 0)
+            return {0, 0, 0};
+
+        Eigen::Vector3d ang_vel{x / (float) ang_vel_count,
+                                y / (float) ang_vel_count,
+                                z / (float) ang_vel_count};
+        reset();
+
+        return ang_vel;
+    }
+
+    float x, y, z;
+    uint16_t ang_vel_count;
+    std::mutex mtx;
+};
 
 class StateEstimationNode : public rclcpp::Node {
 public:
@@ -35,11 +69,13 @@ private:
 
     void imu_callback(sensor_msgs::msg::Imu::SharedPtr msg);
 
+    void cam_imu_callback(sensor_msgs::msg::Imu::SharedPtr msg);
+
     inline bool is_K_received() { return K_(0, 0) != 0; }
 
     void air_data_callback(px4_msgs::msg::VehicleAirData::SharedPtr msg);
 
-    void range_callback(sensor_msgs::msg::Range::SharedPtr msg);
+//    void range_callback(sensor_msgs::msg::Range::SharedPtr msg);
 
     void bbox_callback(vision_msgs::msg::Detection2D::SharedPtr bbox);
 
@@ -55,27 +91,25 @@ private:
 
     static Eigen::Transform<double, 3, Eigen::Affine> tf_msg_to_affine(geometry_msgs::msg::TransformStamped &tf_stamp);
 
-#if VEL_MEAS
-
     void img_callback(sensor_msgs::msg::Image::SharedPtr msg);
 
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_;
-
-#endif
 
     rclcpp::TimerBase::SharedPtr tf_timer_;
     rclcpp::Subscription<vision_msgs::msg::Detection2D>::SharedPtr bbox_sub_;
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr range_sub_;
     rclcpp::Subscription<px4_msgs::msg::VehicleAirData>::SharedPtr air_data_sub_;
-    rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr cam_target_pos_pub_;
-    rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr gt_target_pos_pub_;
-    rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr imu_world_pub_;
     rclcpp::Subscription<geometry_msgs::msg::PoseArray>::SharedPtr gt_pose_array_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_cam_sub_;
     rclcpp::Subscription<px4_msgs::msg::TimesyncStatus>::SharedPtr timesync_sub_;
     rclcpp::Subscription<px4_msgs::msg::SensorGps>::SharedPtr gps_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr cam_imu_sub_;
+
+    rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr cam_target_pos_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr gt_target_pos_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr imu_world_pub_;
     rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr gps_pub_;
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr vec_pub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr state_pub_;
@@ -96,9 +130,6 @@ private:
     std::unique_ptr<Estimator> estimator_{nullptr};
     bool simulation_;
     std::mutex mtx_;
-    std::atomic<double> omega_z_{-99};
-    std::atomic<double> omega_x_{-99};
-    std::atomic<double> omega_y_{-99};
-
     image_geometry::PinholeCameraModel cam_model_;
+    std::unique_ptr<CamAngVelAccumulator> cam_ang_vel_accumulator_{nullptr};
 }; // class StateEstimationNode

@@ -2,6 +2,7 @@
 #include "px4_msgs/msg/sensor_combined.hpp"
 #include "px4_msgs/msg/vehicle_attitude.hpp"
 #include "px4_msgs/msg/sensor_mag.hpp"
+#include "px4_msgs/msg/vehicle_magnetometer.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "sensor_msgs/msg/magnetic_field.hpp"
 #include "Fusion.h"
@@ -24,11 +25,14 @@ public:
                 "/fmu/out/sensor_combined", qos, std::bind(&SensorTranslator::sensor_combined_callback, this, _1));
         sensor_mag_subscription_ = this->create_subscription<px4_msgs::msg::SensorMag>(
                 "/fmu/out/sensor_mag", qos, std::bind(&SensorTranslator::sensor_mag_callback, this, _1));
+        // vehicle_mag_subscription_ = this->create_subscription<px4_msgs::msg::VehicleMagnetometer>(
+        //         "/fmu/out/vehicle_magnetometer", qos, std::bind(&SensorTranslator::vehicle_mag_callback, this, _1));
 
         FusionOffsetInitialise(&offset, SAMPLE_RATE);
         FusionAhrsInitialise(&ahrs);
         FusionAhrsSetSettings(&ahrs, &settings);
 
+#define DEBUG 1
 #ifdef DEBUG
         euler_publisher_ = this->create_publisher<sensor_msgs::msg::Imu>("imu/euler", 10);
         euler_publisher_px4_ = this->create_publisher<sensor_msgs::msg::Imu>("imu/euler_px4", 10);
@@ -49,7 +53,7 @@ private:
     const FusionVector hardIronOffset = {0.0f, 0.0f, 0.0f};
     const FusionAhrsSettings settings = {
             .convention = FusionConventionEnu,
-            .gain = 0.5f,
+            .gain = 0.8f, // low gain will trust gyro, susceptible to drift
             .gyroscopeRange = 2000.0f, /* replace this with actual gyroscope range in degrees/s */
             .accelerationRejection = 10.0f,
             .magneticRejection = 10.0f,
@@ -103,18 +107,23 @@ private:
         FusionVector accelerometer = {accel[0], accel[1], accel[2]};
         FusionVector magnetometer = {mag[0], mag[1], mag[2]};
 
-        // Update gyroscope offset correction algorithm
-        gyroscope = FusionOffsetUpdate(&offset, gyroscope);
         // Calculate delta time
         const uint64_t delta = msg->timestamp - last_timestamp_; // microseconds
         const float dt = (float) delta / 1000000.0f;              // seconds
         last_timestamp_ = msg->timestamp;
 
-        // Update gyroscope AHRS algorithm
-        FusionAhrsUpdate(&ahrs, gyroscope, accelerometer, magnetometer, dt);
+        if (mag_msg_.header.stamp.sec > 0) {
+            // Update gyroscope AHRS algorithm
+            FusionAhrsUpdate(&ahrs, gyroscope, accelerometer, magnetometer, dt);
+            mag_msg_.header.stamp.sec = -1;
+        } else {
+            FusionAhrsUpdateNoMagnetometer(&ahrs, gyroscope, accelerometer, dt);
+        }
 
         // publish tf
         const FusionQuaternion quaternion = FusionAhrsGetQuaternion(&ahrs);
+        // const FusionQuaternion ned_q_enu = {-quaternion.element.w, quaternion.element.y,
+        //     quaternion.element.x, -quaternion.element.z};
         geometry_msgs::msg::TransformStamped transform{};
         transform.header.stamp = rclcpp::Time(msg->timestamp * 1000);
         transform.header.frame_id = "odom";
@@ -135,7 +144,7 @@ private:
         } else {
             FusionQuaternion q1_inv = {
                     {prev_q_.element.w, -prev_q_.element.x, -prev_q_.element.y, -prev_q_.element.z}};
-            auto delta_q = FusionQuaternionMultiply(quaternion, q1_inv);
+            auto delta_q = FusionQuaternionMultiply(q1_inv, quaternion);
             auto euler = FusionQuaternionToEuler(delta_q);
             const float deg2rad = M_PI / 180.0f;
             omega[0] = (euler.angle.roll * deg2rad) / dt;
@@ -158,7 +167,7 @@ private:
         imu_publisher_->publish(imu_msg);
 
 #ifdef DEBUG
-        const FusionEuler euler = FusionQuaternionToEuler(FusionAhrsGetQuaternion(&ahrs));
+        const FusionEuler euler = FusionQuaternionToEuler(quaternion);
         // construct msg
         sensor_msgs::msg::Imu euler_msg{};
         euler_msg.header.stamp = rclcpp::Time(msg->timestamp * 1000);
@@ -168,7 +177,7 @@ private:
         euler_msg.linear_acceleration.z = earth.axis.z;
         euler_msg.angular_velocity.x = euler.angle.roll;
         euler_msg.angular_velocity.y = euler.angle.pitch;
-        euler_msg.angular_velocity.z = euler.angle.yaw;
+        euler_msg.angular_velocity.z = euler.angle.yaw + 90.0f;
         euler_publisher_->publish(euler_msg);
 #endif
     }
@@ -184,16 +193,27 @@ private:
         mag_msg_ = mag_msg;
     }
 
+    void vehicle_mag_callback(const px4_msgs::msg::VehicleMagnetometer::SharedPtr msg) {
+        sensor_msgs::msg::MagneticField mag_msg{};
+        auto timestamp_microseconds = msg->timestamp;
+        mag_msg.header.stamp = rclcpp::Time(timestamp_microseconds * 1000);
+        mag_msg.header.frame_id = "base_link";
+        mag_msg.magnetic_field.x = msg->magnetometer_ga[0];
+        mag_msg.magnetic_field.y = msg->magnetometer_ga[1];
+        mag_msg.magnetic_field.z = msg->magnetometer_ga[2];
+        mag_msg_ = mag_msg;
+    }
+
 #ifdef DEBUG
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr euler_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr euler_publisher_px4_;
     rclcpp::Subscription<px4_msgs::msg::VehicleAttitude>::SharedPtr vehicle_attitude_subscription_;
     void vehicle_attitude_callback(const px4_msgs::msg::VehicleAttitude::SharedPtr msg)
     {
-        double x = msg->q[0];
-        double y = msg->q[1];
-        double z = msg->q[2];
-        double w = msg->q[3];
+        const double x = msg->q[0];
+        const double y = msg->q[1];
+        const double z = msg->q[2];
+        const double w = msg->q[3];
 
         FusionQuaternion quaternion = {w, x, y, z};
         const FusionEuler euler = FusionQuaternionToEuler(quaternion);
@@ -213,6 +233,7 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_publisher_;
     rclcpp::Subscription<px4_msgs::msg::SensorCombined>::SharedPtr sensor_combined_subscription_;
     rclcpp::Subscription<px4_msgs::msg::SensorMag>::SharedPtr sensor_mag_subscription_;
+    rclcpp::Subscription<px4_msgs::msg::VehicleMagnetometer>::SharedPtr vehicle_mag_subscription_;
     FusionQuaternion prev_q_{{-1, -1, -1, -1}};
 };
 
