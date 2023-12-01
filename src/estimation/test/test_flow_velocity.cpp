@@ -6,10 +6,10 @@
 TEST(TestFlowVelocityParts, ImageJacobianGivesCorrectResult) {
     const int NUMBER_OF_PIXELS = 3;
 
-    Eigen::MatrixXd J;
-    Eigen::MatrixXd uv = Eigen::MatrixXd(2, NUMBER_OF_PIXELS);
-    Eigen::VectorXd depth = Eigen::VectorXd(NUMBER_OF_PIXELS);
-    Eigen::Matrix3d K = Eigen::Matrix3d::Identity();
+    Eigen::MatrixXf J;
+    Eigen::MatrixXf uv = Eigen::MatrixXf(2, NUMBER_OF_PIXELS);
+    Eigen::VectorXf depth = Eigen::VectorXf(NUMBER_OF_PIXELS);
+    Eigen::Matrix3f K = Eigen::Matrix3f::Identity();
 
     depth << 31.15032, 32.37518, 31.58668;
     K << 285.0, 0.0, 320.0,
@@ -20,7 +20,7 @@ TEST(TestFlowVelocityParts, ImageJacobianGivesCorrectResult) {
 
     Estimator::visjac_p(uv, depth, K, J);
 
-    auto Jtrue = Eigen::MatrixXd(6, 6);
+    auto Jtrue = Eigen::MatrixXf(6, 6);
     Jtrue << -9.14918, 0.0, 0.14361, 0.26074, -285.07021, 16.61204,
             0.0, -9.14918, 0.53329, 285.96828, -0.26074, -4.47339,
             -8.80304, 0.0, 0.12444, -0.06336, -285.05695, -4.48241,
@@ -33,10 +33,10 @@ TEST(TestFlowVelocityParts, ImageJacobianGivesCorrectResult) {
 
 TEST(TestFlowVelocityParts, VelocityIsComputedCorrectly) {
     const int NUMBER_OF_PIXELS = 3;
-    Eigen::MatrixXd J;
-    Eigen::MatrixXd uv = Eigen::MatrixXd(2, NUMBER_OF_PIXELS);
-    Eigen::VectorXd depth = Eigen::VectorXd(NUMBER_OF_PIXELS);
-    Eigen::Matrix3d K = Eigen::Matrix3d::Identity();
+    Eigen::MatrixXf J;
+    Eigen::MatrixXf uv = Eigen::MatrixXf(2, NUMBER_OF_PIXELS);
+    Eigen::VectorXf depth = Eigen::VectorXf(NUMBER_OF_PIXELS);
+    Eigen::Matrix3f K = Eigen::Matrix3f::Identity();
 
     depth << 31.15032, 32.37518, 31.58668;
     K << 285.0, 0.0, 320.0,
@@ -47,30 +47,30 @@ TEST(TestFlowVelocityParts, VelocityIsComputedCorrectly) {
 
     Estimator::visjac_p(uv, depth, K, J);
 
-    Eigen::VectorXd flow(6);
+    Eigen::VectorXf flow(6);
     flow << 9.00558, 8.6159, 8.6786, 8.94149, 9.13649, 8.10185;
-    Eigen::VectorXd vel;
+    Eigen::VectorXf vel;
     Estimator::compute_velocity(J, flow, vel);
 
-    Eigen::VectorXd veltrue(6);
+    Eigen::VectorXf veltrue(6);
     veltrue << -1, -1, -1, 0.0, 0.0, 0.0;
     EXPECT_TRUE(vel.isApprox(veltrue, 1e-4));
 }
 
 TEST(TestFlowVelocityParts, PixelDepthIsCorrectlyComputed) {
-    Eigen::MatrixXd J;
-    Eigen::Matrix3d K = Eigen::Matrix3d::Identity();
+    Eigen::MatrixXf J;
+    Eigen::Matrix3f K = Eigen::Matrix3f::Identity();
     K << 285.0, 0.0, 320.0,
             0.0, 285.0, 240.0,
             0.0, 0.0, 1.0;
-    Eigen::Matrix3d cam_R_enu = Eigen::Matrix3d::Identity();
+    Eigen::Matrix3f cam_R_enu = Eigen::Matrix3f::Identity();
     cam_R_enu << 1.0, 0.0, 0.0,
             0.0, 0.0, -1.0,
             0.0, 1.0, 0.0;
-    double height = 20.0;
-    Eigen::Vector2d pixel = Eigen::Vector2d(323.57283, 255.75045);
+    float height = 20.0;
+    Eigen::Vector2f pixel = Eigen::Vector2f(323.57283, 255.75045);
 
-    double Z = Estimator::get_pixel_z_in_camera_frame(pixel, cam_R_enu, K, height);
+    float Z = Estimator::get_pixel_z_in_camera_frame(pixel, cam_R_enu, K, height);
 
     EXPECT_FLOAT_EQ(Z, -361.89433);
 }
@@ -104,22 +104,22 @@ TEST(TestFlowVelocityParts, FullVelocityOnRealData) {
 //    cv::imshow("frame", frame1);
 //    cv::waitKey(0);
 
-    double t0 = 508.652;
-    double t1 = 508.685;
-    Eigen::Matrix3d cam_R_enu;
+    float t0 = 508.652;
+    float t1 = 508.685;
+    Eigen::Matrix3f cam_R_enu;
     cam_R_enu << 0.499455, -0.624689, 0.600257,
             -0.866339, -0.360991, 0.34517,
             0.00106359, -0.692423, -0.721491;
-    double height = 6.30986;
-    Eigen::Vector3d r;
+    float height = 6.30986;
+    Eigen::Vector3f r;
     r << 0.127711, 0.00500937, -0.0735654;
-    Eigen::Vector3d cam_omega;
+    Eigen::Vector3f cam_omega;
     cam_omega << 0.09909591711111113, 0.025986013, -0.030931112611111106;
-    Eigen::Vector3d drone_omega;
+    Eigen::Vector3f drone_omega;
     drone_omega << -0.03847748836363636, -0.10718755563636365, 0.0076125204545454545;
-    Eigen::Vector3d gt_vel_ned = {1.282000065, 3.300000191, 0.229000017};
+    Eigen::Vector3f gt_vel_ned = {1.282000065, 3.300000191, 0.229000017};
 
-    Eigen::Matrix3d K;
+    Eigen::Matrix3f K;
     K << 385.402, 0.0, 322.133,
             0.0, 384.882, 240.013,
             0.0, 0.0, 1.0;
@@ -127,17 +127,17 @@ TEST(TestFlowVelocityParts, FullVelocityOnRealData) {
     // first call simply record the previous frame
     auto ret = estimator.update_flow_velocity(
             frame0, t0, cam_R_enu, r, K, height, cam_omega, drone_omega);
-    EXPECT_TRUE(ret.isApprox(Eigen::Vector3d::Zero(), 1e-6));
+    EXPECT_TRUE(ret.isApprox(Eigen::Vector3f::Zero(), 1e-6));
 
     // calculate velocity
     ret = estimator.update_flow_velocity(
             frame1, t1, cam_R_enu, r, K, height, cam_omega, drone_omega);
 
-    Eigen::Matrix3d ned_R_enub = Eigen::Matrix3d::Identity();
+    Eigen::Matrix3f ned_R_enub = Eigen::Matrix3f::Identity();
     ned_R_enub << 0.0, 1.0, 0.0,
             1.0, 0.0, 0.0,
             0.0, 0.0, -1.0;
-    Eigen::Vector3d gt_vel_enu = ned_R_enub * gt_vel_ned;
+    Eigen::Vector3f gt_vel_enu = ned_R_enub * gt_vel_ned;
 
     auto ret_xy = ret.segment(0, 2);
     auto gt_xy = gt_vel_enu.segment(0, 2);

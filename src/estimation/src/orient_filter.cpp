@@ -1,4 +1,3 @@
-#include "rclcpp/rclcpp.hpp"
 #include "px4_msgs/msg/sensor_combined.hpp"
 #include "px4_msgs/msg/vehicle_attitude.hpp"
 #include "px4_msgs/msg/sensor_mag.hpp"
@@ -10,6 +9,8 @@
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include <Eigen/Dense>
 #include "FusionMath.h"
+#define RCLCPP__NODE_IMPL_HPP_
+#include "rclcpp/node.hpp"
 
 using std::placeholders::_1;
 
@@ -64,18 +65,18 @@ private:
     tf2_ros::TransformBroadcaster tf_broadcaster_;
 
     ///////// funcs from mavros ftf_frame_conversions.cpp
-    Eigen::Quaterniond quaternion_from_rpy(const Eigen::Vector3d &rpy) {
+    Eigen::Quaternionf quaternion_from_rpy(const Eigen::Vector3f &rpy) {
         // YPR - ZYX
-        return Eigen::Quaterniond(
-                Eigen::AngleAxisd(rpy.z(), Eigen::Vector3d::UnitZ()) *
-                Eigen::AngleAxisd(rpy.y(), Eigen::Vector3d::UnitY()) *
-                Eigen::AngleAxisd(rpy.x(), Eigen::Vector3d::UnitX()));
+        return Eigen::Quaternionf(
+                Eigen::AngleAxisf(rpy.z(), Eigen::Vector3f::UnitZ()) *
+                Eigen::AngleAxisf(rpy.y(), Eigen::Vector3f::UnitY()) *
+                Eigen::AngleAxisf(rpy.x(), Eigen::Vector3f::UnitX()));
     }
 
-    inline Eigen::Quaterniond quaternion_from_rpy(
-            const double roll, const double pitch,
-            const double yaw) {
-        return quaternion_from_rpy(Eigen::Vector3d(roll, pitch, yaw));
+    inline Eigen::Quaternionf quaternion_from_rpy(
+            const float roll, const float pitch,
+            const float yaw) {
+        return quaternion_from_rpy(Eigen::Vector3f(roll, pitch, yaw));
     }
     ///////// funcs from mavros ftf_frame_conversions.cpp
 
@@ -86,16 +87,16 @@ private:
         }
 
         static const auto AIRCRAFT_BASELINK_Q = quaternion_from_rpy(M_PI, 0.0, 0.0);
-        static const Eigen::Affine3d AIRCRAFT_BASELINK_AFFINE(AIRCRAFT_BASELINK_Q);
+        static const Eigen::Affine3f AIRCRAFT_BASELINK_AFFINE(AIRCRAFT_BASELINK_Q);
 
         // AIRCRAFT_BASELINK_AFFINE * vec; need to do this for gyro
-        Eigen::Vector3d gyro(msg->gyro_rad[0], msg->gyro_rad[1], msg->gyro_rad[2]);
+        Eigen::Vector3f gyro(msg->gyro_rad[0], msg->gyro_rad[1], msg->gyro_rad[2]);
         gyro = AIRCRAFT_BASELINK_AFFINE * gyro;
         // same for acceleration
-        Eigen::Vector3d accel(msg->accelerometer_m_s2[0], msg->accelerometer_m_s2[1], msg->accelerometer_m_s2[2]);
+        Eigen::Vector3f accel(msg->accelerometer_m_s2[0], msg->accelerometer_m_s2[1], msg->accelerometer_m_s2[2]);
         accel = AIRCRAFT_BASELINK_AFFINE * accel;
         // mag
-        Eigen::Vector3d mag(mag_msg_.magnetic_field.x, mag_msg_.magnetic_field.y, mag_msg_.magnetic_field.z);
+        Eigen::Vector3f mag(mag_msg_.magnetic_field.x, mag_msg_.magnetic_field.y, mag_msg_.magnetic_field.z);
         mag = AIRCRAFT_BASELINK_AFFINE * mag;
 
         // prepare data for fusion
@@ -109,7 +110,7 @@ private:
 
         // Calculate delta time
         const uint64_t delta = msg->timestamp - last_timestamp_; // microseconds
-        const float dt = (float) delta / 1000000.0f;              // seconds
+        const double dt = (float) delta / 1000000.0f;              // seconds
         last_timestamp_ = msg->timestamp;
 
         if (mag_msg_.header.stamp.sec > 0) {
@@ -138,7 +139,7 @@ private:
         const FusionVector earth = FusionAhrsGetEarthAcceleration(&ahrs);
 
         // Compute angular velocity in world frame from successive quaternions
-        Eigen::Vector3d omega{0, 0, 0};
+        Eigen::Vector3f omega{0, 0, 0};
         if (prev_q_.element.w == -1) {
             prev_q_ = quaternion;
         } else {
@@ -210,10 +211,10 @@ private:
     rclcpp::Subscription<px4_msgs::msg::VehicleAttitude>::SharedPtr vehicle_attitude_subscription_;
     void vehicle_attitude_callback(const px4_msgs::msg::VehicleAttitude::SharedPtr msg)
     {
-        const double x = msg->q[0];
-        const double y = msg->q[1];
-        const double z = msg->q[2];
-        const double w = msg->q[3];
+        const float x = msg->q[0];
+        const float y = msg->q[1];
+        const float z = msg->q[2];
+        const float w = msg->q[3];
 
         FusionQuaternion quaternion = {w, x, y, z};
         const FusionEuler euler = FusionQuaternionToEuler(quaternion);

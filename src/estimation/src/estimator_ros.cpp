@@ -74,14 +74,14 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
 
     estimator_ = std::make_unique<Estimator>();
 
-    declare_parameter<bool>("simulation", false);
-    get_parameter("simulation", simulation_);
+//    rclcpp::ParameterValue param = declare_parameter<bool>("simulation", false);
+//    get_parameter("simulation", simulation_);
 
     cam_ang_vel_accumulator_ = std::make_unique<CamAngVelAccumulator>();
 }
 
 void StateEstimationNode::gps_callback(const px4_msgs::msg::SensorGps::SharedPtr msg) {
-    auto timestamp = (double) msg->timestamp / 1e6; // seconds
+    double timestamp = (double) msg->timestamp / 1e6; // seconds
     auto time = rclcpp::Time(timestamp * 1e9);
 
     sensor_msgs::msg::NavSatFix gps_msg;
@@ -96,22 +96,22 @@ void StateEstimationNode::gps_callback(const px4_msgs::msg::SensorGps::SharedPtr
 void StateEstimationNode::timesync_callback(const px4_msgs::msg::TimesyncStatus::SharedPtr msg) {
     double offset;
     if (simulation_ && msg->estimated_offset != 0) {
-        offset = -(double) msg->estimated_offset / 1e6;
-        return;
+        offset = -(double) (msg->estimated_offset / 1e6);
+    } else {
+        offset = (double) (msg->observed_offset / 1e6);
     }
-    offset = (double) msg->observed_offset / 1e6;
     offset_.store(offset);
 }
 
 void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
-    auto time_point = (msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9);
+    double time_point = (msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9);
     if (simulation_) {
         double offset = offset_.load();
         time_point -= offset;
     }
     auto time = rclcpp::Time(time_point * 1e9);
 
-    Eigen::Vector3d accel;
+    Eigen::Vector3f accel;
     accel << msg->linear_acceleration.x,
             msg->linear_acceleration.y,
             msg->linear_acceleration.z;
@@ -174,7 +174,7 @@ void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::Sha
         return;
 
     // create time object from header stamp
-    auto time_point = offset_.load() + (bbox->header.stamp.sec + bbox->header.stamp.nanosec * 1e-9);
+    double time_point = offset_.load() + (bbox->header.stamp.sec + bbox->header.stamp.nanosec * 1e-9);
     auto time = rclcpp::Time(time_point * 1e9);
     geometry_msgs::msg::TransformStamped base_link_enu;
     bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
@@ -182,16 +182,16 @@ void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::Sha
         return;
     auto base_T_odom = tf_msg_to_affine(base_link_enu);
     auto img_T_base = tf_msg_to_affine(*image_tf_);
-    img_T_base.translation() = Eigen::Vector3d::Zero();
+    img_T_base.translation() = Eigen::Vector3f::Zero();
 
-    Eigen::Vector2d uv_point;
+    Eigen::Vector2f uv_point;
     uv_point << bbox->bbox.center.position.x,
             bbox->bbox.center.position.y;
     auto rect_point = cam_model_.rectifyPoint(cv::Point2d(uv_point[0], uv_point[1]));
     uv_point << rect_point.x, rect_point.y;
 
     auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
-    Eigen::Vector3d Pt = estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_, h);
+    Eigen::Vector3f Pt = estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_, h);
 
     // publish normalized vector to target
     visualization_msgs::msg::Marker vec_msgs{};
@@ -234,7 +234,7 @@ void StateEstimationNode::cam_info_callback(const sensor_msgs::msg::CameraInfo::
         return;
 
     cam_model_.fromCameraInfo(*msg);
-    cv::Matx<double, 3, 3> cvK = cam_model_.intrinsicMatrix();
+    cv::Matx<float, 3, 3> cvK = cam_model_.intrinsicMatrix();
     // convert to eigen
     for (size_t i = 0; i < 9; i++) {
         size_t row = std::floor(i / 3);
@@ -249,8 +249,8 @@ void StateEstimationNode::gt_pose_array_callback(const geometry_msgs::msg::PoseA
         return;
     auto p0 = msg->poses[0];
     auto p1 = msg->poses[1];
-    Eigen::Vector3d p0_vec(p0.position.x, p0.position.y, p0.position.z);
-    Eigen::Vector3d p1_vec(p1.position.x, p1.position.y, p1.position.z);
+    Eigen::Vector3f p0_vec(p0.position.x, p0.position.y, p0.position.z);
+    Eigen::Vector3f p1_vec(p1.position.x, p1.position.y, p1.position.z);
     auto diff = (p0_vec - p1_vec);
     auto gt_point = std::make_unique<geometry_msgs::msg::PointStamped>();
     gt_point->header.stamp = msg->header.stamp;
@@ -302,16 +302,16 @@ void StateEstimationNode::tf_callback() {
     }
 }
 
-Eigen::Transform<double, 3, Eigen::Affine>
+Eigen::Transform<float, 3, Eigen::Affine>
 StateEstimationNode::tf_msg_to_affine(geometry_msgs::msg::TransformStamped &tf_stamp) {
-    Eigen::Quaterniond rotation(tf_stamp.transform.rotation.w,
+    Eigen::Quaternionf rotation(tf_stamp.transform.rotation.w,
                                 tf_stamp.transform.rotation.x,
                                 tf_stamp.transform.rotation.y,
                                 tf_stamp.transform.rotation.z);
-    Eigen::Translation3d translation(tf_stamp.transform.translation.x,
+    Eigen::Translation3f translation(tf_stamp.transform.translation.x,
                                      tf_stamp.transform.translation.y,
                                      tf_stamp.transform.translation.z);
-    Eigen::Transform<double, 3, Eigen::Affine> transform = translation * rotation;
+    Eigen::Transform<float, 3, Eigen::Affine> transform = translation * rotation;
     return transform;
 }
 
@@ -320,13 +320,13 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
         return;
     if (!image_tf_)
         return;
-    double h = height_.load();
+    float h = height_.load();
     if (h < 0 || std::isnan(h) || std::isinf(h))
         return;
 
     // create time object from header stamp
     double time_point = offset_.load() + (msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9);
-    auto time = rclcpp::Time(time_point * 1e9);
+    auto time = rclcpp::Time(static_cast<uint64_t>(time_point * 1e9));
     geometry_msgs::msg::TransformStamped base_link_enu;
     bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
     if (!succ)
@@ -353,7 +353,7 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
 
     auto omega = cam_ang_vel_accumulator_->get_ang_vel();
 
-    Eigen::Vector3d vel_enu = estimator_->update_flow_velocity(rectified,
+    Eigen::Vector3f vel_enu = estimator_->update_flow_velocity(rectified,
                                                                time_point, cam_T_enu.rotation(),
                                                                cam_T_enu.translation(), K_, h,
                                                                omega, {0, 0, 0});

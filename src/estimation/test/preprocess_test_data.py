@@ -80,19 +80,19 @@ drone_ang_vel = ang_vel_drone.mean().to_numpy()
 print(drone_ang_vel)
 
 cpp_string = f"""
-double t0 = {prev_time};
-double t1 = {time};
-Eigen::Matrix3d cam_R_enu;
+float t0 = {prev_time};
+float t1 = {time};
+Eigen::Matrix3f cam_R_enu;
 cam_R_enu << {cam_R_enu[0][0]}, {cam_R_enu[0][1]}, {cam_R_enu[0][2]},
 {cam_R_enu[1][0]}, {cam_R_enu[1][1]}, {cam_R_enu[1][2]},
 {cam_R_enu[2][0]}, {cam_R_enu[2][1]}, {cam_R_enu[2][2]};
-double height = {height};
-Eigen::Vector3d r;
+float height = {height};
+Eigen::Vector3f r;
 r << {r[0]}, {r[1]}, {r[2]};
-Eigen::Vector3d cam_omega;
+Eigen::Vector3f cam_omega;
 cam_omega << {cam_ang_vel[0]}, {cam_ang_vel[1]}, {cam_ang_vel[2]};
-Eigen::Vector3d drone_omega;
+Eigen::Vector3f drone_omega;
 drone_omega << {drone_ang_vel[0]}, {drone_ang_vel[1]}, {drone_ang_vel[2]};
-Eigen::Vector3d gt_vel_ned = {{{gt_velocity[0]}, {gt_velocity[1]}, {gt_velocity[2]}}};
+Eigen::Vector3f gt_vel_ned = {{{gt_velocity[0]}, {gt_velocity[1]}, {gt_velocity[2]}}};
 """
 print(cpp_string)

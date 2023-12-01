@@ -23,38 +23,38 @@ public:
      *   P - Estimate error covariance
      */
     KalmanFilter(
-            const Eigen::MatrixXd &A,
-            const Eigen::MatrixXd &C,
-            const Eigen::MatrixXd &Q,
-            const Eigen::MatrixXd &R,
-            const Eigen::MatrixXd &P);
+            const Eigen::MatrixXf &A,
+            const Eigen::MatrixXf &C,
+            const Eigen::MatrixXf &Q,
+            const Eigen::MatrixXf &R,
+            const Eigen::MatrixXf &P);
 
     [[nodiscard]] inline bool is_initialized() const { return initialized; }
 
     /**
      * Initialize the filter with a guess for initial states.
      */
-    void init(const Eigen::VectorXd &x0);
+    void init(const Eigen::VectorXf &x0);
 
-    void update(const Eigen::VectorXd &y);
+    void update(const Eigen::VectorXf &y);
 
     // custom update
-    void update(const Eigen::VectorXd &y,
-                const Eigen::MatrixXd &C_cus,
-                const Eigen::MatrixXd &R_cus);
+    void update(const Eigen::VectorXf &y,
+                const Eigen::MatrixXf &C_cus,
+                const Eigen::MatrixXf &R_cus);
 
-    void predict(const Eigen::MatrixXd &A);
+    void predict(const Eigen::MatrixXf &A);
 
     /**
      * Return the current state and time.
      */
-    Eigen::VectorXd state() { return x_hat; };
+    Eigen::VectorXf state() { return x_hat; };
 
-    Eigen::MatrixXd covariance() { return P; };
+    Eigen::MatrixXf covariance() { return P; };
 
 private:
     // Matrices for computation
-    Eigen::MatrixXd A, B, C, Q, R, P, K, P0;
+    Eigen::MatrixXf A, B, C, Q, R, P, K, P0;
 
     // System dimensions
     int n;
@@ -63,10 +63,10 @@ private:
     bool initialized;
 
     // n-size identity
-    Eigen::MatrixXd I;
+    Eigen::MatrixXf I;
 
     // Estimated states
-    Eigen::VectorXd x_hat;
+    Eigen::VectorXf x_hat;
 
     std::mutex mtx_;
 };

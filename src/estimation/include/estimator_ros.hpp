@@ -1,6 +1,5 @@
 #pragma once
 
-#include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/msg/range.hpp"
 #include "sensor_msgs/msg/imu.hpp"
@@ -21,6 +20,8 @@
 #include "sensor_msgs/msg/nav_sat_fix.hpp"
 #include "visualization_msgs/msg/marker.hpp"
 #include "image_geometry/pinhole_camera_model.h"
+#define RCLCPP__NODE_IMPL_HPP_
+#include "rclcpp/node.hpp"
 
 struct CamAngVelAccumulator {
     CamAngVelAccumulator() : x(0), y(0), z(0),
@@ -39,13 +40,13 @@ struct CamAngVelAccumulator {
         ang_vel_count = 0;
     }
 
-    [[nodiscard]] Eigen::Vector3d get_ang_vel() {
+    [[nodiscard]] Eigen::Vector3f get_ang_vel() {
         std::scoped_lock lock(mtx);
 
         if (ang_vel_count == 0)
             return {0, 0, 0};
 
-        Eigen::Vector3d ang_vel{x / (float) ang_vel_count,
+        Eigen::Vector3f ang_vel{x / (float) ang_vel_count,
                                 y / (float) ang_vel_count,
                                 z / (float) ang_vel_count};
         reset();
@@ -89,7 +90,7 @@ private:
 
     void tf_callback();
 
-    static Eigen::Transform<double, 3, Eigen::Affine> tf_msg_to_affine(geometry_msgs::msg::TransformStamped &tf_stamp);
+    static Eigen::Transform<float, 3, Eigen::Affine> tf_msg_to_affine(geometry_msgs::msg::TransformStamped &tf_stamp);
 
     void img_callback(sensor_msgs::msg::Image::SharedPtr msg);
 
@@ -125,10 +126,10 @@ private:
 
     double prev_imu_time_s = -1;
     std::atomic<double> offset_{0};
-    std::atomic<double> height_{-1};
-    Eigen::Matrix<double, 3, 3> K_;
+    std::atomic<float> height_{-1};
+    Eigen::Matrix<float, 3, 3> K_;
     std::unique_ptr<Estimator> estimator_{nullptr};
-    bool simulation_;
+    bool simulation_{false};
     std::mutex mtx_;
     image_geometry::PinholeCameraModel cam_model_;
     std::unique_ptr<CamAngVelAccumulator> cam_ang_vel_accumulator_{nullptr};
