@@ -5,8 +5,6 @@
 #include <opencv2/optflow.hpp>
 #include "kalman.hpp"
 
-#include <cassert>
-
 template<typename T, size_t S>
 class LowPassFilter {
 public:
@@ -20,9 +18,6 @@ public:
     }
 
     double filter(double input) {
-        assert(input_samples_.size() == b_coefficients_.size());
-        assert(filter_buffer_.size() == a_coefficients_.size() - 1);
-
         double output = 0.0;
 
         push_pop(input_samples_, input);

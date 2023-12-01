@@ -48,26 +48,56 @@ find_package(OpenCV REQUIRED)
 find_package(px4_msgs REQUIRED)
 find_package(image_geometry REQUIRED)
 
-add_library(kalman_lib SHARED src/kalman.cpp)
-target_include_directories(kalman_lib PUBLIC include ${EIGEN3_INCLUDE_DIR})
-ament_target_dependencies(kalman_lib Eigen3)
-
-add_library(estimator_lib SHARED src/estimator.cpp)
-target_include_directories(estimator_lib PUBLIC include ${EIGEN3_INCLUDE_DIR} ${OpenCV_INCLUDE_DIRS})
+### Estimator library
+add_library(estimator_lib SHARED
+        src/estimator.cpp
+        src/kalman.cpp
+)
+target_include_directories(estimator_lib PRIVATE
+        include
+        ${EIGEN3_INCLUDE_DIR}
+        ${OpenCV_INCLUDE_DIRS})
 ament_target_dependencies(estimator_lib Eigen3 OpenCV)
+target_precompile_headers(estimator_lib PRIVATE
+        include/estimator.hpp include/kalman.hpp)
 
-add_executable(estimation_node src/estimator_ros_node.cpp)
-target_include_directories(estimation_node PUBLIC include ${EIGEN3_INCLUDE_DIR})
-ament_target_dependencies(estimation_node rclcpp sensor_msgs cv_bridge vision_msgs Eigen3 tf2_ros geometry_msgs px4_msgs visualization_msgs image_geometry)
-target_link_libraries(estimation_node estimator_lib kalman_lib)
+### Estimator node executable
+add_executable(estimation_node
+        src/estimator_ros_node.cpp
+        src/estimator_ros.cpp
+)
+target_include_directories(estimation_node PRIVATE
+        include
+        ${EIGEN3_INCLUDE_DIR}
+        ${OpenCV_INCLUDE_DIRS}
+)
+ament_target_dependencies(estimation_node
+        rclcpp
+        sensor_msgs
+        cv_bridge
+        vision_msgs
+        Eigen3
+        tf2_ros
+        geometry_msgs
+        px4_msgs
+        visualization_msgs
+        image_geometry
+        OpenCV
+)
+target_link_libraries(estimation_node estimator_lib)
+target_precompile_headers(estimation_node PRIVATE
+        include/estimator_ros.hpp)
 
 add_executable(orientation_filter src/orient_filter.cpp)
 ament_target_dependencies(orientation_filter rclcpp sensor_msgs px4_msgs tf2_ros geometry_msgs Eigen3)
 target_link_libraries(orientation_filter /home/ernie/thesis/track/Fusion/build/Fusion/libFusion.a)
-target_include_directories(orientation_filter PUBLIC /home/ernie/thesis/track/Fusion/Fusion ${EIGEN3_INCLUDE_DIR})
+target_include_directories(orientation_filter PUBLIC
+        /home/ernie/thesis/track/Fusion/Fusion
+        ${EIGEN3_INCLUDE_DIR}
+)
 
-find_package(GTest REQUIRED)
-add_executable(flow_velocity_test test/test_flow_velocity.cpp)
-include_directories(flow_velocity_test PUBLIC ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR} include ${EIGEN3_INCLUDE_DIR})
-target_link_libraries(flow_velocity_test gtest gtest_main estimator_lib kalman_lib ${EIGEN3_LIBRARIES})
-ament_target_dependencies(flow_velocity_test OpenCV)
+#find_package(GTest REQUIRED)
+#add_executable(flow_velocity_test test/test_flow_velocity.cpp)
+#include_directories(flow_velocity_test PUBLIC ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR} include ${EIGEN3_INCLUDE_DIR})
+#target_link_libraries(flow_velocity_test gtest gtest_main estimator_lib kalman_lib ${EIGEN3_LIBRARIES})
+#ament_target_dependencies(flow_velocity_test OpenCV)

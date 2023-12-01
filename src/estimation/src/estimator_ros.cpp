@@ -1,4 +1,4 @@
-#include "estimator_ros_node.hpp"
+#include "estimator_ros.hpp"
 
 StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
     {
@@ -373,14 +373,4 @@ void StateEstimationNode::cam_imu_callback(const sensor_msgs::msg::Imu::SharedPt
             msg->angular_velocity.x,
             msg->angular_velocity.y,
             msg->angular_velocity.z);
-}
-
-int main(int argc, char **argv) {
-    rclcpp::init(argc, argv);
-    auto node = std::make_shared<StateEstimationNode>();
-    rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), 3);
-    executor.add_node(node);
-    executor.spin();
-    rclcpp::shutdown();
-    return 0;
 }

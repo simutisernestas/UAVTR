@@ -2,45 +2,49 @@
 #include <Eigen/Sparse>
 #include <numeric>
 #include <random>
+#include <cassert>
+
+#ifdef SAVEOUT
 #include <fstream>
+#endif
 
 Estimator::Estimator() {
     const double dt = 1.0 / 128.0;
     Eigen::MatrixXd A(12, 12);
     get_A(A, dt);
 
-    Eigen::MatrixXd C(2, 12);
-    C << 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
-
     Eigen::MatrixXd Q(12, 12);
     Q.block(9, 9, 3, 3) = Eigen::MatrixXd::Zero(3, 3);
-    Eigen::MatrixXd Q99(9, 9);
-    double acc_variance = 4.3669211e+00;
+    Eigen::Matrix3d acc_variance;
+    acc_variance << 3.182539, 0, 0,
+            0, 3.387015, 0,
+            0, 0, 1.540428;
     // TODO: tune this properly by the book
     auto Q33 = Eigen::MatrixXd::Identity(3, 3) * std::pow(dt, 4) / 4.0;
     auto Q36 = Eigen::MatrixXd::Identity(3, 3) * std::pow(dt, 3) / 2.0;
     auto Q39 = Eigen::MatrixXd::Identity(3, 3) * std::pow(dt, 2) / 2.0;
     auto Q66 = Eigen::MatrixXd::Identity(3, 3) * std::pow(dt, 2);
     auto Q69 = Eigen::MatrixXd::Identity(3, 3) * dt;
+    Q.block(0, 0, 3, 3) = Q33 * acc_variance;
+    Q.block(0, 3, 3, 3) = Q36 * acc_variance;
+    Q.block(3, 0, 3, 3) = Q36 * acc_variance;
+    Q.block(0, 6, 3, 3) = Q39 * acc_variance;
+    Q.block(6, 0, 3, 3) = Q39 * acc_variance;
+    Q.block(3, 3, 3, 3) = Q66 * acc_variance;
+    Q.block(3, 6, 3, 3) = Q69 * acc_variance;
+    Q.block(6, 3, 3, 3) = Q69 * acc_variance;
+    Q.block(6, 6, 3, 3) = Eigen::MatrixXd::Identity(3, 3) * acc_variance;
 
-    Q.block(0, 0, 3, 3) = Q33;
-    Q.block(0, 3, 3, 3) = Q36;
-    Q.block(3, 0, 3, 3) = Q36;
-    Q.block(0, 6, 3, 3) = Q39;
-    Q.block(6, 0, 3, 3) = Q39;
-    Q.block(3, 3, 3, 3) = Q66;
-    Q.block(3, 6, 3, 3) = Q69;
-    Q.block(6, 3, 3, 3) = Q69;
-    Q.block(6, 6, 3, 3) = Eigen::MatrixXd::Identity(3, 3);
-    Q *= acc_variance;
-
+    // relativee position measurement
+    Eigen::MatrixXd C(2, 12);
+    C << 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
     Eigen::MatrixXd R(2, 2);
     R << 1.7650208e+01, 1.2699096e+01,
             1.2699096e+01, 1.5283947e+01;
 
     Eigen::MatrixXd P(12, 12);
-    P = Eigen::MatrixXd::Identity(12, 12) * 10.0;
+    P = Eigen::MatrixXd::Identity(12, 12) * 100.0;
 
     kf_ = std::make_unique<KalmanFilter>(A, C, Q, R, P);
 
@@ -57,12 +61,12 @@ void Estimator::get_A(Eigen::MatrixXd &A, double dt) {
     A.setZero();
     // incorporate IMU after tests
     double ddt2 = dt * dt * .5;
-    A << 1, 0, 0, dt, 0, 0, ddt2, 0, 0, 0, 0, 0,
-            0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, 0, 0,
-            0, 0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, 0,
-            0, 0, 0, 1, 0, 0, dt, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 1, 0, 0, dt, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 1, 0, 0, dt, 0, 0, 0,
+    A << 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2, 0, 0,
+            0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2, 0,
+            0, 0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2,
+            0, 0, 0, 1, 0, 0, dt, 0, 0, -dt, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt, 0,
+            0, 0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt,
             0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
@@ -135,10 +139,9 @@ void Estimator::update_imu_accel(const Eigen::Vector3d &accel, double dt) {
             0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0;
     static Eigen::MatrixXd R_accel(3, 3);
-    R_accel << 4.3669211e+00, 3.1101683e-01, -7.3201366e-02,
-            3.1101683e-01, 4.1195669e+00, -3.5575474e-01,
-            7.3201366e-02, -3.5575474e-01, 1.9104830e+00;
-
+    R_accel << 3.182539, 0, 0,
+            0, 3.387015, 0,
+            0, 0, 1.540428;
     kf_->update(accel, C_accel, R_accel);
 }
 
@@ -179,7 +182,7 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
     // >> outlier_percentage = .75
     // >>> np.log(1 - 0.999) / np.log(1 - (1 - outlier_percentage) ** n_samples)
     // 438.63339476983924
-    const size_t n_iterations = 4390;
+    const size_t n_iterations = 4000;
     const size_t n_samples{3}; // minimum required to fit model
     const size_t n_points = flow_vectors.rows() / 2;
 
@@ -253,10 +256,6 @@ void RANSAC_vel_regression(const Eigen::MatrixXd &J,
 
         inlier_idxs.clear();
     }
-//    if (best_inliers.size() < 100) {
-//        cam_vel_est = Eigen::VectorXd::Zero(J.cols());
-//        return;
-//    }
 
     J_samples.resize(best_inliers.size() * 2, J.cols());
     flow_samples.resize(best_inliers.size() * 2);
@@ -272,6 +271,20 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
         this->prev_frame_ = std::make_shared<cv::Mat>(frame);
         return {0, 0, 0};
     }
+
+    const double dt = time - pre_frame_time_;
+    assert(dt > 0);
+    if (dt > .75) {
+        this->pre_frame_time_ = time;
+        *prev_frame_ = frame;
+        return {0, 0, 0};
+    }
+// TODO: need to improve the runtime of this significantly !!!
+// TODO: move to float32 everwhere
+// TODO: update opencv ?
+// TODO: could investigate resizing the image
+// TODO: what's the type of the image? does it work with lower precision maybe f16?
+// TODO: profile it
 
 #ifdef SAVEOUT
     static int count{0};
@@ -295,20 +308,6 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     cv::Mat flow;
     optflow_->calc(*prev_frame_, frame, flow);
 
-//######################    DRAWING
-    cv::Mat drawing_frame = frame.clone();
-    for (int y = 0; y < drawing_frame.rows; y += 16) {
-        for (int x = 0; x < drawing_frame.cols; x += 16) {
-            // Get the flow from `flow`, which is a 2-channel matrix
-            const cv::Point2f &fxy = flow.at<cv::Point2f>(y, x);
-            // Draw lines on `drawing_frame` to represent flow
-            cv::line(drawing_frame, cv::Point(x, y), cv::Point(cvRound(x + fxy.x), cvRound(y + fxy.y)),
-                     cv::Scalar(0, 255, 0));
-            cv::circle(drawing_frame, cv::Point(x, y), 2, cv::Scalar(0, 255, 0), -1);
-        }
-    }
-//######################    DRAWING
-
     int every_nth = 8;
     std::vector<cv::Point2f> flow_vecs;
     flow_vecs.reserve(frame.rows * frame.cols / (every_nth * every_nth));
@@ -325,6 +324,17 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     }
 
 //######################    DRAWING
+    cv::Mat drawing_frame = frame.clone();
+    for (int y = 0; y < drawing_frame.rows; y += every_nth) {
+        for (int x = 0; x < drawing_frame.cols; x += every_nth) {
+            // Get the flow from `flow`, which is a 2-channel matrix
+            const cv::Point2f &fxy = flow.at<cv::Point2f>(y, x);
+            // Draw lines on `drawing_frame` to represent flow
+            cv::line(drawing_frame, cv::Point(x, y), cv::Point(cvRound(x + fxy.x), cvRound(y + fxy.y)),
+                     cv::Scalar(0, 255, 0));
+            cv::circle(drawing_frame, cv::Point(x, y), 2, cv::Scalar(0, 255, 0), -1);
+        }
+    }
     auto dominant_flow_vec = std::accumulate(flow_vecs.begin(), flow_vecs.end(), cv::Point2f(0, 0));
     dominant_flow_vec.y /= (float) flow_vecs.size();
     dominant_flow_vec.x /= (float) flow_vecs.size();
@@ -342,8 +352,6 @@ Eigen::Vector3d Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     Eigen::VectorXd depth(samples.size());
     Eigen::MatrixXd uv = Eigen::MatrixXd(2, samples.size());
     Eigen::VectorXd flow_eigen(2 * flow_vecs.size());
-    const double dt = time - pre_frame_time_;
-    assert(dt > 0);
     long insert_idx = 0;
     for (size_t i = 0; i < samples.size(); i++) {
         bool is_flow_present = (flow_vecs[i].x != 0 && flow_vecs[i].y != 0);

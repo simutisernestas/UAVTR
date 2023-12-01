@@ -25,8 +25,8 @@ public:
                 "/fmu/out/sensor_combined", qos, std::bind(&SensorTranslator::sensor_combined_callback, this, _1));
         sensor_mag_subscription_ = this->create_subscription<px4_msgs::msg::SensorMag>(
                 "/fmu/out/sensor_mag", qos, std::bind(&SensorTranslator::sensor_mag_callback, this, _1));
-        // vehicle_mag_subscription_ = this->create_subscription<px4_msgs::msg::VehicleMagnetometer>(
-        //         "/fmu/out/vehicle_magnetometer", qos, std::bind(&SensorTranslator::vehicle_mag_callback, this, _1));
+        vehicle_mag_subscription_ = this->create_subscription<px4_msgs::msg::VehicleMagnetometer>(
+                "/fmu/out/vehicle_magnetometer", qos, std::bind(&SensorTranslator::vehicle_mag_callback, this, _1));
 
         FusionOffsetInitialise(&offset, SAMPLE_RATE);
         FusionAhrsInitialise(&ahrs);
