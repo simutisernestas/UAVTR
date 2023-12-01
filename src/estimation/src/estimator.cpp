@@ -192,7 +192,7 @@ void RANSAC_vel_regression(const Eigen::MatrixXf &J,
     // >> outlier_percentage = .75
     // >>> np.log(1 - 0.999) / np.log(1 - (1 - outlier_percentage) ** n_samples)
     // 438.63339476983924
-    const size_t n_iterations = 3000;
+    const size_t n_iterations = 4000;
     const size_t n_samples{3}; // minimum required to fit model
     const size_t n_points = flow_vectors.rows() / 2;
 
@@ -223,7 +223,7 @@ void RANSAC_vel_regression(const Eigen::MatrixXf &J,
     Eigen::VectorXf x_est(J.cols());
     std::vector<size_t> inlier_idxs;
     inlier_idxs.reserve(n_points);
-    std::array<size_t, n_samples> sample_idxs;
+    std::array<size_t, n_samples> sample_idxs{};
     for (size_t iter{0}; iter <= n_iterations; ++iter) {
         // randomly select n_samples from data
         for (size_t i{0}; i < n_samples; ++i)
@@ -333,7 +333,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     optflow_->calc(*prev_frame_, frame, flow);
 
     // TODO: increase it ?
-    int every_nth = 8;
+    int every_nth = 16;
     std::vector<cv::Point2f> flow_vecs;
     flow_vecs.reserve(frame.rows * frame.cols / (every_nth * every_nth));
     std::vector<cv::Point> samples;
@@ -435,8 +435,8 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
         C_vel << 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0;
         static Eigen::MatrixXf R_vel(2, 2);
-        R_vel << 1.0, 0,
-                0, 1.0;
+        R_vel << 1.811174, 0,
+                0, 1.414405;
 
         kf_->update(v_com_enu.segment(0, 2), C_vel, R_vel);
     }

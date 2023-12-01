@@ -98,6 +98,15 @@ def moving_average(a, n=3):
 
 # %%
 
+non_nan_idx = df["/imu/data_world/header/stamp"].notna()
+stamp = df["/imu/data_world/header/stamp"][non_nan_idx]
+xyz = df[["/imu/data_world/vector/x",
+    "/imu/data_world/vector/y",
+    "/imu/data_world/vector/z"]][non_nan_idx]
+xyz.to_numpy().var(axis=0) # variance
+
+# %%
+
 plt.figure(dpi=200)
 plt.scatter(gt_time, gt_pos[:, 0], label="X ground truth")
 plt.scatter(est_time, est_pos[:, 0], label="X estimated")
