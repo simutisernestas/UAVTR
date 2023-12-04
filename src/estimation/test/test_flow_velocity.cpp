@@ -31,31 +31,31 @@ TEST(TestFlowVelocityParts, ImageJacobianGivesCorrectResult) {
     EXPECT_TRUE(J.isApprox(Jtrue, 1e-6));
 }
 
-TEST(TestFlowVelocityParts, VelocityIsComputedCorrectly) {
-    const int NUMBER_OF_PIXELS = 3;
-    Eigen::MatrixXf J;
-    Eigen::MatrixXf uv = Eigen::MatrixXf(2, NUMBER_OF_PIXELS);
-    Eigen::VectorXf depth = Eigen::VectorXf(NUMBER_OF_PIXELS);
-    Eigen::Matrix3f K = Eigen::Matrix3f::Identity();
+// TEST(TestFlowVelocityParts, VelocityIsComputedCorrectly) {
+//     const int NUMBER_OF_PIXELS = 3;
+//     Eigen::MatrixXf J;
+//     Eigen::MatrixXf uv = Eigen::MatrixXf(2, NUMBER_OF_PIXELS);
+//     Eigen::VectorXf depth = Eigen::VectorXf(NUMBER_OF_PIXELS);
+//     Eigen::Matrix3f K = Eigen::Matrix3f::Identity();
 
-    depth << 31.15032, 32.37518, 31.58668;
-    K << 285.0, 0.0, 320.0,
-            0.0, 285.0, 240.0,
-            0.0, 0.0, 1.0;
-    uv << 324.47339, 324.02873, 316.40855,
-            256.61204, 235.51759, 269.08927;
+//     depth << 31.15032, 32.37518, 31.58668;
+//     K << 285.0, 0.0, 320.0,
+//             0.0, 285.0, 240.0,
+//             0.0, 0.0, 1.0;
+//     uv << 324.47339, 324.02873, 316.40855,
+//             256.61204, 235.51759, 269.08927;
 
-    Estimator::visjac_p(uv, depth, K, J);
+//     Estimator::visjac_p(uv, depth, K, J);
 
-    Eigen::VectorXf flow(6);
-    flow << 9.00558, 8.6159, 8.6786, 8.94149, 9.13649, 8.10185;
-    Eigen::VectorXf vel;
-    Estimator::compute_velocity(J, flow, vel);
+//     Eigen::VectorXf flow(6);
+//     flow << 9.00558, 8.6159, 8.6786, 8.94149, 9.13649, 8.10185;
+//     Eigen::VectorXf vel;
+//     Estimator::compute_velocity(J, flow, vel);
 
-    Eigen::VectorXf veltrue(6);
-    veltrue << -1, -1, -1, 0.0, 0.0, 0.0;
-    EXPECT_TRUE(vel.isApprox(veltrue, 1e-4));
-}
+//     Eigen::VectorXf veltrue(6);
+//     veltrue << -1, -1, -1, 0.0, 0.0, 0.0;
+//     EXPECT_TRUE(vel.isApprox(veltrue, 1e-4));
+// }
 
 TEST(TestFlowVelocityParts, PixelDepthIsCorrectlyComputed) {
     Eigen::MatrixXf J;

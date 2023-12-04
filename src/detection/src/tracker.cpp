@@ -8,7 +8,6 @@
 #include <numeric>
 #include <onnxruntime_cxx_api.h>
 #include <string.h>
-#include <iostream>
 #include <boost/lockfree/spsc_queue.hpp>
 
 #define MODEL 1 // 0 - detr; 1 - yolo
@@ -87,11 +86,8 @@ std::vector<Result> postprocess(const cv::Size &originalImageSize, std::vector<O
 
         (void) confidence;
 
-        // std::cout << "Class Name: " << classNames.at(classPrediction) << '\n';
-        // std::cout << "Coords: Top Left (" << x1 << ", " << y1 << "), Bottom Right (" << x2 << ", " << y2 << ")" << '\n';
-        // std::cout << "Accuracy: " << accuracy << '\n';
-
-        // Coords should be scaled to the original image. The coords from the model are relative to the model's input height and width.
+        // Coords should be scaled to the original image. 
+        // The coords from the model are relative to the model's input height and width.
         x1 = (x1 / model_input_width) * originalImageSize.width;
         x2 = (x2 / model_input_width) * originalImageSize.width;
         y1 = (y1 / model_input_height) * originalImageSize.height;
@@ -100,8 +96,6 @@ std::vector<Result> postprocess(const cv::Size &originalImageSize, std::vector<O
         Result result(x1, x2, y1, y2, classPrediction, accuracy);
 
         resultVector.push_back(result);
-
-        // std::cout << '\n';
     }
 
     return resultVector;
@@ -272,7 +266,6 @@ public:
     }
 
 private:
-    // TODO: convert this to only bbox
     cv::Rect _latest_bbox{};
     std::array<cv::Point, 2> _latest_bbox_points{};
 
@@ -295,9 +288,7 @@ private:
 ObjDetertor::ObjDetertor() {
     auto providers =
             Ort::GetAvailableProviders();
-    for (auto &&provider: providers) {
-        std::cout << provider << '\n';
-    }
+    for (auto &&provider: providers) {(void)provider;}
 
     // initialize ONNX environment and session
     _env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_WARNING, "inference-engine");
@@ -416,7 +407,6 @@ bool ObjDetertor::detect(const cv::Mat &frame) {
     if (max_confidence < 0.95f)
         return false;
 
-    // TODO: remove this struct
     BoundingBox out_bbox;
     out_bbox.x_c = _output_values[DETR_BBOX_INDEX][good_bbox_id * 4 + 0];
     out_bbox.y_c = _output_values[DETR_BBOX_INDEX][good_bbox_id * 4 + 1];
@@ -489,9 +479,6 @@ public:
         _obj_detector_thread.join();
     }
 
-    //bool init(const cv::Mat &frame, cv::Rect &bbox, double timeout = 5.0);
-    //void reinit(const cv::Mat &frame, const cv::Rect &bbox);
-
     bool process(const cv::Mat &frame, cv::Rect &bbox);
 
     void catchup_reinit();
@@ -535,8 +522,6 @@ Tracker::Tracker() {
 
 bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox) {
     _frames.push(frame);
-    // print out buffer size
-    // std::cout << "buffer size: " << _frames.read_available() << std::endl;
 
     if (_tracker == nullptr)
         return false;
@@ -546,7 +531,6 @@ bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox) {
     if (!located)
         ++failure_count_;
     if (failure_count_ > 10) {
-        std::cout << "failure count exceeded, reinit tracker" << std::endl;
         _tracker.reset();
         failure_count_ = 0;
     }
@@ -576,11 +560,7 @@ void Tracker::catchup_reinit() {
 
     auto params = cv::TrackerKCF::Params();
     params.resize = true;
-//    params.detect_thresh = 0.7f;
-    // cv::TrackerDaSiamRPN::Params params;
-    // params.model = "/home/ernie/thesis/track/dasiamrpn_model.onnx";
-    // params.kernel_cls1 = "/home/ernie/thesis/track/dasiamrpn_kernel_cls1.onnx";
-    // params.kernel_r1 = "/home/ernie/thesis/track/dasiamrpn_kernel_r1.onnx";
+    params.detect_thresh = 0.7f;
     auto local_tracker = cv::TrackerKCF::create(params);
     local_tracker->init(_frames.front(), bbox);
     _frames.pop();

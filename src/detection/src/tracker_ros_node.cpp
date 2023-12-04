@@ -44,7 +44,6 @@ private:
             return;
         }
 
-        // publish bbox TODO: double check if correct
         auto bbox_msg = vision_msgs::msg::Detection2D();
         bbox_msg.header = msg->header;
         bbox_msg.bbox.center.position.x = bbox.x + bbox.width / 2;

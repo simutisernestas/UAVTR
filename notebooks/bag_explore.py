@@ -214,7 +214,6 @@ if __name__ == '__main__':
     exit()
 
     # if not PLOT_GPS:
-    #     # TODO: add this
     #     # , '/fmu/out/timesync_status'
     #     pass
 

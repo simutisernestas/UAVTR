@@ -1,4 +1,3 @@
-# TODO: adapt for the raspberry pi
 source /opt/ros/humble/setup.bash && source ~/thesis/ros_ws/install/setup.bash
 MicroXRCEAgent serial --dev /dev/ttyUSB0 -b 921600 &
 

@@ -229,7 +229,6 @@ void StateEstimationNode::cam_info_callback(const sensor_msgs::msg::CameraInfo::
     if (is_K_received())
         return;
     std::scoped_lock lock(mtx_);
-    // TODO; simulation specific : ( but will still work just fine )
     if (msg->header.frame_id == "x500_0/OakD-Lite/base_link/StereoOV7251")
         return;
 
@@ -280,7 +279,6 @@ bool StateEstimationNode::tf_lookup_helper(geometry_msgs::msg::TransformStamped 
 }
 
 void StateEstimationNode::tf_callback() {
-    // TODO: tf from the real data
     if (!image_tf_) {
         if (simulation_) {
             geometry_msgs::msg::TransformStamped image_tf;

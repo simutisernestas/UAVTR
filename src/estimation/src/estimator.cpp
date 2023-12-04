@@ -19,7 +19,6 @@ Estimator::Estimator() {
     acc_variance << 3.182539, 0, 0,
             0, 3.387015, 0,
             0, 0, 1.540428;
-    // TODO: tune this properly by the book
     auto Q33 = Eigen::MatrixXf::Identity(3, 3) * std::pow(dt, 4) / 4.0;
     auto Q36 = Eigen::MatrixXf::Identity(3, 3) * std::pow(dt, 3) / 2.0;
     auto Q39 = Eigen::MatrixXf::Identity(3, 3) * std::pow(dt, 2) / 2.0;
@@ -54,9 +53,7 @@ Estimator::Estimator() {
     for (int i = 0; i < 3; i++)
         lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<float, 3 >>(b, a);
 
-//    TODO:
-//    optflow_->setGridStep({6, 6}); // increasing this reduces runtime
-    optflow_ = cv::DISOpticalFlow::create(1);
+    optflow_ = cv::DISOpticalFlow::create(1); // TODO: could try 2, higher accuracy
 }
 
 void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
@@ -184,7 +181,6 @@ void solve_sampled(const Eigen::MatrixXf &J,
     cam_vel_est = (J.transpose() * J).ldlt().solve(J.transpose() * flow_vectors);
 }
 
-
 void RANSAC_vel_regression(const Eigen::MatrixXf &J,
                            const Eigen::VectorXf &flow_vectors,
                            Eigen::VectorXf &cam_vel_est) {
@@ -201,23 +197,12 @@ void RANSAC_vel_regression(const Eigen::MatrixXf &J,
     std::uniform_int_distribution<> distr(0, n_points - 1); // define the range
 
     auto best_inliers = std::vector<size_t>{}; // best inlier indices
-    auto min_error = std::numeric_limits<float>::max();
+    float min_error;
 
     Eigen::MatrixXf J_samples(n_samples * 2, J.cols());
     J_samples.setZero();
     Eigen::VectorXf flow_samples(n_samples * 2);
     flow_samples.setZero();
-
-//    auto solve_sampled = [&J, &flow_vectors, &J_samples, &flow_samples](
-//            const std::vector<size_t> &sample_idxs, Eigen::VectorXf &sol) {
-//        // take sampled data
-//        for (size_t i{0}; i < sample_idxs.size(); ++i) {
-//            J_samples.block(i * 2, 0, 2, J.cols()) = J.block(sample_idxs[i] * 2, 0, 2, J.cols());
-//            flow_samples.segment(i * 2, 2) = flow_vectors.segment(sample_idxs[i] * 2, 2);
-//        }
-//        // solve for velocity
-//        sol = (J_samples.transpose() * J_samples).ldlt().solve(J_samples.transpose() * flow_samples);
-//    };
 
     assert(J.cols() == 3);
     Eigen::VectorXf x_est(J.cols());
@@ -237,9 +222,6 @@ void RANSAC_vel_regression(const Eigen::MatrixXf &J,
         // solve for velocity
         x_est = (J_samples.transpose() * J_samples).ldlt().solve(J_samples.transpose() * flow_samples);
 
-//        // solve
-//        solve_sampled(sample_idxs, x_est);
-
         Eigen::VectorXf error = J * x_est - flow_vectors;
 
         // compute inliers
@@ -249,7 +231,6 @@ void RANSAC_vel_regression(const Eigen::MatrixXf &J,
             const float error_y = error(i * 2 + 1);
             const float error_norm = std::abs(error_x) + std::abs(error_y);
             if (std::isnan(error_norm) || std::isinf(error_norm)) {
-                std::cout << "error norm is nan or inf" << std::endl;
                 cam_vel_est = Eigen::VectorXf::Zero(J.cols());
                 return;
             }
@@ -263,9 +244,6 @@ void RANSAC_vel_regression(const Eigen::MatrixXf &J,
         if (best_inliers.size() < inlier_idxs.size()) {
             best_inliers = inlier_idxs;
             min_error = error_sum;
-//            std::cout << "iteration " << iter << std::endl;
-//            std::cout << "Min error: " << min_error << std::endl;
-//            std::cout << "Best inliers size: " << best_inliers.size() << std::endl;
         }
 
         if (static_cast<float>(best_inliers.size()) > 0.75 * static_cast<float>(n_points))
@@ -276,14 +254,12 @@ void RANSAC_vel_regression(const Eigen::MatrixXf &J,
 
     J_samples.resize(best_inliers.size() * 2, J.cols());
     flow_samples.resize(best_inliers.size() * 2);
-//    solve_sampled(best_inliers, cam_vel_est);
 
-    // take sampled data
+    // solve for best inliers
     for (size_t i{0}; i < best_inliers.size(); ++i) {
         J_samples.block(i * 2, 0, 2, J.cols()) = J.block(best_inliers[i] * 2, 0, 2, J.cols());
         flow_samples.segment(i * 2, 2) = flow_vectors.segment(best_inliers[i] * 2, 2);
     }
-    // solve for velocity
     cam_vel_est = (J_samples.transpose() * J_samples).ldlt().solve(J_samples.transpose() * flow_samples);
 
 }
@@ -292,8 +268,6 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
                                                 const Eigen::Vector3f &r, const Eigen::Matrix3f &K,
                                                 const float height, const Eigen::Vector3f &omega,
                                                 const Eigen::Vector3f &drone_omega) {
-    // TODO: could investigate resizing the image
-    // TODO: update opencv ?
     cv::cvtColor(frame, frame, cv::COLOR_BGR2GRAY);
 
     if (!prev_frame_) {
@@ -332,7 +306,6 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     cv::Mat flow;
     optflow_->calc(*prev_frame_, frame, flow);
 
-    // TODO: increase it ?
     int every_nth = 16;
     std::vector<cv::Point2f> flow_vecs;
     flow_vecs.reserve(frame.rows * frame.cols / (every_nth * every_nth));
@@ -411,17 +384,9 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     Eigen::MatrixXf J; // Jacobian
     visjac_p(uv, depth, K, J);
 
-//    // subtract angular velocity part of the flow, to improve accuracy
-//    Eigen::Vector3f z_vel = {0, 0, -0.24866668}; // enu
-//    // convert to camera frame
-//    z_vel = cam_R_enu.transpose() * z_vel;
     for (long i = 0; i < J.rows(); i++) {
         Eigen::Vector3f Jw = {J(i, 3), J(i, 4), J(i, 5)};
         flow_eigen(i) -= Jw.dot(omega);
-//        Eigen::Vector3f Jv = {J(i, 0), J(i, 1), J(i, 2)};
-//        flow_eigen(i) -= Jv.dot(z_vel);
-//        auto v_due_to_angular_velocity = drone_omega.cross(r);
-//        flow_eigen(i) -= Jv.dot(v_due_to_angular_velocity);
     }
 
     Eigen::VectorXf cam_vel_est;
@@ -444,10 +409,4 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     this->pre_frame_time_ = time;
     *prev_frame_ = frame;
     return v_com_enu;
-}
-
-void Estimator::compute_velocity(const Eigen::MatrixXf &J,
-                                 const Eigen::VectorXf &flow,
-                                 Eigen::VectorXf &vel) {
-    vel = (J.transpose() * J).ldlt().solve(J.transpose() * flow);
 }
