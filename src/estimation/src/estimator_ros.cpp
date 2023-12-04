@@ -38,8 +38,8 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
     gt_pose_array_sub_ = create_subscription<geometry_msgs::msg::PoseArray>(
             "/gz/gt_pose_array", 1,
             std::bind(&StateEstimationNode::gt_pose_array_callback, this, std::placeholders::_1));
-//    range_sub_ = create_subscription<sensor_msgs::msg::Range>(
-//            "/teraranger_evo_40m", 1, std::bind(&StateEstimationNode::range_callback, this, std::placeholders::_1));
+    range_sub_ = create_subscription<sensor_msgs::msg::Range>(
+            "/teraranger_evo_40m", 1, std::bind(&StateEstimationNode::range_callback, this, std::placeholders::_1));
     auto qos = rclcpp::QoS(rclcpp::KeepLast(1));
     qos.best_effort();
     air_data_sub_ = create_subscription<px4_msgs::msg::VehicleAirData>(
@@ -80,9 +80,21 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
     cam_ang_vel_accumulator_ = std::make_unique<CamAngVelAccumulator>();
 }
 
+inline float d2f(double d) {
+    return static_cast<float>(d);
+}
+
+rclcpp::Time StateEstimationNode::get_correct_fusion_time(
+        const std_msgs::msg::Header &header, const bool use_offset) {
+    double time_point = (double) header.stamp.sec + (double) header.stamp.nanosec * 1e-9;
+    if (use_offset)
+        time_point += offset_.load();
+    return rclcpp::Time(static_cast<int64_t>(time_point * 1e9));
+}
+
 void StateEstimationNode::gps_callback(const px4_msgs::msg::SensorGps::SharedPtr msg) {
     double timestamp = (double) msg->timestamp / 1e6; // seconds
-    auto time = rclcpp::Time(timestamp * 1e9);
+    auto time = rclcpp::Time(static_cast<int64_t>(timestamp * 1e9));
 
     sensor_msgs::msg::NavSatFix gps_msg;
     gps_msg.header.stamp = time;
@@ -96,25 +108,26 @@ void StateEstimationNode::gps_callback(const px4_msgs::msg::SensorGps::SharedPtr
 void StateEstimationNode::timesync_callback(const px4_msgs::msg::TimesyncStatus::SharedPtr msg) {
     double offset;
     if (simulation_ && msg->estimated_offset != 0) {
-        offset = -(double) (msg->estimated_offset / 1e6);
+        offset = -(double) msg->estimated_offset / 1e6;
     } else {
-        offset = (double) (msg->observed_offset / 1e6);
+        offset = (double) msg->observed_offset / 1e6;
     }
     offset_.store(offset);
 }
 
 void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
-    double time_point = (msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9);
-    if (simulation_) {
-        double offset = offset_.load();
-        time_point -= offset;
+    rclcpp::Time time;
+    if (!simulation_) {
+        time = get_correct_fusion_time(msg->header, false);
+    } else {
+        // should negate the offset in get_correct_fusion_time
+        assert(false);
     }
-    auto time = rclcpp::Time(time_point * 1e9);
 
     Eigen::Vector3f accel;
-    accel << msg->linear_acceleration.x,
-            msg->linear_acceleration.y,
-            msg->linear_acceleration.z;
+    accel << d2f(msg->linear_acceleration.x),
+            d2f(msg->linear_acceleration.y),
+            d2f(msg->linear_acceleration.z);
 
     if (simulation_) {
         // publish imu in world frame
@@ -128,12 +141,12 @@ void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr ms
     }
 
     if (prev_imu_time_s < 0) {
-        prev_imu_time_s = time_point;
+        prev_imu_time_s = time.seconds();
         return;
     }
-    double dt = time_point - prev_imu_time_s;
+    double dt = time.seconds() - prev_imu_time_s;
     assert(dt > 0);
-    prev_imu_time_s = time_point;
+    prev_imu_time_s = time.seconds();
     estimator_->update_imu_accel(accel, dt);
 
     auto state = estimator_->state();
@@ -141,7 +154,7 @@ void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr ms
     state_msg.header.stamp = time;
     state_msg.header.frame_id = "odom";
     state_msg.poses.resize(4);
-    for (size_t i = 0; i < 4; i++) {
+    for (long i = 0; i < 4; i++) {
         state_msg.poses[i].position.x = state(i * 3);
         state_msg.poses[i].position.y = state(i * 3 + 1);
         state_msg.poses[i].position.z = state(i * 3 + 2);
@@ -150,32 +163,40 @@ void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr ms
 }
 
 void StateEstimationNode::air_data_callback(const px4_msgs::msg::VehicleAirData::SharedPtr msg) {
-    if (!simulation_) // above beach ground
-        height_.store(std::abs(-25.94229507446289 - msg->baro_alt_meter));
-    else
-        height_.store(msg->baro_alt_meter);
+    float altitude;
 
-    estimator_->update_height(height_);
+    if (!simulation_)
+        altitude = std::abs(d2f(-25.94229507446289 - msg->baro_alt_meter));
+    else
+        altitude = msg->baro_alt_meter;
+
+    estimator_->update_height(altitude);
 }
 
-//void StateEstimationNode::range_callback(const sensor_msgs::msg::Range::SharedPtr msg) {
-//    if (std::isnan(msg->range) || std::isinf(msg->range))
-//        return;
-//    // TODO: deal with measurement
-//}
+void StateEstimationNode::range_callback(const sensor_msgs::msg::Range::SharedPtr msg) {
+    return;
+    if (std::isnan(msg->range) || std::isinf(msg->range))
+        return;
+    Eigen::Vector3f altitude{0, 0, d2f(msg->range)};
+
+    auto time = get_correct_fusion_time(msg->header, true);
+    geometry_msgs::msg::TransformStamped base_link_enu;
+    bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
+    if (!succ) return;
+    auto base_T_odom = tf_msg_to_affine(base_link_enu);
+
+    altitude = base_T_odom.rotation() * altitude;
+    estimator_->update_height(altitude[2]);
+}
 
 void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::SharedPtr bbox) {
-    auto h = height_.load();
-    if (h < 0 || std::isnan(h) || std::isinf(h))
-        return;
     if (!is_K_received())
         return;
     if (!image_tf_)
         return;
 
     // create time object from header stamp
-    double time_point = offset_.load() + (bbox->header.stamp.sec + bbox->header.stamp.nanosec * 1e-9);
-    auto time = rclcpp::Time(time_point * 1e9);
+    auto time = get_correct_fusion_time(bbox->header, true);
     geometry_msgs::msg::TransformStamped base_link_enu;
     bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
     if (!succ)
@@ -185,13 +206,13 @@ void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::Sha
     img_T_base.translation() = Eigen::Vector3f::Zero();
 
     Eigen::Vector2f uv_point;
-    uv_point << bbox->bbox.center.position.x,
-            bbox->bbox.center.position.y;
+    uv_point << d2f(bbox->bbox.center.position.x),
+            d2f(bbox->bbox.center.position.y);
     auto rect_point = cam_model_.rectifyPoint(cv::Point2d(uv_point[0], uv_point[1]));
-    uv_point << rect_point.x, rect_point.y;
+    uv_point << d2f(rect_point.x), d2f(rect_point.y);
 
     auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
-    Eigen::Vector3f Pt = estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_, h);
+    Eigen::Vector3f Pt = estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_);
 
     // publish normalized vector to target
     visualization_msgs::msg::Marker vec_msgs{};
@@ -235,9 +256,9 @@ void StateEstimationNode::cam_info_callback(const sensor_msgs::msg::CameraInfo::
     cam_model_.fromCameraInfo(*msg);
     cv::Matx<float, 3, 3> cvK = cam_model_.intrinsicMatrix();
     // convert to eigen
-    for (size_t i = 0; i < 9; i++) {
-        size_t row = std::floor(i / 3);
-        size_t col = i % 3;
+    for (long i = 0; i < 9; i++) {
+        long row = std::floor(i / 3);
+        long col = i % 3;
         K_(row, col) = cvK.operator()(row, col);
     }
 }
@@ -248,8 +269,8 @@ void StateEstimationNode::gt_pose_array_callback(const geometry_msgs::msg::PoseA
         return;
     auto p0 = msg->poses[0];
     auto p1 = msg->poses[1];
-    Eigen::Vector3f p0_vec(p0.position.x, p0.position.y, p0.position.z);
-    Eigen::Vector3f p1_vec(p1.position.x, p1.position.y, p1.position.z);
+    Eigen::Vector3f p0_vec(d2f(p0.position.x), d2f(p0.position.y), d2f(p0.position.z));
+    Eigen::Vector3f p1_vec(d2f(p1.position.x), d2f(p1.position.y), d2f(p1.position.z));
     auto diff = (p0_vec - p1_vec);
     auto gt_point = std::make_unique<geometry_msgs::msg::PointStamped>();
     gt_point->header.stamp = msg->header.stamp;
@@ -296,19 +317,28 @@ void StateEstimationNode::tf_callback() {
             image_tf_->transform.rotation.y = -0.652;
             image_tf_->transform.rotation.z = 0.271;
             image_tf_->transform.rotation.w = -0.272;
+
+            tera_tf_ = std::make_unique<geometry_msgs::msg::TransformStamped>();
+            tera_tf_->transform.translation.x = -0.133;
+            tera_tf_->transform.translation.y = 0.029;
+            tera_tf_->transform.translation.z = -0.07;
+            tera_tf_->transform.rotation.x = 0.0;
+            tera_tf_->transform.rotation.y = 0.0;
+            tera_tf_->transform.rotation.z = 0.0;
+            tera_tf_->transform.rotation.w = 1.0;
         }
     }
 }
 
 Eigen::Transform<float, 3, Eigen::Affine>
 StateEstimationNode::tf_msg_to_affine(geometry_msgs::msg::TransformStamped &tf_stamp) {
-    Eigen::Quaternionf rotation(tf_stamp.transform.rotation.w,
-                                tf_stamp.transform.rotation.x,
-                                tf_stamp.transform.rotation.y,
-                                tf_stamp.transform.rotation.z);
-    Eigen::Translation3f translation(tf_stamp.transform.translation.x,
-                                     tf_stamp.transform.translation.y,
-                                     tf_stamp.transform.translation.z);
+    Eigen::Quaternionf rotation(d2f(tf_stamp.transform.rotation.w),
+                                d2f(tf_stamp.transform.rotation.x),
+                                d2f(tf_stamp.transform.rotation.y),
+                                d2f(tf_stamp.transform.rotation.z));
+    Eigen::Translation3f translation(d2f(tf_stamp.transform.translation.x),
+                                     d2f(tf_stamp.transform.translation.y),
+                                     d2f(tf_stamp.transform.translation.z));
     Eigen::Transform<float, 3, Eigen::Affine> transform = translation * rotation;
     return transform;
 }
@@ -318,20 +348,15 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
         return;
     if (!image_tf_)
         return;
-    float h = height_.load();
-    if (h < 0 || std::isnan(h) || std::isinf(h))
-        return;
 
     // create time object from header stamp
-    double time_point = offset_.load() + (msg->header.stamp.sec + msg->header.stamp.nanosec * 1e-9);
-    auto time = rclcpp::Time(static_cast<uint64_t>(time_point * 1e9));
+    auto time = get_correct_fusion_time(msg->header, true);
     geometry_msgs::msg::TransformStamped base_link_enu;
     bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
     if (!succ)
         return;
     auto base_T_odom = tf_msg_to_affine(base_link_enu);
     auto img_T_base = tf_msg_to_affine(*image_tf_);
-    // multiply affines
     auto cam_T_enu = base_T_odom * img_T_base;
 
     cv_bridge::CvImagePtr cv_ptr;
@@ -352,8 +377,8 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
     auto omega = cam_ang_vel_accumulator_->get_ang_vel();
 
     Eigen::Vector3f vel_enu = estimator_->update_flow_velocity(rectified,
-                                                               time_point, cam_T_enu.rotation(),
-                                                               cam_T_enu.translation(), K_, h,
+                                                               time.seconds(), cam_T_enu.rotation(),
+                                                               cam_T_enu.translation(), K_,
                                                                omega, {0, 0, 0});
 
     geometry_msgs::msg::Vector3Stamped vel_msg;
@@ -368,7 +393,7 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
 void StateEstimationNode::cam_imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
     // accumulate angular velocity into a vector
     cam_ang_vel_accumulator_->add(
-            msg->angular_velocity.x,
-            msg->angular_velocity.y,
-            msg->angular_velocity.z);
+            d2f(msg->angular_velocity.x),
+            d2f(msg->angular_velocity.y),
+            d2f(msg->angular_velocity.z));
 }

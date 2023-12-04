@@ -20,7 +20,9 @@
 #include "sensor_msgs/msg/nav_sat_fix.hpp"
 #include "visualization_msgs/msg/marker.hpp"
 #include "image_geometry/pinhole_camera_model.h"
+
 #define RCLCPP__NODE_IMPL_HPP_
+
 #include "rclcpp/node.hpp"
 
 struct CamAngVelAccumulator {
@@ -76,7 +78,7 @@ private:
 
     void air_data_callback(px4_msgs::msg::VehicleAirData::SharedPtr msg);
 
-//    void range_callback(sensor_msgs::msg::Range::SharedPtr msg);
+    void range_callback(sensor_msgs::msg::Range::SharedPtr msg);
 
     void bbox_callback(vision_msgs::msg::Detection2D::SharedPtr bbox);
 
@@ -89,6 +91,8 @@ private:
                           const rclcpp::Time &time = rclcpp::Time(0));
 
     void tf_callback();
+
+    rclcpp::Time get_correct_fusion_time(const std_msgs::msg::Header &header, bool use_offset);
 
     static Eigen::Transform<float, 3, Eigen::Affine> tf_msg_to_affine(geometry_msgs::msg::TransformStamped &tf_stamp);
 
@@ -126,7 +130,6 @@ private:
 
     double prev_imu_time_s = -1;
     std::atomic<double> offset_{0};
-    std::atomic<float> height_{-1};
     Eigen::Matrix<float, 3, 3> K_;
     std::unique_ptr<Estimator> estimator_{nullptr};
     bool simulation_{false};

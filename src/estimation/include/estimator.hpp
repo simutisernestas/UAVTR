@@ -51,10 +51,10 @@ public:
 
     Eigen::Vector3f compute_pixel_rel_position(
             const Eigen::Vector2f &bbox_c, const Eigen::Matrix3f &cam_R_enu,
-            const Eigen::Matrix3f &K, float height, bool update = true);
+            const Eigen::Matrix3f &K, bool update = true);
 
     Eigen::Vector3f update_flow_velocity(cv::Mat &frame, double time, const Eigen::Matrix3f &cam_R_enu,
-                                         const Eigen::Vector3f &r, const Eigen::Matrix3f &K, float height,
+                                         const Eigen::Vector3f &r, const Eigen::Matrix3f &K,
                                          const Eigen::Vector3f &omega, const Eigen::Vector3f &drone_omega);
 
     void update_imu_accel(const Eigen::Vector3f &accel, double dt);
@@ -68,19 +68,19 @@ public:
                          const Eigen::Matrix3f &K,
                          Eigen::MatrixXf &L);
 
-    static void compute_velocity(const Eigen::MatrixXf &J,
-                                 const Eigen::VectorXf &flow,
-                                 Eigen::VectorXf &vel);
+    [[nodiscard]] inline float get_height() const {
+        return -kf_->state()[2];
+    }
 
-    static float get_pixel_z_in_camera_frame(
+    [[nodiscard]] float get_pixel_z_in_camera_frame(
             const Eigen::Vector2f &pixel, const Eigen::Matrix3f &cam_R_enu,
-            const Eigen::Matrix3f &K, const float height) {
+            const Eigen::Matrix3f &K) const {
         Eigen::Matrix<float, 3, 3> Kinv = K.inverse();
         Eigen::Vector3f lr{0, 0, -1};
         Eigen::Vector3f Puv_hom{pixel[0], pixel[1], 1};
         Eigen::Vector3f Pc = Kinv * Puv_hom;
         Eigen::Vector3f ls = cam_R_enu * (Pc / Pc.norm());
-        float d = height / (lr.transpose() * ls);
+        float d = get_height() / (lr.transpose() * ls);
         Eigen::Vector3f Pt = ls * d;
         // transform back to camera frame
         Pt = cam_R_enu.inverse() * Pt;
