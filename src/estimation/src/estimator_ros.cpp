@@ -174,7 +174,6 @@ void StateEstimationNode::air_data_callback(const px4_msgs::msg::VehicleAirData:
 }
 
 void StateEstimationNode::range_callback(const sensor_msgs::msg::Range::SharedPtr msg) {
-    return;
     if (std::isnan(msg->range) || std::isinf(msg->range))
         return;
     Eigen::Vector3f altitude{0, 0, d2f(msg->range)};

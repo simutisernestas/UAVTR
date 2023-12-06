@@ -5,7 +5,7 @@ from rclpy.serialization import deserialize_message
 from rosidl_runtime_py.utilities import get_message
 import matplotlib.pyplot as plt
 from scipy.signal import butter, lfilter
-
+import os
 
 def get_rosbag_options(path, storage_id, serialization_format='cdr'):
     storage_options = rosbag2_py.StorageOptions(
@@ -54,8 +54,11 @@ if __name__ == '__main__':
     PANDA_MSGS = []
     LAPTOP_MSGS = []
     N = 5
+    
+    root_dir = os.path.dirname(
+        os.path.dirname(os.path.realpath(__file__))) # parent; project root
 
-    bag_path = "/home/ernie/thesis/bags/18_0/rosbag2_2023_10_18-12_24_19"
+    bag_path = f"{root_dir}/bags/18_0/rosbag2_2023_10_18-12_24_19"
 
     info = rosbag2_py.Info()
     metadata = info.read_metadata(bag_path, storage_id)

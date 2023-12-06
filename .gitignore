@@ -13,3 +13,4 @@ metadata.yaml
 .idea/
 *.csv
 notebooks/sandbox.py
+bags/

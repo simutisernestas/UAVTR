@@ -6,40 +6,41 @@ import os
 
 
 def generate_launch_description():
-    dir_path = os.path.dirname(os.path.realpath(__file__))
+    root_dir = os.path.dirname(
+        os.path.dirname(os.path.realpath(__file__))) # parent; project root
 
     imu_mag_repub = ExecuteProcess(
-        cmd=['/home/ernie/thesis/track/src/estimation/build/orientation_filter'],
+        cmd=[f"{root_dir}/src/estimation/build/orientation_filter"],
         output='screen'
     )
 
     tracking = ExecuteProcess(
         cmd=['./tracking_ros_node', '--ros-args', '-r',
              '/camera/color/image_raw:=/x500/camera'],
-        cwd='/home/ernie/thesis/track/src/detection/build',
+        cwd=f'{root_dir}/src/detection/build',
         output='screen'
     )
 
     estimation = ExecuteProcess(
-        cmd=["/home/ernie/thesis/track/src/estimation/build/estimation_node",
+        cmd=[f"{root_dir}/src/estimation/build/estimation_node",
              '--ros-args', '-r', '/camera/color/camera_info:=/x500/camera_info',
              '-r', '/camera/color/image_raw:=/x500/camera'],
-        # cmd=["/home/ernie/thesis/track/src/estimation/build/estimation_node"],
         # prefix=['xterm -fa "Monospace" -fs 14 -e gdb -tui -iex break -ex "b main" -ex run --args'],
         output='screen'
     )
 
+    raise NotImplementedError("TODO: no bag")
     play_bag_cmd = '''ros2 bag play rosbag2_2023_10_20-14_06_24'''  #
     play_bag = ExecuteProcess(
         cmd=play_bag_cmd.split(),
-        cwd="/home/ernie/thesis/ros_ws",
+        cwd=f"{root_dir}/bags",
         output='screen'
     )
 
     robot_state_pub = ExecuteProcess(
         cmd=['ros2', 'run', 'robot_state_publisher',
              'robot_state_publisher', 'cam.urdf'],
-        cwd="/home/ernie/thesis/track/assets",
+        cwd=f"{root_dir}/assets",
         output='screen'
     )
 
@@ -49,12 +50,4 @@ def generate_launch_description():
         estimation,
         robot_state_pub,
         imu_mag_repub,
-        # IncludeLaunchDescription(
-        #     PythonLaunchDescriptionSource([
-        #         PathJoinSubstitution([
-        #             dir_path,
-        #             "madgwick.launch.py"
-        #         ])
-        #     ]),
-        # ),
     ])

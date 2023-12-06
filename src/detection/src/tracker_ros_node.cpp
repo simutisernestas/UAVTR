@@ -40,7 +40,6 @@ private:
         cv::waitKey(1);
 
         if (!success) {
-            RCLCPP_INFO(this->get_logger(), "No object detected");
             return;
         }
 

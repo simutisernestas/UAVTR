@@ -6,22 +6,23 @@ import os
 
 
 def generate_launch_description():
-    dir_path = os.path.dirname(os.path.realpath(__file__))
+    root_dir = os.path.dirname(
+        os.path.dirname(os.path.realpath(__file__)))
 
     orientation_filter = ExecuteProcess(
-        cmd=['/home/ernie/thesis/track/src/estimation/build/orientation_filter'],
+        cmd=[f'{root_dir}/src/estimation/build/orientation_filter'],
         output='screen'
     )
 
     tracking = ExecuteProcess(
         cmd=['./tracking_ros_node'],
-        cwd='/home/ernie/thesis/track/src/detection/build',
+        cwd=f'{root_dir}/src/detection/build',
         output='screen'
     )
 
     estimation = ExecuteProcess(
         cmd=["./estimation_node"],
-        cwd='/home/ernie/thesis/track/src/estimation/build',
+        cwd=f'{root_dir}/src/estimation/build',
         # prefix=['xterm -fa "Monospace" -fs 14 -e gdb --args'],
         # prefix=['xterm  -e gdb -ex "b main" --args'],
         # -iex break -ex "b main" -tui
@@ -34,10 +35,11 @@ def generate_launch_description():
         output='screen'
     )
 
-    play_bag_cmd = '''ros2 bag play ./18_0/rosbag2_2023_10_18-12_24_19 --start-offset 130'''
+    play_bag_cmd = '''ros2 bag play ./18_0/rosbag2_2023_10_18-12_24_19 --start-offset 150'''
+    # play_bag_cmd = '''ros2 bag play ./latest_flight/rosbag2_2023_10_18-16_22_16/ --start-offset 2000'''
     play_bag = ExecuteProcess(
         cmd=play_bag_cmd.split(),
-        cwd="/home/ernie/thesis/bags",
+        cwd=f"{root_dir}/bags",
         output='screen'
     )
 
@@ -47,12 +49,4 @@ def generate_launch_description():
         estimation,
         uncompress,
         orientation_filter,
-        # IncludeLaunchDescription(
-        #     PythonLaunchDescriptionSource([
-        #         PathJoinSubstitution([
-        #             dir_path,
-        #             "madgwick.launch.py"
-        #         ])
-        #     ]),
-        # ),
     ])

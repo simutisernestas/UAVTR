@@ -88,16 +88,22 @@ target_link_libraries(estimation_node estimator_lib)
 target_precompile_headers(estimation_node PRIVATE
         include/estimator_ros.hpp)
 
+get_filename_component(PROJECT_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
+message("PROJECT_ROOT_DIR: ${PROJECT_ROOT_DIR}")
+
 add_executable(orientation_filter src/orient_filter.cpp)
 ament_target_dependencies(orientation_filter rclcpp sensor_msgs px4_msgs tf2_ros geometry_msgs Eigen3)
-target_link_libraries(orientation_filter /home/ernie/thesis/track/Fusion/build/Fusion/libFusion.a)
+target_link_libraries(orientation_filter ${PROJECT_ROOT_DIR}/Fusion/build/Fusion/libFusion.a)
 target_include_directories(orientation_filter PUBLIC
-        /home/ernie/thesis/track/Fusion/Fusion
-        ${EIGEN3_INCLUDE_DIR}
-)
+        ${PROJECT_ROOT_DIR}/Fusion/Fusion ${EIGEN3_INCLUDE_DIR})
 
-#find_package(GTest REQUIRED)
-#add_executable(flow_velocity_test test/test_flow_velocity.cpp)
-#include_directories(flow_velocity_test PUBLIC ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR} include ${EIGEN3_INCLUDE_DIR})
-#target_link_libraries(flow_velocity_test gtest gtest_main estimator_lib kalman_lib ${EIGEN3_LIBRARIES})
-#ament_target_dependencies(flow_velocity_test OpenCV)
+# test directory
+get_filename_component(TEST_SOURCE test/test_flow_velocity.cpp ABSOLUTE)
+get_filename_component(TEST_PATH ${TEST_SOURCE} DIRECTORY)
+
+find_package(GTest REQUIRED)
+add_executable(flow_velocity_test test/test_flow_velocity.cpp)
+include_directories(flow_velocity_test PUBLIC ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR} include ${EIGEN3_INCLUDE_DIR})
+target_link_libraries(flow_velocity_test gtest gtest_main estimator_lib ${EIGEN3_LIBRARIES})
+ament_target_dependencies(flow_velocity_test OpenCV)
+target_compile_definitions(flow_velocity_test PRIVATE TEST_DIR="${TEST_PATH}")

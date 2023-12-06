@@ -35,7 +35,13 @@ if __name__ == '__main__':
     LAPTOP_MSGS = []
     N = 5
 
-    # bag_path = "/home/ernie/thesis/rosbag2_2023_11_02-14_25_42"
+    # TODO: cleanup
+
+    # parent directory
+    root_dir = os.path.dirname(
+        os.path.dirname(os.path.realpath(__file__)))
+
+    # bag_path = f"{root_dir}/bags/rosbag2_2023_11_02-14_25_42"
     # info = rosbag2_py.Info()
     # metadata = info.read_metadata(bag_path, storage_id)
     # panda_start_timestamp = metadata.starting_time.timestamp()
@@ -80,7 +86,7 @@ if __name__ == '__main__':
 
     # drwxrwxr-x 2 ernie ernie 4.0K Oct 18 12:31 rosbag2_2023_10_18-12_15_37
     # drwxrwxr-x 2 ernie ernie 4.0K Oct 18 12:30 rosbag2_2023_10_18-12_24_19
-    bag_path = "/home/ernie/thesis/bags/18_0/rosbag2_2023_10_18-12_24_19"
+    bag_path = f"{root_dir}/bags/18_0/rosbag2_2023_10_18-12_24_19"
 
     info = rosbag2_py.Info()
     metadata = info.read_metadata(bag_path, storage_id)
@@ -130,7 +136,7 @@ if __name__ == '__main__':
         enu_xyz = pm.geodetic2enu(lat, lon, alt, lat0, lon0, alt0)
         buff.append(enu_xyz)
 
-    bag_path = "/home/ernie/thesis/bags/18_0/rosbag2_2023_10_18-12_15_37"
+    bag_path = f"{root_dir}/bags/18_0/rosbag2_2023_10_18-12_15_37"
 
     info = rosbag2_py.Info()
     metadata = info.read_metadata(bag_path, storage_id)
@@ -266,7 +272,7 @@ if __name__ == '__main__':
     #     fig.show()
     #     exit()
 
-    # bag_path = "/home/ernie/thesis/bags/latest-niceish-very-far"
+    # bag_path = f"{root_dir}/bags/latest-niceish-very-far"
     # storage_options, converter_options = get_rosbag_options(
     #     bag_path, storage_id)
 

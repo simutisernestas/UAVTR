@@ -37,7 +37,7 @@ message("#####################")
 
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
-include_directories(onnxruntime/include)
+include_directories(onnxruntime/include include)
 link_directories(onnxruntime/lib)
 
 add_library(tracker_lib src/tracker.cpp)

@@ -6,9 +6,11 @@
 #include <thread>
 #include <cassert>
 #include <numeric>
+#include <iostream>
 #include <onnxruntime_cxx_api.h>
 #include <string.h>
 #include <boost/lockfree/spsc_queue.hpp>
+#include "timer.hpp"
 
 #define MODEL 1 // 0 - detr; 1 - yolo
 #define DETR_LOGITS_INDEX 0
@@ -38,7 +40,7 @@ int model_input_height;
 
 // Class names for YOLOv7
 std::array<const std::string, 80> classNames = {
-        "person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
+        "person", "boat", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
         "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
         "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
         "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball",
@@ -299,7 +301,7 @@ ObjDetertor::ObjDetertor() {
 #if MODEL == 0
     _session = std::make_unique<Ort::Session>(_env, "../weights/detr.onnx", sessionOptions);
 #else
-    _session = std::make_unique<Ort::Session>(_env, "../weights/yolov7.onnx", sessionOptions);
+    _session = std::make_unique<Ort::Session>(_env, "../weights/best2.onnx", sessionOptions);
 #endif
     _memory_info = std::make_unique<Ort::MemoryInfo>(Ort::MemoryInfo::CreateCpu(
             OrtArenaAllocator, OrtMemTypeDefault));
@@ -433,17 +435,24 @@ bool ObjDetertor::detect(const cv::Mat &frame) {
     std::copy(blob_image.begin<float>(),
               blob_image.end<float>(),
               _input_image_values.begin());
+    
+    std::vector<Ort::Value> outputTensors;
+    {
+        Timer timer;
+        outputTensors = _session->Run(Ort::RunOptions{nullptr},
+                                    _input_names.data(), _input_tensors.data(),
+                                    _input_names.size(), _output_names.data(), 
+                                    _output_names.size());
+    }
 
-    std::vector<Ort::Value> outputTensors = _session->Run(Ort::RunOptions{nullptr},
-                                                          _input_names.data(), _input_tensors.data(),
-                                                          _input_names.size(),
-                                                          _output_names.data(), _output_names.size());
 
     std::vector<Result> resultVector = postprocess(frame.size(), outputTensors);
 
     bool found = false;
     float max_accuracy = 0.0f;
     for (const auto &result: resultVector) {
+        std::cout << "Class: " << classNames.at(result.obj_id) <<
+         " accuracy: " << result.accuracy << std::endl;
         if (classNames.at(result.obj_id) != "boat")
             continue;
         if (result.accuracy < 0.6f && result.accuracy < max_accuracy)
@@ -564,13 +573,15 @@ void Tracker::catchup_reinit() {
     auto local_tracker = cv::TrackerKCF::create(params);
     local_tracker->init(_frames.front(), bbox);
     _frames.pop();
+    bool got_track = false;
     while (_frames.read_available() > 1) {
-        bool track = local_tracker->update(_frames.front(), bbox);
-        if (!track)
-            return;
-
+        // might recover from frame by frame failure
+        got_track = local_tracker->update(_frames.front(), bbox);
         _frames.pop();
     }
+    if (!got_track)
+        return;
+
     while (true) {
         if (_allowed_to_swap) {
             _tracker = local_tracker;
