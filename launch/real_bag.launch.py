@@ -23,9 +23,7 @@ def generate_launch_description():
     estimation = ExecuteProcess(
         cmd=["./estimation_node"],
         cwd=f'{root_dir}/src/estimation/build',
-        # prefix=['xterm -fa "Monospace" -fs 14 -e gdb --args'],
         # prefix=['xterm  -e gdb -ex "b main" --args'],
-        # -iex break -ex "b main" -tui
         output='screen'
     )
 
@@ -35,8 +33,8 @@ def generate_launch_description():
         output='screen'
     )
 
-    play_bag_cmd = '''ros2 bag play ./18_0/rosbag2_2023_10_18-12_24_19 --start-offset 150'''
-    # play_bag_cmd = '''ros2 bag play ./latest_flight/rosbag2_2023_10_18-16_22_16/ --start-offset 2000'''
+    # play_bag_cmd = '''ros2 bag play ./18_0/rosbag2_2023_10_18-12_24_19 --start-offset 150'''
+    play_bag_cmd = '''ros2 bag play ./latest_flight/rosbag2_2023_10_18-16_22_16/ --start-offset 1830'''
     play_bag = ExecuteProcess(
         cmd=play_bag_cmd.split(),
         cwd=f"{root_dir}/bags",

@@ -14,3 +14,4 @@ metadata.yaml
 *.csv
 notebooks/sandbox.py
 bags/
+**.npz

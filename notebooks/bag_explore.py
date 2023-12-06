@@ -14,9 +14,14 @@ import pymap3d as pm
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import numpy as np
+import mplcursors
 
 
-def get_rosbag_options(path, storage_id, serialization_format='cdr'):
+storage_id = 'sqlite3'
+
+def get_rosbag_options(path, serialization_format='cdr'):
+    global storage_id
+
     storage_options = rosbag2_py.StorageOptions(
         uri=path, storage_id=storage_id)
 
@@ -27,338 +32,142 @@ def get_rosbag_options(path, storage_id, serialization_format='cdr'):
     return storage_options, converter_options
 
 
-storage_id = 'sqlite3'
-PLOT_GPS = False
 
 if __name__ == '__main__':
-    PANDA_MSGS = []
-    LAPTOP_MSGS = []
-    N = 5
-
-    # TODO: cleanup
-
     # parent directory
     root_dir = os.path.dirname(
         os.path.dirname(os.path.realpath(__file__)))
 
-    # bag_path = f"{root_dir}/bags/rosbag2_2023_11_02-14_25_42"
-    # info = rosbag2_py.Info()
-    # metadata = info.read_metadata(bag_path, storage_id)
-    # panda_start_timestamp = metadata.starting_time.timestamp()
-
-    # storage_options, converter_options = get_rosbag_options(
-    #     bag_path, storage_id)
-
-    # reader = rosbag2_py.SequentialReader()
-    # reader.open(storage_options, converter_options)
-
-    # topic_types = reader.get_all_topics_and_types()
-
-    # # Create a map for quicker lookup
-    # type_map = {
-    #     topic_types[i].name: topic_types[i].type for i in range(len(topic_types))}
-
-    # # Set filter for topic of string type
-    # storage_filter = rosbag2_py.StorageFilter(
-    #     topics=['/cam_target_pos'])
-    # reader.set_filter(storage_filter)
-
-    # cam_pos_buff = []
-    # while reader.has_next():
-    #     (topic, data, t) = reader.read_next()
-    #     msg_type = get_message(type_map[topic])
-    #     msg = deserialize_message(data, msg_type)
-    #     x, y, z = msg.point.x, msg.point.y, msg.point.z
-    #     if abs(x) > 40 or abs(y) > 40:
-    #         continue
-    #     if np.linalg.norm([x, y, z]) < 10:
-    #         continue
-    #     cam_pos_buff.append([msg.point.x, msg.point.y, msg.point.z])
-
-    # norm_of_each_point = [np.linalg.norm(x) for x in cam_pos_buff[:13000]]
-
-    # plt.plot(norm_of_each_point)
-
-    # # colors = cm.rainbow(np.linspace(0, 1, len(cam_pos_buff)))
-    # # plt.scatter([x[0] for x in cam_pos_buff], [x[1] for x in cam_pos_buff], color=colors)
-    # plt.show()
-    # exit()
-
-    # drwxrwxr-x 2 ernie ernie 4.0K Oct 18 12:31 rosbag2_2023_10_18-12_15_37
-    # drwxrwxr-x 2 ernie ernie 4.0K Oct 18 12:30 rosbag2_2023_10_18-12_24_19
+    # bag_path = f"{root_dir}/bags/latest_flight/rosbag2_2023_10_18-16_22_16"
     bag_path = f"{root_dir}/bags/18_0/rosbag2_2023_10_18-12_24_19"
 
     info = rosbag2_py.Info()
     metadata = info.read_metadata(bag_path, storage_id)
     panda_start_timestamp = metadata.starting_time.timestamp()
 
-    storage_options, converter_options = get_rosbag_options(
-        bag_path, storage_id)
+    storage_options, converter_options = get_rosbag_options(bag_path)
 
     reader = rosbag2_py.SequentialCompressionReader()
     reader.open(storage_options, converter_options)
 
     topic_types = reader.get_all_topics_and_types()
-
-    # Create a map for quicker lookup
-    type_map = {
+    type_map = { # Create a map for quicker lookup
         topic_types[i].name: topic_types[i].type for i in range(len(topic_types))}
 
-    # Set filter for topic of string type
     storage_filter = rosbag2_py.StorageFilter(
-        topics=['/fmu/out/vehicle_gps_position'])
+        topics=[
+            '/fmu/out/vehicle_gps_position',
+            '/fmu/out/timesync_status',
+        ])
     reader.set_filter(storage_filter)
 
-    def get_gps_pos(reader):
+    def get_gps_or_time(reader):
         if not reader.has_next():
-            raise Exception("No gps msgs")
+            raise Exception("No more msgs")
 
         (topic, data, t) = reader.read_next()
         msg_type = get_message(type_map[topic])
         msg = deserialize_message(data, msg_type)
 
         if not isinstance(msg, px4_msgs.msg.SensorGps):
-            raise Exception("Not a gps msg")
+            return msg
 
         lat = msg.lat * 1e-7
         lon = msg.lon * 1e-7
         alt = msg.alt * 1e-3
-        return (lat, lon, alt)
+        time_utc = msg.time_utc_usec / 1e6
+        return (lat, lon, alt, time_utc)
 
-    (lat0, lon0, alt0) = get_gps_pos(reader)
+    (lat0, lon0, alt0) = None, None, None
+    out = get_gps_or_time(reader)
+    while isinstance(out, px4_msgs.msg.TimesyncStatus):
+        out = get_gps_or_time(reader)
+    (lat0, lon0, alt0, tutc) = out
 
     buff = []
+    timestamps = []
+    latest_stamp = 0
     while True:
+        out = None
         try:
-            (lat, lon, alt) = get_gps_pos(reader)
+            out = get_gps_or_time(reader)
         except:
             break
+
+        if isinstance(out, px4_msgs.msg.TimesyncStatus):
+            latest_stamp = (out.timestamp - out.observed_offset) / 1e6
+            continue
+
+        (lat, lon, alt, tutc) = out
         enu_xyz = pm.geodetic2enu(lat, lon, alt, lat0, lon0, alt0)
         buff.append(enu_xyz)
+        timestamps.append(tutc)
 
+    # bag_path = f"{root_dir}/bags/latest_flight/rosbag2_2023_08_21-23_15_45"
     bag_path = f"{root_dir}/bags/18_0/rosbag2_2023_10_18-12_15_37"
 
     info = rosbag2_py.Info()
     metadata = info.read_metadata(bag_path, storage_id)
     panda_start_timestamp = metadata.starting_time.timestamp()
 
-    storage_options, converter_options = get_rosbag_options(
-        bag_path, storage_id)
+    storage_options, converter_options = get_rosbag_options(bag_path)
 
     reader = rosbag2_py.SequentialCompressionReader()
     reader.open(storage_options, converter_options)
 
     topic_types = reader.get_all_topics_and_types()
-
-    # Create a map for quicker lookup
     type_map = {
         topic_types[i].name: topic_types[i].type for i in range(len(topic_types))}
 
-    # Set filter for topic of string type
-    storage_filter = rosbag2_py.StorageFilter(
-        topics=['/fmu/out/vehicle_gps_position'])
     reader.set_filter(storage_filter)
 
     buff_boat = []
-    count = 0
+    timestamps_boat = []
+    latest_stamp = 0
     while True:
+        out = None
         try:
-            (lat, lon, alt) = get_gps_pos(reader)
+            out = get_gps_or_time(reader)
         except:
             break
-        count += 1
-        if count < 0:
+
+        if isinstance(out, px4_msgs.msg.TimesyncStatus):
+            # DELTA_S = 4986634
+            #  / 1e6 + DELTA_S
+            latest_stamp = (out.timestamp - out.observed_offset) / 1e6
             continue
-        if count == int(4800//2):
-            print(lat, lon, alt)
-            exit()
+
+        (lat, lon, alt, tutc) = out
         enu_xyz = pm.geodetic2enu(lat, lon, alt, lat0, lon0, alt0)
         buff_boat.append(enu_xyz)
-        # break
+        timestamps_boat.append(tutc)
 
-    # Create a color map
+    timestamps = np.array(timestamps)
+    timestamps_boat = np.array(timestamps_boat)
+    buff = np.array(buff)
+    buff_boat = np.array(buff_boat)
+    # cache these GT values in one file
+    np.savez('gt.npz', 
+             drone_time=timestamps, 
+             boat_time=timestamps_boat, 
+             drone_pos=buff, 
+             boat_pos=buff_boat)
+
     colors = cm.rainbow(np.linspace(0, 1, len(buff)))
-    plt.scatter([x[0] for x in buff], [x[1] for x in buff], color=colors)
+    pobj = plt.scatter([x[0] for x in buff], [x[1] for x in buff], color='b')
+    cursor = mplcursors.cursor(pobj, hover=True)
+    cursor.connect(
+        "add", 
+        lambda sel: sel.annotation.set_text(f'Time: {timestamps[sel.target.index]}')
+    )
+
     colors = cm.rainbow(np.linspace(0, 1, len(buff_boat)))
-    # dump buff_boat to file
-    with open("buff_boat.txt", "w") as f:
-        for i in range(len(buff_boat)):
-            f.write(f"{buff_boat[i][0]} {buff_boat[i][1]} {buff_boat[i][2]}\n")
-    from_nth_point_black = []
-    for i in range(len(colors)):
-        if i == int(4800//2):
-            color = colors[i]
-            color = (0, 0, 0, 1)            
-            from_nth_point_black.append(color)
-        else:
-            # make alpha low
-            color = colors[i]
-            color = (color[0], color[1], color[2], 0.01)
-            from_nth_point_black.append(color)
-    plt.scatter([x[0] for x in buff_boat], [x[1]
-                for x in buff_boat], color=from_nth_point_black)
-    # plt.figure()
-    # # plot the norm of each buff point to the boat point 0
-    # norm_of_each_point = []
-    # for i in range(len(buff)):
-    #     if i < 500 or i > 1750:
-    #         continue
-    #     norm_of_each_point.append(np.linalg.norm(
-    #         np.array(buff[i]) - np.array(buff_boat[0])))
-    # plt.plot(norm_of_each_point)
+    pobj = plt.scatter([x[0] for x in buff_boat], [x[1]
+                for x in buff_boat], color='r')
+
+    cursor = mplcursors.cursor(pobj, hover=True)
+    cursor.connect(
+        "add", 
+        lambda sel: sel.annotation.set_text(f'Time: {timestamps_boat[sel.target.index]}')
+    )
     plt.show()
-
-    # while reader.has_next():
-    #     (topic, data, t) = reader.read_next()
-    #     msg_type = get_message(type_map[topic])
-    #     msg = deserialize_message(data, msg_type)
-    #     lat = msg.lat * 1e-7
-    #     lon = msg.lon * 1e-7
-    #     alt = msg.alt * 1e-3
-    #     enu = pm.geodetic2enu(lat, lon, alt, 0, 0, 0)
-    #     break
-    exit()
-
-    # if not PLOT_GPS:
-    #     # , '/fmu/out/timesync_status'
-    #     pass
-
-    # msg_counter = 0
-    # while reader.has_next():
-    #     (topic, data, t) = reader.read_next()
-    #     msg_type = get_message(type_map[topic])
-    #     msg = deserialize_message(data, msg_type)
-
-    #     # print(msg)
-    #     # print()
-    #     PANDA_MSGS.append(msg)
-
-    #     # assert isinstance(msg, String)
-    #     # assert msg.data == f'Hello, world! {msg_counter}'
-
-    #     # msg_counter += 1
-    #     # if msg_counter == N*2:
-    #     #     break
-
-    # if PLOT_GPS:
-    #     msg = PANDA_MSGS[0]
-    #     print(msg.lat * 1e-7)
-    #     print(msg.lon * 1e-7)
-
-    #     # create df from panda msgs
-    #     df = pd.DataFrame(columns=['ID', 'Lat', 'Long'])
-    #     lats = [msg.lat * 1e-7 for msg in PANDA_MSGS]
-    #     longs = [msg.lon * 1e-7 for msg in PANDA_MSGS]
-    #     df['ID'] = range(len(lats))
-    #     df['Lat'] = lats
-    #     df['Long'] = longs
-    #     print(df)
-
-    #     color_scale = [(0, 'orange'), (1, 'red')]
-
-    #     fig = px.scatter_mapbox(df,
-    #                             lat="Lat",
-    #                             lon="Long",
-    #                             hover_name="ID",
-    #                             color_discrete_sequence=["red"],
-    #                             zoom=16,
-    #                             height=800,
-    #                             width=800)
-    #     # adding second trace to the figure
-    #     # fig2 = px.line_mapbox(df, lat="lat", lon="lng", zoom=8)
-    #     # fig.add_trace(fig2.data[0])  # adds the line trace to the first figure
-    #     fig.update_layout(mapbox_style="open-street-map")
-    #     fig.update_layout(margin={"r": 0, "t": 0, "l": 0, "b": 0})
-    #     fig.show()
-    #     exit()
-
-    # bag_path = f"{root_dir}/bags/latest-niceish-very-far"
-    # storage_options, converter_options = get_rosbag_options(
-    #     bag_path, storage_id)
-
-    # metadata = info.read_metadata(bag_path, storage_id)
-    # laptop_start_timestamp = metadata.starting_time.timestamp()
-
-    # reader = rosbag2_py.SequentialCompressionReader()
-    # reader.open(storage_options, converter_options)
-
-    # topic_types = reader.get_all_topics_and_types()
-
-    # # Create a map for quicker lookup
-    # type_map = {
-    #     topic_types[i].name: topic_types[i].type for i in range(len(topic_types))}
-
-    # print(type_map)
-    # print()
-
-    # # Set filter for topic of string type
-    # storage_filter = rosbag2_py.StorageFilter(
-    #     topics=['/fmu/out/vehicle_gps_position', '/fmu/out/timesync_status'])
-    # reader.set_filter(storage_filter)
-
-    # msg_counter = 0
-    # while reader.has_next():
-    #     (topic, data, t) = reader.read_next()
-    #     msg_type = get_message(type_map[topic])
-    #     msg = deserialize_message(data, msg_type)
-
-    #     print(msg)
-    #     print()
-    #     LAPTOP_MSGS.append(msg)
-
-    #     # assert isinstance(msg, String)
-    #     # assert msg.data == f'Hello, world! {msg_counter}'
-
-    #     msg_counter += 1
-    #     if msg_counter == N*2:
-    #         break
-
-    # print([x.timestamp for x in PANDA_MSGS])
-
-    # timesync_panda = None
-    # # find timesync msg
-    # for msg in PANDA_MSGS:
-    #     if isinstance(msg, px4_msgs.msg.TimesyncStatus):
-    #         timesync_panda = msg
-    #         break
-    # timesync_laptop = None
-    # # find timesync msg
-    # for msg in LAPTOP_MSGS:
-    #     if isinstance(msg, px4_msgs.msg.TimesyncStatus):
-    #         timesync_laptop = msg
-    #         break
-    # for i in range(N*2):
-    #     if not isinstance(PANDA_MSGS[i], px4_msgs.msg.SensorGps):
-    #         continue
-    #     if not isinstance(LAPTOP_MSGS[i], px4_msgs.msg.SensorGps):
-    #         continue
-    #     gps_panda = PANDA_MSGS[i]
-    #     gps_laptop = LAPTOP_MSGS[i]
-
-    #     print()
-    #     print(gps_panda)
-    #     print(timesync_panda)
-    #     print()
-    #     print(gps_laptop)
-    #     print(timesync_laptop)
-
-    #     print()
-    #     gps_panda.timestamp -= timesync_panda.observed_offset
-    #     print(gps_panda.timestamp / 1e6)
-    #     print(gps_laptop.timestamp / 1e6)
-    #     print((gps_panda.timestamp / 1e6 - gps_laptop.timestamp / 1e6) / 60)
-
-    #     break
-
-    #     print()
-    #     print(gps_panda.timestamp)
-    #     print(gps_laptop.timestamp - timesync_laptop.observed_offset)
-
-    #     # diff between
-    #     print()
-    #     diff = gps_panda.timestamp - \
-    #         (gps_laptop.timestamp - timesync_laptop.observed_offset)
-    #     diff /= 1e6
-    #     print(diff)
-    #     print(panda_start_timestamp - laptop_start_timestamp)
-    #     break
