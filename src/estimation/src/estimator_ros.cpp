@@ -145,13 +145,15 @@ void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr ms
         return;
     }
     double dt = time.seconds() - prev_imu_time_s;
-    assert(dt > 0);
+    assert(dt > 0 && dt < 1);
     prev_imu_time_s = time.seconds();
     estimator_->update_imu_accel(accel, dt);
 
+    // int64_t pub_time = static_cast<int64_t>(
+    //     time.seconds() * 1e9 - offset_.load() * 1e9 + time.nanoseconds());
     auto state = estimator_->state();
     geometry_msgs::msg::PoseArray state_msg;
-    state_msg.header.stamp = time;
+    state_msg.header.stamp = msg->header.stamp;
     state_msg.header.frame_id = "odom";
     state_msg.poses.resize(4);
     for (long i = 0; i < 4; i++) {

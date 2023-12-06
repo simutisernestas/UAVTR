@@ -61,6 +61,7 @@ void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
     // incorporate IMU after tests
     auto ddt2 = static_cast<float>(dt * dt * .5);
     dt = static_cast<float>(dt);
+    assert(dt > 0 && dt < 1);
     A << 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -0, 0, 0,
             0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -0, 0,
             0, 0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -0,

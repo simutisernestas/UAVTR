@@ -75,7 +75,7 @@ if __name__ == '__main__':
         lat = msg.lat * 1e-7
         lon = msg.lon * 1e-7
         alt = msg.alt * 1e-3
-        time_utc = msg.time_utc_usec / 1e6
+        time_utc = msg.timestamp / 1e6
         return (lat, lon, alt, time_utc)
 
     (lat0, lon0, alt0) = None, None, None
@@ -147,7 +147,7 @@ if __name__ == '__main__':
     buff = np.array(buff)
     buff_boat = np.array(buff_boat)
     # cache these GT values in one file
-    np.savez('gt.npz', 
+    np.savez(bag_path.split('/')[-2] + '_gt.npz', 
              drone_time=timestamps, 
              boat_time=timestamps_boat, 
              drone_pos=buff, 

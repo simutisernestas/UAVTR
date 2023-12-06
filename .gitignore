@@ -15,3 +15,4 @@ metadata.yaml
 notebooks/sandbox.py
 bags/
 **.npz
+**.npy

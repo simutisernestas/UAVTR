@@ -33,11 +33,18 @@ def generate_launch_description():
         output='screen'
     )
 
-    # play_bag_cmd = '''ros2 bag play ./18_0/rosbag2_2023_10_18-12_24_19 --start-offset 150'''
-    play_bag_cmd = '''ros2 bag play ./latest_flight/rosbag2_2023_10_18-16_22_16/ --start-offset 1830'''
+    bag_name = "./18_0/rosbag2_2023_10_18-12_24_19"
+    # bag_name = "./latest_flight/rosbag2_2023_10_18-16_22_16/"
+    play_bag_cmd = f'''ros2 bag play {bag_name} --start-offset 150'''
     play_bag = ExecuteProcess(
         cmd=play_bag_cmd.split(),
         cwd=f"{root_dir}/bags",
+        output='screen'
+    )
+
+    record_state = ExecuteProcess(
+        cmd=["python3", "record_state.py", bag_name.split('/')[-2]],
+        cwd=f"{root_dir}/notebooks",
         output='screen'
     )
 
@@ -47,4 +54,5 @@ def generate_launch_description():
         estimation,
         uncompress,
         orientation_filter,
+        record_state
     ])

@@ -6,7 +6,7 @@
 #include <thread>
 #include <cassert>
 #include <numeric>
-#include <iostream>
+// #include <iostream>
 #include <onnxruntime_cxx_api.h>
 #include <string.h>
 #include <boost/lockfree/spsc_queue.hpp>
@@ -451,8 +451,8 @@ bool ObjDetertor::detect(const cv::Mat &frame) {
     bool found = false;
     float max_accuracy = 0.0f;
     for (const auto &result: resultVector) {
-        std::cout << "Class: " << classNames.at(result.obj_id) <<
-         " accuracy: " << result.accuracy << std::endl;
+        // std::cout << "Class: " << classNames.at(result.obj_id) <<
+        //  " accuracy: " << result.accuracy << std::endl;
         if (classNames.at(result.obj_id) != "boat")
             continue;
         if (result.accuracy < 0.6f && result.accuracy < max_accuracy)

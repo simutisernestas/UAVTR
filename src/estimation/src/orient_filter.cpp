@@ -20,7 +20,7 @@ class SensorTranslator : public rclcpp::Node {
 public:
     SensorTranslator() : Node("sensor_translator"), tf_broadcaster_(this) {
         imu_publisher_ = this->create_publisher<sensor_msgs::msg::Imu>("imu/data_raw", 10);
-        auto qos = rclcpp::QoS(rclcpp::KeepLast(10));
+        auto qos = rclcpp::QoS(rclcpp::KeepLast(1));
         qos.best_effort();
         sensor_combined_subscription_ = this->create_subscription<px4_msgs::msg::SensorCombined>(
                 "/fmu/out/sensor_combined", qos, std::bind(&SensorTranslator::sensor_combined_callback, this, _1));
@@ -111,6 +111,7 @@ private:
         // Calculate delta time
         const uint64_t delta = msg->timestamp - last_timestamp_; // microseconds
         const double dt = (float) delta / 1000000.0f;              // seconds
+        assert(dt > 0.0f && dt < 1.0);
         last_timestamp_ = msg->timestamp;
 
         if (mag_msg_.header.stamp.sec > 0) {
