@@ -54,6 +54,8 @@ Estimator::Estimator() {
         lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<float, 3 >>(b, a);
 
     optflow_ = cv::DISOpticalFlow::create(1);
+
+    imu_buffer_ = std::make_unique<IMUStampedBuffer>();
 }
 
 void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
@@ -119,11 +121,14 @@ void Estimator::update_height(const float height) {
     kf_->update(h, C_height, R);
 }
 
-// could buffer the IMU and run only when camera measurements arrive
-// these updates ARE be running in front of the position/velocity measurements
-void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double dt) {
+void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double time) {
     if (!kf_->is_initialized())
         return;
+    if (pre_imu_time_ < 0) {
+        pre_imu_time_ = time;
+        return;
+    }
+    double dt = time - pre_imu_time_;
 
 //    // copy accel vector into eigen vector
 //    auto copy = accel;
@@ -131,25 +136,30 @@ void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double dt) {
 //    for (int i = 0; i < 3; i++)
 //        copy[i] = lp_acc_filter_arr_[i]->filter(copy[i]);
 
-    // update A matrix
-    Eigen::MatrixXf A(12, 12);
-    get_A(A, dt);
+    if (time - last_cam_update_time_ < (30 * 1e-3)) {
+        // update A matrix
+        Eigen::MatrixXf A(12, 12);
+        get_A(A, dt);
 
-    kf_->predict(A);
+        kf_->predict(A);
 
-    static Eigen::MatrixXf C_accel(3, 12);
-    C_accel << 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0;
-    static Eigen::MatrixXf R_accel(3, 3);
-    R_accel << 4.3593045e+00, 2.3786352e-01, -1.0210943e-01,
-            2.3786352e-01, 4.6759682e+00, -5.7549830e-01,
-            -1.0210943e-01, -5.7549830e-01, 2.1809698e+00;
-    kf_->update(accel, C_accel, R_accel);
+        static Eigen::MatrixXf C_accel(3, 12);
+        C_accel << 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0;
+        static Eigen::MatrixXf R_accel(3, 3);
+        R_accel << 4.3593045e+00, 2.3786352e-01, -1.0210943e-01,
+                2.3786352e-01, 4.6759682e+00, -5.7549830e-01,
+                -1.0210943e-01, -5.7549830e-01, 2.1809698e+00;
+        kf_->update(accel, C_accel, R_accel);
+    } else {
+        imu_buffer_->push(time, accel);
+    }
 }
 
 void Estimator::update_cam_imu_accel(const Eigen::Vector3f &accel, const Eigen::Vector3f &omega,
                                      const Eigen::Matrix3f &imu_R_enu, const Eigen::Vector3f &arm) {
+    return;
     if (!kf_->is_initialized())
         return;
 

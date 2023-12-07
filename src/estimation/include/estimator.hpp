@@ -6,6 +6,37 @@
 #include "kalman.hpp"
 #include "lpfilter.hpp"
 
+struct IMUStampedBuffer {
+    std::queue<double> time_;
+    std::queue<Eigen::Vector3f> data_;
+
+    void push(double t, const Eigen::Vector3f &d) {
+        time_.push(t);
+        data_.push(d);
+    }
+
+    // time is whenever camera measurement is received
+    // I wish to integrate all the measurements until this time
+    // and only then fuse the measurement
+    bool get(double t, Eigen::Vector3f &d) {
+        if (time_.empty())
+            return false;
+
+        auto time = time_.front();
+        if (time > t)
+            return false;
+
+        d = data_.front();
+        pop();
+        return true;
+    }
+
+    void pop() {
+        time_.pop();
+        data_.pop();
+    }
+};
+
 class Estimator {
 public:
     Estimator();
@@ -52,6 +83,10 @@ public:
                               const Eigen::Matrix3f &imu_R_enu, const Eigen::Vector3f &arm);
 
 private:
+
+    double last_cam_update_time_{-1};
+    double pre_imu_time_{-1};
+
     static void get_A(Eigen::MatrixXf &A, double dt);
 
     std::unique_ptr<KalmanFilter> kf_;
@@ -62,4 +97,6 @@ private:
     std::shared_ptr<cv::Mat> prev_frame_{nullptr};
     double pre_frame_time_{-1};
     cv::Ptr<cv::DenseOpticalFlow> optflow_;
+
+    std::unique_ptr<IMUStampedBuffer> imu_buffer_{nullptr};
 };
