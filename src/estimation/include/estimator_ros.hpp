@@ -62,7 +62,6 @@ private:
     rclcpp::Subscription<px4_msgs::msg::TimesyncStatus>::SharedPtr timesync_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr cam_imu_sub_;
 
-    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr vec_pub_;
     rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr state_pub_;
 
     rclcpp::CallbackGroup::SharedPtr vel_meas_callback_group_;
@@ -74,7 +73,6 @@ private:
     std::unique_ptr<geometry_msgs::msg::TransformStamped> image_tf_{nullptr};
     std::unique_ptr<geometry_msgs::msg::TransformStamped> tera_tf_{nullptr};
 
-    double prev_imu_time_s = -1;
     std::atomic<double> offset_{0};
     Eigen::Matrix<float, 3, 3> K_;
     std::unique_ptr<Estimator> estimator_{nullptr};

@@ -18,7 +18,7 @@ public:
                                          const Eigen::Vector3f &r, const Eigen::Matrix3f &K,
                                          const Eigen::Vector3f &omega, const Eigen::Vector3f &drone_omega);
 
-    void update_imu_accel(const Eigen::Vector3f &accel, double dt);
+    void update_imu_accel(const Eigen::Vector3f &accel, double time);
 
     void update_height(float height);
 
@@ -61,5 +61,6 @@ private:
 
     std::shared_ptr<cv::Mat> prev_frame_{nullptr};
     double pre_frame_time_{-1};
+    double pre_imu_time_{-1};
     cv::Ptr<cv::DenseOpticalFlow> optflow_;
 };

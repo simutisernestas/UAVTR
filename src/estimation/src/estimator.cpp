@@ -1,6 +1,5 @@
 #include "estimator.hpp"
 #include <Eigen/Sparse>
-#include <numeric>
 #include <random>
 #include <cassert>
 
@@ -60,7 +59,6 @@ void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
     A.setZero();
     // incorporate IMU after tests
     auto ddt2 = static_cast<float>(dt * dt * .5);
-    dt = static_cast<float>(dt);
     assert(dt > 0 && dt < 1);
     A << 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2, 0, 0,
             0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2, 0,
@@ -119,17 +117,18 @@ void Estimator::update_height(const float height) {
     kf_->update(h, C_height, R);
 }
 
-// could buffer the IMU and run only when camera measurements arrive
-// these updates ARE be running in front of the position/velocity measurements
-void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double dt) {
+void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double time) {
     if (!kf_->is_initialized())
         return;
+    if (pre_imu_time_ < 0) {
+        pre_imu_time_ = time;
+        return;
+    }
+    auto dt = time - pre_imu_time_;
+    assert(dt > 0);
+    assert(dt < 1.0);
+    pre_imu_time_ = time;
 
-//    // copy accel vector into eigen vector
-//    auto copy = accel;
-//    // filter accel
-//    for (int i = 0; i < 3; i++)
-//        copy[i] = lp_acc_filter_arr_[i]->filter(copy[i]);
 
     // update A matrix
     Eigen::MatrixXf A(12, 12);
@@ -150,6 +149,7 @@ void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double dt) {
 
 void Estimator::update_cam_imu_accel(const Eigen::Vector3f &accel, const Eigen::Vector3f &omega,
                                      const Eigen::Matrix3f &imu_R_enu, const Eigen::Vector3f &arm) {
+    return; // TODO:
     if (!kf_->is_initialized())
         return;
 
@@ -159,7 +159,6 @@ void Estimator::update_cam_imu_accel(const Eigen::Vector3f &accel, const Eigen::
     Eigen::Vector3f omega_enu = imu_R_enu * omega;
 
     Eigen::Vector3f accel_body = accel_enu - omega_enu.cross(omega_enu.cross(arm));
-//    std::cout << accel_body << std::endl;
 
     static Eigen::MatrixXf C_accel(3, 12);
     C_accel << 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0,

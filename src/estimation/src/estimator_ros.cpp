@@ -49,10 +49,6 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
 
     state_pub_ = create_publisher<geometry_msgs::msg::PoseArray>(
             "/state", 1);
-#ifdef DEBUG
-    vec_pub_ = create_publisher<visualization_msgs::msg::Marker>(
-            "/vec_target", 10);
-#endif
 
     tf_buffer_ =
             std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -106,15 +102,7 @@ void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr ms
             d2f(msg->linear_acceleration.y),
             d2f(msg->linear_acceleration.z);
 
-    if (prev_imu_time_s < 0) {
-        prev_imu_time_s = time.seconds();
-        return;
-    }
-    double dt = time.seconds() - prev_imu_time_s;
-    assert(dt > 0 && dt < 1);
-    prev_imu_time_s = time.seconds();
-
-    estimator_->update_imu_accel(accel, dt);
+    estimator_->update_imu_accel(accel, time.seconds());
 
     // int64_t pub_time = static_cast<int64_t>(
     //     time.seconds() * 1e9 - offset_.load() * 1e9 + time.nanoseconds());
@@ -189,38 +177,6 @@ void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::Sha
     auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
     estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_);
     target_in_sight_.store(true);
-
-//#ifdef DEBUG
-//    // publish normalized vector to target
-//    visualization_msgs::msg::Marker vec_msgs{};
-//    if (simulation_) {
-//        time = rclcpp::Time(bbox->header.stamp.sec * 1e9 + bbox->header.stamp.nanosec);
-//    }
-//    vec_msgs.header.stamp = time; // this will have to change to absolute
-//    vec_msgs.header.frame_id = "odom";
-//    vec_msgs.id = 0;
-//    vec_msgs.type = visualization_msgs::msg::Marker::ARROW;
-//    vec_msgs.action = visualization_msgs::msg::Marker::MODIFY;
-//    vec_msgs.pose.position.x = 0.0;
-//    vec_msgs.pose.position.y = 0.0;
-//    vec_msgs.pose.position.z = 0.0;
-//    vec_msgs.pose.orientation.w = 1.0;
-//    vec_msgs.scale.x = .1;
-//    vec_msgs.scale.y = .1;
-//    vec_msgs.scale.z = .1;
-//    vec_msgs.color.a = 1.0;
-//    vec_msgs.color.r = 1.0;
-//    vec_msgs.color.g = 0.0;
-//    vec_msgs.color.b = 0.0;
-//    vec_msgs.points.resize(2);
-//    vec_msgs.points[0].x = 0.0;
-//    vec_msgs.points[0].y = 0.0;
-//    vec_msgs.points[0].z = 0.0;
-//    vec_msgs.points[1].x = Pt[0];
-//    vec_msgs.points[1].y = Pt[1];
-//    vec_msgs.points[1].z = Pt[2];
-//    vec_pub_->publish(vec_msgs);
-//#endif
 }
 
 void StateEstimationNode::cam_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr msg) {
