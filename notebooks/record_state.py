@@ -4,6 +4,7 @@ from geometry_msgs.msg import PoseArray
 import numpy as np
 import sys
 import os
+import time
 
 class StateSubscriber(Node):
     def __init__(self, bag_name):
@@ -16,7 +17,8 @@ class StateSubscriber(Node):
             self.callback,
             100)
         self.subscription  # prevent unused variable warning
-        self.data_file = f'{bag_name}_state_data.npy'
+        timestamp = int(time.time())
+        self.data_file = f'data/{timestamp}_{bag_name}_state_data.npy'
         # remove the file before starting
         try:
             os.remove(self.data_file)
@@ -29,6 +31,7 @@ class StateSubscriber(Node):
         self.data.append(unix_timestamp)
         for pose in msg.poses:
             self.data.extend([pose.position.x, pose.position.y, pose.position.z])
+        self.data.append(msg.poses[0].orientation.x) # target in sight?
         self.counter += 1
         if self.counter % 1000 == 0:  # save every nth messages
             self.save_data()

@@ -95,7 +95,7 @@ add_executable(orientation_filter src/orient_filter.cpp)
 ament_target_dependencies(orientation_filter rclcpp sensor_msgs px4_msgs tf2_ros geometry_msgs Eigen3)
 target_link_libraries(orientation_filter ${PROJECT_ROOT_DIR}/Fusion/build/Fusion/libFusion.a)
 target_include_directories(orientation_filter PUBLIC
-        ${PROJECT_ROOT_DIR}/Fusion/Fusion ${EIGEN3_INCLUDE_DIR})
+        ${PROJECT_ROOT_DIR}/Fusion/Fusion ${EIGEN3_INCLUDE_DIR} include)
 
 # test directory
 get_filename_component(TEST_SOURCE test/test_flow_velocity.cpp ABSOLUTE)

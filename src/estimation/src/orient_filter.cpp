@@ -101,8 +101,9 @@ private:
 
         // prepare data for fusion
         const static float rad2deg = 180.0f / M_PI;
-        gyro *= rad2deg;
-        FusionVector gyroscope = {gyro[0], gyro[1], gyro[2]};
+        FusionVector gyroscope = {gyro[0] * rad2deg, 
+                                  gyro[1] * rad2deg, 
+                                  gyro[2] * rad2deg};
         const static float g = 9.81555f;
         accel /= g;
         FusionVector accelerometer = {accel[0], accel[1], accel[2]};
@@ -139,21 +140,6 @@ private:
         // Get acceleration in world frame
         const FusionVector earth = FusionAhrsGetEarthAcceleration(&ahrs);
 
-        // Compute angular velocity in world frame from successive quaternions
-        Eigen::Vector3f omega{0, 0, 0};
-        if (prev_q_.element.w == -1) {
-            prev_q_ = quaternion;
-        } else {
-            FusionQuaternion q1_inv = {
-                    {prev_q_.element.w, -prev_q_.element.x, -prev_q_.element.y, -prev_q_.element.z}};
-            auto delta_q = FusionQuaternionMultiply(q1_inv, quaternion);
-            auto euler = FusionQuaternionToEuler(delta_q);
-            const float deg2rad = M_PI / 180.0f;
-            omega[0] = (euler.angle.roll * deg2rad) / dt;
-            omega[1] = (euler.angle.pitch * deg2rad) / dt;
-            omega[2] = (euler.angle.yaw * deg2rad) / dt;
-            prev_q_ = quaternion;
-        }
 
         // publish IMU
         sensor_msgs::msg::Imu imu_msg{};
@@ -163,9 +149,9 @@ private:
         imu_msg.linear_acceleration.x = earth.axis.x * g;
         imu_msg.linear_acceleration.y = earth.axis.y * g;
         imu_msg.linear_acceleration.z = earth.axis.z * g;
-        imu_msg.angular_velocity.x = omega[0];
-        imu_msg.angular_velocity.y = omega[1];
-        imu_msg.angular_velocity.z = omega[2];
+        imu_msg.angular_velocity.x = gyro[0];
+        imu_msg.angular_velocity.y = gyro[1];
+        imu_msg.angular_velocity.z = gyro[2];
         imu_publisher_->publish(imu_msg);
 
 #ifdef DEBUG
@@ -236,7 +222,6 @@ private:
     rclcpp::Subscription<px4_msgs::msg::SensorCombined>::SharedPtr sensor_combined_subscription_;
     rclcpp::Subscription<px4_msgs::msg::SensorMag>::SharedPtr sensor_mag_subscription_;
     rclcpp::Subscription<px4_msgs::msg::VehicleMagnetometer>::SharedPtr vehicle_mag_subscription_;
-    FusionQuaternion prev_q_{{-1, -1, -1, -1}};
 };
 
 int main(int argc, char *argv[]) {

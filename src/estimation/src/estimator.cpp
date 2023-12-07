@@ -381,6 +381,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     Eigen::MatrixXf J; // Jacobian
     visjac_p(uv, depth, K, J);
 
+    auto vel_due_to_drone_angl_vel = drone_omega.cross(r);
     for (long i = 0; i < J.rows(); i++) {
         Eigen::Vector3f Jw = {J(i, 3), J(i, 4), J(i, 5)};
         flow_eigen(i) -= Jw.dot(omega);
@@ -393,15 +394,16 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     v_com_enu -= drone_omega.cross(r);
 
     if (cam_vel_est.norm() > 1e-1 && kf_->is_initialized()) {
-        static Eigen::MatrixXf C_vel(2, 12);
+        static Eigen::MatrixXf C_vel(3, 12);
         C_vel << 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0;
-        static Eigen::MatrixXf R_vel(2, 2);
+                0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0;
+        static Eigen::MatrixXf R_vel(3, 3);
+        R_vel << 1.7070062e+00, 2.8741731e-01, 0,
+                2.8741731e-01, 1.1121999e+00, 0,
+                0, 0, 1.7070062e+00;
 
-        R_vel << 1.7070062e+00, 2.8741731e-01,
-                2.8741731e-01, 1.1121999e+00;
-
-        kf_->update(v_com_enu.segment(0, 2), C_vel, R_vel);
+        kf_->update(v_com_enu.segment(0, 3), C_vel, R_vel);
     }
 
     this->pre_frame_time_ = time;
