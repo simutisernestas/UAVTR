@@ -59,8 +59,8 @@ fig, axs = plt.subplots(3, 1, figsize=(10, 5), dpi=200)
 
 binary_sight = np.where(target_in_sight > 0)
 
-axs[0].scatter(state_time, state_data[:, 1], label='Drone X', s=1, marker='*')
-axs[0].scatter(drone_time, relative_pos_gt[:, 0], label='Vessel X', s=1)
+axs[0].scatter(state_time, state_data[:, 1], label='Estimation X', s=1, marker='*')
+axs[0].scatter(drone_time, relative_pos_gt[:, 0], label='Groundtruth X', s=1)
 axs[0].scatter(state_time[binary_sight],
                np.ones_like(state_time)[binary_sight],
                label='Target in FOV', s=1, color='green', marker='x')
@@ -68,8 +68,8 @@ axs[0].legend(markerscale=5, loc='lower right')
 axs[0].grid(True, linestyle='-', linewidth=0.5)
 
 # drone_y vs boat_y
-axs[1].scatter(state_time, state_data[:, 2], label='Drone Y', s=1, marker='*')
-axs[1].scatter(drone_time, relative_pos_gt[:, 1], label='Vessel Y', s=1)
+axs[1].scatter(state_time, state_data[:, 2], label='Estimation Y', s=1, marker='*')
+axs[1].scatter(drone_time, relative_pos_gt[:, 1], label='Groundtruth Y', s=1)
 axs[1].scatter(state_time[binary_sight],
                np.ones_like(state_time)[binary_sight],
                label='Target in FOV', s=1, color='green', marker='x')
@@ -78,8 +78,8 @@ axs[1].set_ylabel('Distance (m)')
 axs[1].grid(True, linestyle='-', linewidth=0.5)
 
 # drone_z vs boat_z
-axs[2].scatter(state_time, state_data[:, 3], label='Drone Z', s=1, marker='*')
-axs[2].scatter(drone_time, relative_pos_gt[:, 2], label='Vessel Z', s=1)
+axs[2].scatter(state_time, state_data[:, 3], label='Estimation Z', s=1, marker='*')
+axs[2].scatter(drone_time, relative_pos_gt[:, 2], label='Groundtruth Z', s=1)
 axs[2].scatter(state_time[binary_sight],
                np.ones_like(state_time)[binary_sight],
                label='Target in FOV', s=1, color='green', marker='x')
