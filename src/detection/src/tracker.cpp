@@ -1,14 +1,10 @@
-#ifndef TRACKER_H
-
 #include <opencv2/tracking.hpp>
 #include <opencv2/dnn/dnn.hpp>
 #include <atomic>
 #include <thread>
-#include <cassert>
 #include <numeric>
-// #include <iostream>
 #include <onnxruntime_cxx_api.h>
-#include <string.h>
+#include <cstring>
 #include <boost/lockfree/spsc_queue.hpp>
 #include "timer.hpp"
 
@@ -16,7 +12,7 @@
 #define DETR_LOGITS_INDEX 0
 #define DETR_BBOX_INDEX 1
 
-typedef struct Result {
+struct Result {
     int x1;
     int x2;
     int y1;
@@ -33,7 +29,7 @@ typedef struct Result {
         accuracy = accuracy_;
     }
 
-} result_t;
+};
 
 int model_input_width;
 int model_input_height;
@@ -83,17 +79,17 @@ std::vector<Result> postprocess(const cv::Size &originalImageSize, std::vector<O
         float y1 = output[i * outputShape[1] + 2];
         float x2 = output[i * outputShape[1] + 3];
         float y2 = output[i * outputShape[1] + 4];
-        int classPrediction = output[i * outputShape[1] + 5];
+        int classPrediction = static_cast<int>(output[i * outputShape[1] + 5]);
         float accuracy = output[i * outputShape[1] + 6];
 
         (void) confidence;
 
         // Coords should be scaled to the original image. 
         // The coords from the model are relative to the model's input height and width.
-        x1 = (x1 / model_input_width) * originalImageSize.width;
-        x2 = (x2 / model_input_width) * originalImageSize.width;
-        y1 = (y1 / model_input_height) * originalImageSize.height;
-        y2 = (y2 / model_input_height) * originalImageSize.height;
+        x1 = (x1 / static_cast<float>(model_input_width)) * static_cast<float>(originalImageSize.width);
+        x2 = (x2 / static_cast<float>(model_input_width)) * static_cast<float>(originalImageSize.width);
+        y1 = (y1 / static_cast<float>(model_input_height)) * static_cast<float>(originalImageSize.height);
+        y2 = (y2 / static_cast<float>(model_input_height)) * static_cast<float>(originalImageSize.height);
 
         Result result(x1, x2, y1, y2, classPrediction, accuracy);
 
@@ -237,10 +233,10 @@ std::vector<float> rescale_bboxes(const BoundingBox &out_bbox, const std::array<
 
     std::vector<float> b = box_cxcywh_to_xyxy(out_bbox);
 
-    b[0] *= img_w;
-    b[1] *= img_h;
-    b[2] *= img_w;
-    b[3] *= img_h;
+    b[0] *= static_cast<float>(img_w);
+    b[1] *= static_cast<float>(img_h);
+    b[2] *= static_cast<float>(img_w);
+    b[3] *= static_cast<float>(img_h);
 
     return b;
 }
@@ -290,7 +286,7 @@ private:
 ObjDetertor::ObjDetertor() {
     auto providers =
             Ort::GetAvailableProviders();
-    for (auto &&provider: providers) {(void)provider;}
+    for (auto &&provider: providers) { (void) provider; }
 
     // initialize ONNX environment and session
     _env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_WARNING, "inference-engine");
@@ -311,8 +307,8 @@ ObjDetertor::ObjDetertor() {
     Ort::TypeInfo inputTypeInfo = _session->GetInputTypeInfo(0);
     auto inputTensorInfo = inputTypeInfo.GetTensorTypeAndShapeInfo();
     _input_dims = inputTensorInfo.GetShape();
-    model_input_height = _input_dims.at(3);
-    model_input_width = _input_dims.at(2);
+    model_input_height = static_cast<int>(_input_dims.at(3));
+    model_input_width = static_cast<int>(_input_dims.at(2));
     if (_input_dims.at(0) == -1)
         _input_dims.at(0) = 1;
     size_t inputTensorSize = vectorProduct(_input_dims);
@@ -336,7 +332,7 @@ ObjDetertor::ObjDetertor() {
             output_dims.at(0) = 1;
         _output_dims.push_back(output_dims);
         size_t outputTensorSize = vectorProduct(output_dims);
-        _output_values.push_back(std::vector<float>(outputTensorSize));
+        _output_values.emplace_back(outputTensorSize);
         _output_tensors.push_back(Ort::Value::CreateTensor<float>(
                 *_memory_info, _output_values[i].data(), outputTensorSize,
                 _output_dims[i].data(), _output_dims[i].size()));
@@ -435,14 +431,14 @@ bool ObjDetertor::detect(const cv::Mat &frame) {
     std::copy(blob_image.begin<float>(),
               blob_image.end<float>(),
               _input_image_values.begin());
-    
+
     std::vector<Ort::Value> outputTensors;
     {
         Timer timer;
         outputTensors = _session->Run(Ort::RunOptions{nullptr},
-                                    _input_names.data(), _input_tensors.data(),
-                                    _input_names.size(), _output_names.data(), 
-                                    _output_names.size());
+                                      _input_names.data(), _input_tensors.data(),
+                                      _input_names.size(), _output_names.data(),
+                                      _output_names.size());
     }
 
 
@@ -451,8 +447,6 @@ bool ObjDetertor::detect(const cv::Mat &frame) {
     bool found = false;
     float max_accuracy = 0.0f;
     for (const auto &result: resultVector) {
-        // std::cout << "Class: " << classNames.at(result.obj_id) <<
-        //  " accuracy: " << result.accuracy << std::endl;
         if (classNames.at(result.obj_id) != "boat")
             continue;
         if (result.accuracy < 0.6f && result.accuracy < max_accuracy)
@@ -460,17 +454,14 @@ bool ObjDetertor::detect(const cv::Mat &frame) {
         found = true;
         max_accuracy = result.accuracy;
 
-        cv::Point p1(result.x1, result.y1);
-        cv::Point p2(result.x2, result.y2);
-        bbox.x = result.x1;
-        bbox.y = result.y1;
-        bbox.width = (result.x2 - result.x1);
-        bbox.height = (result.y2 - result.y1);
+        bbox.x = static_cast<float>(result.x1);
+        bbox.y = static_cast<float>(result.y1);
+        bbox.width = static_cast<float>(result.x2 - result.x1);
+        bbox.height = static_cast<float>(result.y2 - result.y1);
     }
 
     if (!found)
         return false;
-
 #endif
 
     // save it for use in tracker
@@ -590,5 +581,3 @@ void Tracker::catchup_reinit() {
         }
     }
 }
-
-#endif // TRACKER_H

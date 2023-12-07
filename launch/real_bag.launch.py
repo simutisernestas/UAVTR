@@ -50,9 +50,9 @@ def generate_launch_description():
 
     return LaunchDescription([
         play_bag,
-        # tracking,
-        # estimation,
+        tracking,
+        estimation,
         uncompress,
-        # orientation_filter,
-        # record_state
+        orientation_filter,
+        record_state
     ])

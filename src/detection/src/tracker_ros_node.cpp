@@ -81,6 +81,7 @@ private:
 };
 
 int main(int argc, char *argv[]) {
+    cv::setNumThreads(2);
     rclcpp::init(argc, argv);
     auto node = std::make_shared<TrackerROSNode>();
     rclcpp::spin(node);

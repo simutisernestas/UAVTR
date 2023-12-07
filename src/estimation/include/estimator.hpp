@@ -48,6 +48,9 @@ public:
         return Pt[2];
     }
 
+    void update_cam_imu_accel(const Eigen::Vector3f &accel, const Eigen::Vector3f &omega,
+                              const Eigen::Matrix3f &imu_R_enu, const Eigen::Vector3f &arm);
+
 private:
     static void get_A(Eigen::MatrixXf &A, double dt);
 

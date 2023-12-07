@@ -63,8 +63,8 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
 
     estimator_ = std::make_unique<Estimator>();
 
-   declare_parameter<bool>("simulation", false);
-   get_parameter("simulation", simulation_);
+    declare_parameter<bool>("simulation", false);
+    get_parameter("simulation", simulation_);
 
     cam_ang_vel_accumulator_ = std::make_unique<AngVelAccumulator>();
     drone_ang_vel_accumulator_ = std::make_unique<AngVelAccumulator>();
@@ -190,37 +190,37 @@ void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::Sha
     estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_);
     target_in_sight_.store(true);
 
-#ifdef DEBUG
-    // publish normalized vector to target
-    visualization_msgs::msg::Marker vec_msgs{};
-    if (simulation_) {
-        time = rclcpp::Time(bbox->header.stamp.sec * 1e9 + bbox->header.stamp.nanosec);
-    }
-    vec_msgs.header.stamp = time; // this will have to change to absolute
-    vec_msgs.header.frame_id = "odom";
-    vec_msgs.id = 0;
-    vec_msgs.type = visualization_msgs::msg::Marker::ARROW;
-    vec_msgs.action = visualization_msgs::msg::Marker::MODIFY;
-    vec_msgs.pose.position.x = 0.0;
-    vec_msgs.pose.position.y = 0.0;
-    vec_msgs.pose.position.z = 0.0;
-    vec_msgs.pose.orientation.w = 1.0;
-    vec_msgs.scale.x = .1;
-    vec_msgs.scale.y = .1;
-    vec_msgs.scale.z = .1;
-    vec_msgs.color.a = 1.0;
-    vec_msgs.color.r = 1.0;
-    vec_msgs.color.g = 0.0;
-    vec_msgs.color.b = 0.0;
-    vec_msgs.points.resize(2);
-    vec_msgs.points[0].x = 0.0;
-    vec_msgs.points[0].y = 0.0;
-    vec_msgs.points[0].z = 0.0;
-    vec_msgs.points[1].x = Pt[0];
-    vec_msgs.points[1].y = Pt[1];
-    vec_msgs.points[1].z = Pt[2];
-    vec_pub_->publish(vec_msgs);
-#endif
+//#ifdef DEBUG
+//    // publish normalized vector to target
+//    visualization_msgs::msg::Marker vec_msgs{};
+//    if (simulation_) {
+//        time = rclcpp::Time(bbox->header.stamp.sec * 1e9 + bbox->header.stamp.nanosec);
+//    }
+//    vec_msgs.header.stamp = time; // this will have to change to absolute
+//    vec_msgs.header.frame_id = "odom";
+//    vec_msgs.id = 0;
+//    vec_msgs.type = visualization_msgs::msg::Marker::ARROW;
+//    vec_msgs.action = visualization_msgs::msg::Marker::MODIFY;
+//    vec_msgs.pose.position.x = 0.0;
+//    vec_msgs.pose.position.y = 0.0;
+//    vec_msgs.pose.position.z = 0.0;
+//    vec_msgs.pose.orientation.w = 1.0;
+//    vec_msgs.scale.x = .1;
+//    vec_msgs.scale.y = .1;
+//    vec_msgs.scale.z = .1;
+//    vec_msgs.color.a = 1.0;
+//    vec_msgs.color.r = 1.0;
+//    vec_msgs.color.g = 0.0;
+//    vec_msgs.color.b = 0.0;
+//    vec_msgs.points.resize(2);
+//    vec_msgs.points[0].x = 0.0;
+//    vec_msgs.points[0].y = 0.0;
+//    vec_msgs.points[0].z = 0.0;
+//    vec_msgs.points[1].x = Pt[0];
+//    vec_msgs.points[1].y = Pt[1];
+//    vec_msgs.points[1].z = Pt[2];
+//    vec_pub_->publish(vec_msgs);
+//#endif
 }
 
 void StateEstimationNode::cam_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr msg) {
@@ -338,13 +338,43 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
     auto drone_omega = drone_ang_vel_accumulator_->get_ang_vel();
 
     estimator_->update_flow_velocity(rectified, time.seconds(), cam_T_enu.rotation(),
-                                    cam_T_enu.translation(), K_, cam_omega, drone_omega);
+                                     cam_T_enu.translation(), K_, cam_omega, drone_omega);
 }
 
 void StateEstimationNode::cam_imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
+    if (!image_tf_)
+        return;
+
     // accumulate angular velocity into a vector
     cam_ang_vel_accumulator_->add(
             d2f(msg->angular_velocity.x),
             d2f(msg->angular_velocity.y),
             d2f(msg->angular_velocity.z));
+
+    rclcpp::Time time = get_correct_fusion_time(msg->header, true);
+    geometry_msgs::msg::TransformStamped base_link_enu;
+    bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
+    if (!succ) return;
+    const auto base_T_odom = tf_msg_to_affine(base_link_enu);
+    const auto img_T_base = tf_msg_to_affine(*image_tf_);
+    const auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
+
+    const Eigen::Vector3f accel{d2f(msg->linear_acceleration.x),
+                                d2f(msg->linear_acceleration.y),
+                                d2f(msg->linear_acceleration.z)};
+    const Eigen::Vector3f omega{d2f(msg->angular_velocity.x),
+                                d2f(msg->angular_velocity.y),
+                                d2f(msg->angular_velocity.z)};
+    static Eigen::Vector3f arm{0.115f, -0.059f, -0.071f};
+
+    estimator_->update_cam_imu_accel(accel, omega, cam_R_enu, arm);
 }
+
+// TODO:
+//Eigen::Affine3f get_base2enu_T(const sensor_msgs::msg::Imu::SharedPtr msg) {
+//    geometry_msgs::msg::TransformStamped base_link_enu;
+//    bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
+//    if (!succ) return;
+//    auto base_T_odom = tf_msg_to_affine(base_link_enu);
+//    auto img_T_base = tf_msg_to_affine(*image_tf_);
+//}

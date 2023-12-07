@@ -53,7 +53,7 @@ Estimator::Estimator() {
     for (int i = 0; i < 3; i++)
         lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<float, 3 >>(b, a);
 
-    optflow_ = cv::DISOpticalFlow::create(1); // TODO: could try 2, higher accuracy
+    optflow_ = cv::DISOpticalFlow::create(1);
 }
 
 void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
@@ -62,12 +62,12 @@ void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
     auto ddt2 = static_cast<float>(dt * dt * .5);
     dt = static_cast<float>(dt);
     assert(dt > 0 && dt < 1);
-    A << 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -0, 0, 0,
-            0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -0, 0,
-            0, 0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -0,
-            0, 0, 0, 1, 0, 0, dt, 0, 0, -0, 0, 0,
-            0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -0, 0,
-            0, 0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -0,
+    A << 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2, 0, 0,
+            0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2, 0,
+            0, 0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2,
+            0, 0, 0, 1, 0, 0, dt, 0, 0, -dt, 0, 0,
+            0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt, 0,
+            0, 0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt,
             0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
@@ -119,6 +119,8 @@ void Estimator::update_height(const float height) {
     kf_->update(h, C_height, R);
 }
 
+// could buffer the IMU and run only when camera measurements arrive
+// these updates ARE be running in front of the position/velocity measurements
 void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double dt) {
     if (!kf_->is_initialized())
         return;
@@ -129,7 +131,7 @@ void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double dt) {
 //    for (int i = 0; i < 3; i++)
 //        copy[i] = lp_acc_filter_arr_[i]->filter(copy[i]);
 
-    // update A and B matrices
+    // update A matrix
     Eigen::MatrixXf A(12, 12);
     get_A(A, dt);
 
@@ -144,6 +146,28 @@ void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double dt) {
             2.3786352e-01, 4.6759682e+00, -5.7549830e-01,
             -1.0210943e-01, -5.7549830e-01, 2.1809698e+00;
     kf_->update(accel, C_accel, R_accel);
+}
+
+void Estimator::update_cam_imu_accel(const Eigen::Vector3f &accel, const Eigen::Vector3f &omega,
+                                     const Eigen::Matrix3f &imu_R_enu, const Eigen::Vector3f &arm) {
+    if (!kf_->is_initialized())
+        return;
+
+    Eigen::Vector3f accel_enu = imu_R_enu * accel;
+    // subtract gravity
+    accel_enu[2] -= 9.81;
+    Eigen::Vector3f omega_enu = imu_R_enu * omega;
+
+    Eigen::Vector3f accel_body = accel_enu - omega_enu.cross(omega_enu.cross(arm));
+//    std::cout << accel_body << std::endl;
+
+    static Eigen::MatrixXf C_accel(3, 12);
+    C_accel << 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0;
+    static Eigen::MatrixXf R_accel(3, 3);
+    R_accel << Eigen::Matrix3f::Identity() * 4;
+    kf_->update(accel_body, C_accel, R_accel);
 }
 
 void Estimator::visjac_p(const Eigen::MatrixXf &uv,
@@ -381,7 +405,6 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     Eigen::MatrixXf J; // Jacobian
     visjac_p(uv, depth, K, J);
 
-    auto vel_due_to_drone_angl_vel = drone_omega.cross(r);
     for (long i = 0; i < J.rows(); i++) {
         Eigen::Vector3f Jw = {J(i, 3), J(i, 4), J(i, 5)};
         flow_eigen(i) -= Jw.dot(omega);
