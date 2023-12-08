@@ -3,10 +3,10 @@
 #include "rclcpp/node.hpp"
 
 int main(int argc, char **argv) {
-    cv::setNumThreads(2);
+    cv::setNumThreads(4);
     rclcpp::init(argc, argv);
     auto node = std::make_shared<StateEstimationNode>();
-    rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), 2);
+    rclcpp::executors::MultiThreadedExecutor executor(rclcpp::ExecutorOptions(), 4);
     executor.add_node(node);
     executor.spin();
     rclcpp::shutdown();

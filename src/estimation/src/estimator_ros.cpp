@@ -321,8 +321,7 @@ void StateEstimationNode::cam_imu_callback(const sensor_msgs::msg::Imu::SharedPt
     const Eigen::Vector3f omega{d2f(msg->angular_velocity.x),
                                 d2f(msg->angular_velocity.y),
                                 d2f(msg->angular_velocity.z)};
-    static Eigen::Vector3f arm{0.115f, -0.059f, -0.071f};
-
+    static Eigen::Vector3f arm{0.109f, -0.030f, 0.017f};
     estimator_->update_cam_imu_accel(accel, omega, cam_R_enu, arm);
 }
 

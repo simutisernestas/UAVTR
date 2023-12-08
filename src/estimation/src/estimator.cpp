@@ -12,8 +12,7 @@ Estimator::Estimator() {
     Eigen::MatrixXf A(12, 12);
     get_A(A, dt);
 
-    Eigen::MatrixXf Q(12, 12);
-    Q.block(9, 9, 3, 3) = Eigen::MatrixXf::Zero(3, 3);
+    Eigen::MatrixXf Q = Eigen::MatrixXf::Zero(12, 12);
     Eigen::Matrix3f acc_variance;
     acc_variance << 3.182539, 0, 0,
             0, 3.387015, 0,
@@ -129,13 +128,6 @@ void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double time) {
     assert(dt < 1.0);
     pre_imu_time_ = time;
 
-
-    // update A matrix
-    Eigen::MatrixXf A(12, 12);
-    get_A(A, dt);
-
-    kf_->predict(A);
-
     static Eigen::MatrixXf C_accel(3, 12);
     C_accel << 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0,
@@ -145,11 +137,17 @@ void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double time) {
             2.3786352e-01, 4.6759682e+00, -5.7549830e-01,
             -1.0210943e-01, -5.7549830e-01, 2.1809698e+00;
     kf_->update(accel, C_accel, R_accel);
+    
+    // update A matrix
+    Eigen::MatrixXf A(12, 12);
+    get_A(A, dt);
+
+    kf_->predict(A);
 }
 
 void Estimator::update_cam_imu_accel(const Eigen::Vector3f &accel, const Eigen::Vector3f &omega,
                                      const Eigen::Matrix3f &imu_R_enu, const Eigen::Vector3f &arm) {
-    return; // TODO:
+    return;
     if (!kf_->is_initialized())
         return;
 
@@ -415,7 +413,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     Eigen::Vector3f v_com_enu = cam_R_enu * cam_vel_est.segment(0, 3);
     v_com_enu -= drone_omega.cross(r);
 
-    if (cam_vel_est.norm() > 1e-1 && kf_->is_initialized()) {
+    if (kf_->is_initialized()) {        
         static Eigen::MatrixXf C_vel(3, 12);
         C_vel << 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0,

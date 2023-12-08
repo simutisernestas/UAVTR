@@ -1,4 +1,6 @@
 /**
+ * Modified version of:
+ * 
  * Kalman filter implementation using Eigen. Based on the following
  * introductory paper:
  *

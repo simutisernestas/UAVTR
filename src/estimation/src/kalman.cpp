@@ -1,8 +1,11 @@
 /**
+ * Modified version of:
+ * 
  * Implementation of KalmanFilter class.
  *
  * @author: Hayk Martirosyan
  * @date: 2014.11.15
+ * 
  */
 
 #include <stdexcept>

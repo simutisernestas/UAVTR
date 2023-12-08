@@ -65,7 +65,7 @@ private:
     tf2_ros::TransformBroadcaster tf_broadcaster_;
 
     ///////// funcs from mavros ftf_frame_conversions.cpp
-    Eigen::Quaternionf quaternion_from_rpy(const Eigen::Vector3f &rpy) {
+    static Eigen::Quaternionf quaternion_from_rpy(const Eigen::Vector3f &rpy) {
         // YPR - ZYX
         return Eigen::Quaternionf(
                 Eigen::AngleAxisf(rpy.z(), Eigen::Vector3f::UnitZ()) *
@@ -73,7 +73,7 @@ private:
                 Eigen::AngleAxisf(rpy.x(), Eigen::Vector3f::UnitX()));
     }
 
-    inline Eigen::Quaternionf quaternion_from_rpy(
+    static inline Eigen::Quaternionf quaternion_from_rpy(
             const float roll, const float pitch,
             const float yaw) {
         return quaternion_from_rpy(Eigen::Vector3f(roll, pitch, yaw));
@@ -125,8 +125,6 @@ private:
 
         // publish tf
         const FusionQuaternion quaternion = FusionAhrsGetQuaternion(&ahrs);
-        // const FusionQuaternion ned_q_enu = {-quaternion.element.w, quaternion.element.y,
-        //     quaternion.element.x, -quaternion.element.z};
         geometry_msgs::msg::TransformStamped transform{};
         transform.header.stamp = rclcpp::Time(msg->timestamp * 1000);
         transform.header.frame_id = "odom";
@@ -139,7 +137,6 @@ private:
 
         // Get acceleration in world frame
         const FusionVector earth = FusionAhrsGetEarthAcceleration(&ahrs);
-
 
         // publish IMU
         sensor_msgs::msg::Imu imu_msg{};
