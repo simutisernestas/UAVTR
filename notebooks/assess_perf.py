@@ -8,9 +8,10 @@ STATE_TIME_COLUMN = 0
 STATE_TARGET_IN_SIGHT_COLUMN = -1
 SAVE_DIR = os.path.dirname(os.path.abspath(__file__)) + '/data'
 BAG_NAME = '18_0'
+NTH_FROM_BACK = 1
 
 latest_state_file = sorted([f for f in os.listdir(
-    SAVE_DIR) if f'{BAG_NAME}_state_data' in f])[-1]
+    SAVE_DIR) if f'{BAG_NAME}_state_data' in f])[-NTH_FROM_BACK]
 print('latest state file: ', latest_state_file)
 # NpzFile 'gt.npz' with keys: drone_time, boat_time, drone_pos, boat_pos
 gt_data = np.load(f'{SAVE_DIR}/{BAG_NAME}_gt.npz')
@@ -19,7 +20,7 @@ state_data = np.load(f'{SAVE_DIR}/{latest_state_file}').reshape(-1, 14)
 
 # load attitude estimation data from timstamp_bag_attitude_state.npy
 latest_attitude_state_file = sorted([f for f in os.listdir(
-    SAVE_DIR) if f'{BAG_NAME}_attitude_state' in f])[-1]
+    SAVE_DIR) if f'{BAG_NAME}_attitude_state' in f])[-NTH_FROM_BACK]
 attitude_state_data = np.load(
     f'{SAVE_DIR}/{latest_attitude_state_file}').reshape(-1, 4)
 print('attitude_state_data.shape: ', attitude_state_data.shape)
@@ -27,7 +28,7 @@ attitude_state_time = attitude_state_data[:, 0]
 
 # load attitude px4 data from timstamp_bag_attitude_px4.npy
 latest_attitude_px4_file = sorted([f for f in os.listdir(
-    SAVE_DIR) if f'{BAG_NAME}_attitude_px4' in f])[-1]
+    SAVE_DIR) if f'{BAG_NAME}_attitude_px4' in f])[-NTH_FROM_BACK]
 attitude_px4_data = np.load(
     f'{SAVE_DIR}/{latest_attitude_px4_file}').reshape(-1, 4)
 print('attitude_px4_data.shape: ', attitude_px4_data.shape)

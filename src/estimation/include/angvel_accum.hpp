@@ -5,7 +5,7 @@
 
 struct AngVelAccumulator {
     AngVelAccumulator() : x(0), y(0), z(0),
-                             ang_vel_count(0) {}
+                          ang_vel_count(0) {}
 
     void add(const float x_add, const float y_add, const float z_add) {
         std::scoped_lock lock(mtx);

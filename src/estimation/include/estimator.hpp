@@ -10,9 +10,9 @@ class Estimator {
 public:
     Estimator();
 
-    Eigen::Vector3f compute_pixel_rel_position(
+    void compute_pixel_rel_position(
             const Eigen::Vector2f &bbox_c, const Eigen::Matrix3f &cam_R_enu,
-            const Eigen::Matrix3f &K, bool update = true);
+            const Eigen::Matrix3f &K);
 
     Eigen::Vector3f update_flow_velocity(cv::Mat &frame, double time, const Eigen::Matrix3f &cam_R_enu,
                                          const Eigen::Vector3f &r, const Eigen::Matrix3f &K,
@@ -55,12 +55,11 @@ private:
     static void get_A(Eigen::MatrixXf &A, double dt);
 
     std::unique_ptr<KalmanFilter> kf_;
-
     typedef LowPassFilter<float, 3> LPF;
     std::array<std::unique_ptr<LPF>, 3> lp_acc_filter_arr_;
-
     std::shared_ptr<cv::Mat> prev_frame_{nullptr};
     double pre_frame_time_{-1};
     double pre_imu_time_{-1};
     cv::Ptr<cv::DenseOpticalFlow> optflow_;
+    float latest_height_{0};
 };

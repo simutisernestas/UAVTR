@@ -23,6 +23,7 @@ KalmanFilter::KalmanFilter(
           n(A.rows()), initialized(false),
           I(n, n), x_hat(n) {
     I.setIdentity();
+    x_hat.setZero();
 }
 
 void KalmanFilter::init(const Eigen::VectorXf &x0) {

@@ -2,8 +2,10 @@ cmake_minimum_required(VERSION 3.22)
 project(estimator)
 
 set(CMAKE_CXX_STANDARD 20)
-
+# add fast math
 add_compile_options(-Wall -Wextra -Wpedantic)
+
+option(OPTIMIZE_FOR_NATIVE "Build with -march=native" ON)
 
 message("#####################")
 message("##### MY CONFIG #####")

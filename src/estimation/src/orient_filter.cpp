@@ -9,7 +9,9 @@
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include <Eigen/Dense>
 #include "FusionMath.h"
+
 #define RCLCPP__NODE_IMPL_HPP_
+
 #include "rclcpp/node.hpp"
 
 using std::placeholders::_1;
@@ -38,7 +40,7 @@ public:
         euler_publisher_ = this->create_publisher<sensor_msgs::msg::Imu>("imu/euler", 10);
         euler_publisher_px4_ = this->create_publisher<sensor_msgs::msg::Imu>("imu/euler_px4", 10);
         vehicle_attitude_subscription_ = this->create_subscription<px4_msgs::msg::VehicleAttitude>(
-            "/fmu/out/vehicle_attitude", qos, std::bind(&SensorTranslator::vehicle_attitude_callback, this, _1));
+                "/fmu/out/vehicle_attitude", qos, std::bind(&SensorTranslator::vehicle_attitude_callback, this, _1));
 #endif
     }
 
@@ -101,8 +103,8 @@ private:
 
         // prepare data for fusion
         const static float rad2deg = 180.0f / M_PI;
-        FusionVector gyroscope = {gyro[0] * rad2deg, 
-                                  gyro[1] * rad2deg, 
+        FusionVector gyroscope = {gyro[0] * rad2deg,
+                                  gyro[1] * rad2deg,
                                   gyro[2] * rad2deg};
         const static float g = 9.81555f;
         accel /= g;
@@ -193,8 +195,8 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr euler_publisher_;
     rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr euler_publisher_px4_;
     rclcpp::Subscription<px4_msgs::msg::VehicleAttitude>::SharedPtr vehicle_attitude_subscription_;
-    void vehicle_attitude_callback(const px4_msgs::msg::VehicleAttitude::SharedPtr msg)
-    {
+
+    void vehicle_attitude_callback(const px4_msgs::msg::VehicleAttitude::SharedPtr msg) {
         const float x = msg->q[0];
         const float y = msg->q[1];
         const float z = msg->q[2];
@@ -211,6 +213,7 @@ private:
         euler_msg.angular_velocity.z = euler.angle.yaw;
         euler_publisher_px4_->publish(euler_msg);
     }
+
 #endif
 
     uint64_t last_timestamp_{0};

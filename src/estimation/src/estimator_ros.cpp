@@ -132,7 +132,7 @@ void StateEstimationNode::air_data_callback(const px4_msgs::msg::VehicleAirData:
     float altitude;
 
     if (!simulation_)
-        altitude = std::abs(d2f(-25.94229507446289 - msg->baro_alt_meter)) - 2.0;
+        altitude = std::abs(d2f(-25.94229507446289 - msg->baro_alt_meter));
     else
         altitude = msg->baro_alt_meter;
 
@@ -140,7 +140,6 @@ void StateEstimationNode::air_data_callback(const px4_msgs::msg::VehicleAirData:
 }
 
 void StateEstimationNode::range_callback(const sensor_msgs::msg::Range::SharedPtr msg) {
-    return;
     if (std::isnan(msg->range) || std::isinf(msg->range))
         return;
     Eigen::Vector3f altitude{0, 0, d2f(msg->range)};
