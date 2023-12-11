@@ -9,7 +9,7 @@ endef
 
 define configure_target
 	mkdir -p src/$(1)/build
-	cd src/$(1)/build && cmake -G Ninja .. -D CMAKE_C_COMPILER=gcc-12 -D CMAKE_CXX_COMPILER=g++-12 -D CMAKE_BUILD_TYPE=$(BUILD_TYPE)
+	cd src/$(1)/build && cmake -G Ninja .. -D CMAKE_BUILD_TYPE=$(BUILD_TYPE)
 endef
 
 all: detection estimation
