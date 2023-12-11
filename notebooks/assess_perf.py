@@ -70,7 +70,7 @@ print('drone_pos.shape: ', drone_pos.shape)
 print('boat_pos.shape: ', boat_pos.shape)
 print('state_data.shape: ', state_data.shape)
 
-# relative grouthtruth position
+# relative ground truth position
 relative_pos_gt = boat_pos - drone_pos[:boat_pos.shape[0], :]
 # binary signal indicating whether the target is in sight or not
 binary_sight = np.where(target_in_sight > 0)
@@ -106,6 +106,7 @@ plot_data(state_time, drone_time,
           ['Estimation X', 'Estimation Y', 'Estimation Z'],
           ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z'],
           ['Distance (m)', 'Distance (m)', 'Time (s)'], binary_sight)
+plt.show()
 
 # %%
 
