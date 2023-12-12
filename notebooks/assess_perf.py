@@ -7,14 +7,22 @@ import os
 STATE_TIME_COLUMN = 0
 STATE_TARGET_IN_SIGHT_COLUMN = -1
 SAVE_DIR = os.path.dirname(os.path.abspath(__file__)) + '/data'
-BAG_NAME = '18_0'
+BAGS_LIST = [
+    '18_0',
+    'latest_flight_mode0',
+    'latest_flight_mode1',
+    'latest_flight_mode2',
+]
+BAG_NAME = BAGS_LIST[0]
 NTH_FROM_BACK = 1
 
 latest_state_file = sorted([f for f in os.listdir(
     SAVE_DIR) if f'{BAG_NAME}_state_data' in f])[-NTH_FROM_BACK]
 print('latest state file: ', latest_state_file)
 # NpzFile 'gt.npz' with keys: drone_time, boat_time, drone_pos, boat_pos
-gt_data = np.load(f'{SAVE_DIR}/{BAG_NAME}_gt.npz')
+GT_NAME = BAG_NAME if "mode" not in BAG_NAME else "_".join(
+    BAG_NAME.split('_')[:-1])
+gt_data = np.load(f'{SAVE_DIR}/{GT_NAME}_gt.npz')
 # load state estimation data from state_data.npy
 state_data = np.load(f'{SAVE_DIR}/{latest_state_file}').reshape(-1, 14)
 
@@ -46,23 +54,26 @@ boat_time = boat_time[boat_data_start:boat_data_end]
 boat_pos = boat_pos[boat_data_start:boat_data_end, :]
 
 state_time = state_data[:, STATE_TIME_COLUMN]
-target_in_sight = state_data[:, STATE_TARGET_IN_SIGHT_COLUMN]
+if BAG_NAME != '18_0':
+    state_time -= state_time[0]
+    state_time += + 1503.0070665556784
+# remove everything before KF initialization
+state_non_zero = np.abs(state_data[:, 1]) > 0
+state_data = state_data[state_non_zero, :]
+state_time = state_time[state_non_zero]
 
-# cap drone data to match the estimation
-data_start = np.argmin(np.abs(drone_time - state_time[0]))
-data_end = np.argmin(np.abs(drone_time - state_time[-1]))
-drone_time = drone_time[data_start:data_end]
-drone_pos = drone_pos[data_start:data_end, :]
-
-# cap boat data to match the estimation
-data_start = np.argmin(np.abs(boat_time - state_time[0]))
-data_end = np.argmin(np.abs(boat_time - state_time[-1]))
-boat_time = boat_time[data_start:data_end]
-boat_pos = boat_pos[data_start:data_end, :]
-
-# some residuals are still here
-drone_pos = drone_pos[:boat_pos.shape[0], :]
-drone_time = drone_time[:boat_pos.shape[0]]
+# Define a tolerance level
+tolerance = 0.1
+# Calculate the absolute difference between all pairs of timestamps
+diffs = np.abs(drone_time[:, None] - boat_time)
+# Find where the difference is less than the tolerance
+matching_indices = np.where(diffs < tolerance)
+# Get the matching timestamps from drone_time
+matching_timestamps = drone_time[matching_indices[0]]
+drone_time = drone_time[matching_indices[0]]
+boat_time = boat_time[matching_indices[1]]
+drone_pos = drone_pos[matching_indices[0], :]
+boat_pos = boat_pos[matching_indices[1], :]
 
 print('drone_time.shape: ', drone_time.shape)
 print('boat_time.shape: ', boat_time.shape)
@@ -73,6 +84,7 @@ print('state_data.shape: ', state_data.shape)
 # relative ground truth position
 relative_pos_gt = boat_pos - drone_pos[:boat_pos.shape[0], :]
 # binary signal indicating whether the target is in sight or not
+target_in_sight = state_data[:, STATE_TARGET_IN_SIGHT_COLUMN]
 binary_sight = np.where(target_in_sight > 0)
 
 # %%
@@ -93,6 +105,7 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
             axs[i].set_ylabel(axis_lbl)
         elif i == 2:
             axs[i].set_xlabel(axis_lbl)
+        axs[i].set_xlim([t0_data[0], t0_data[-1]])
     fig.align_xlabels()
     fig.align_ylabels()
     fig.tight_layout()
@@ -143,3 +156,4 @@ plot_data(state_time, state_time,
           ['Estimation X', 'Estimation Y', 'Estimation Z'],
           ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z'],
           ['Distance (m)', 'Distance (m)', 'Time (s)'], binary_sight)
+plt.show()

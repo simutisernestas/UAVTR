@@ -12,7 +12,7 @@ import mplcursors
 
 storage_id = 'sqlite3'
 SAVE = True
-WHICH = 0  # 0 or 1
+WHICH = 1  # 0 or 1
 PRINT_STATIC_ZERO = False
 
 
@@ -75,7 +75,7 @@ def read_bag(path, clear_cache=False) -> (np.array, np.array):
         lon = msg.lon * 1e-7
         alt = msg.alt * 1e-3
         if WHICH == 1:
-            time_utc = msg.time_utc_usec / 1e6 - 3 * 3600
+            time_utc = msg.time_utc_usec / 1e6
         else:
             time_utc = msg.timestamp / 1e6
         return (lat, lon, alt, time_utc)
@@ -135,11 +135,13 @@ if __name__ == '__main__':
     (timestamps_boat, buff_boat) = read_bag(bag_path, clear_cache=False)
 
     if WHICH == 1:
-        tdiff = timestamps[0] - timestamps_boat[0]
-        timestamps -= tdiff
+        timestamps_boat -= timestamps[0]
         timestamps -= timestamps[0]
-        timestamps_boat -= timestamps_boat[0]
-        assert np.allclose(timestamps[0], timestamps_boat[0])
+        # plt.plot(timestamps, label='drone')
+        # plt.plot(timestamps_boat, label='boat')
+        # plt.legend()
+        # plt.show()
+        # exit()
 
     if SAVE:
         save_file = notebooks_dir + f"/data/{bag_path.split('/')[-2]}_gt.npz"

@@ -33,17 +33,34 @@ def generate_launch_description():
         output='screen'
     )
 
-    bag_name = "./18_0/rosbag2_2023_10_18-12_24_19"
-    # bag_name = "./latest_flight/rosbag2_2023_10_18-16_22_16/"
-    play_bag_cmd = f'''ros2 bag play {bag_name} --start-offset 150'''
+    WHICH = 1  # 0 | 1
+    bag_name = ""
+    offset = -1
+    BAG0_OFF = 150
+    MODE = 0  # 0 or 1 or 2
+    if WHICH == 0:
+        bag_name = "./18_0/rosbag2_2023_10_18-12_24_19"
+        offset = BAG0_OFF
+    else:
+        bag_name = "./latest_flight/rosbag2_2023_10_18-16_22_16"
+        modes = [
+            1500,  # going to the moon
+        ]
+        offset = modes[MODE]
+
+    play_bag_cmd = f'''ros2 bag play {bag_name} --start-offset {offset}'''
     play_bag = ExecuteProcess(
         cmd=play_bag_cmd.split(),
         cwd=f"{root_dir}/bags",
         output='screen'
     )
 
+    run_name = bag_name.split('/')[-2]
+    if offset != BAG0_OFF:
+        run_name += f'_mode{MODE}'
+
     record_state = ExecuteProcess(
-        cmd=["python3", "record_state.py", bag_name.split('/')[-2]],
+        cmd=["python3", "record_state.py", run_name],
         cwd=f"{root_dir}/notebooks",
         output='screen'
     )
