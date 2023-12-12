@@ -2,8 +2,6 @@
 #include <cv_bridge/cv_bridge.h>
 
 StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
-    // TODO: rewrite these callback groups, important thing is to separate this image callback
-    // otherwise everything else can block, but also maybe nice to offload IMU to another thread
     {
         vel_meas_callback_group_ = this->create_callback_group(
                 rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -12,15 +10,6 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
         img_sub_ = create_subscription<sensor_msgs::msg::Image>(
                 "/camera/color/image_raw", 1,
                 std::bind(&StateEstimationNode::img_callback, this, std::placeholders::_1), options);
-    }
-    {
-        target_bbox_callback_group_ = this->create_callback_group(
-                rclcpp::CallbackGroupType::MutuallyExclusive);
-        rclcpp::SubscriptionOptions options;
-        options.callback_group = target_bbox_callback_group_;
-        bbox_sub_ = create_subscription<vision_msgs::msg::Detection2D>(
-                "/bounding_box", 1,
-                std::bind(&StateEstimationNode::bbox_callback, this, std::placeholders::_1), options);
     }
     {
         imu_callback_group_ = this->create_callback_group(
@@ -32,9 +21,13 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
                 std::bind(&StateEstimationNode::imu_callback, this, std::placeholders::_1), options);
     }
 
-    cam_imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
-            "/camera/imu", 20,
-            std::bind(&StateEstimationNode::cam_imu_callback, this, std::placeholders::_1));
+    // TODO:
+    // cam_imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
+    //         "/camera/imu", 20,
+    //         std::bind(&StateEstimationNode::cam_imu_callback, this, std::placeholders::_1));
+    bbox_sub_ = create_subscription<vision_msgs::msg::Detection2D>(
+            "/bounding_box", 1,
+            std::bind(&StateEstimationNode::bbox_callback, this, std::placeholders::_1));
     cam_info_sub_ = create_subscription<sensor_msgs::msg::CameraInfo>(
             "/camera/color/camera_info", 1,
             std::bind(&StateEstimationNode::cam_info_callback, this, std::placeholders::_1));
@@ -54,8 +47,7 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
             "/fmu/out/timesync_status", timesync_qos,
             std::bind(&StateEstimationNode::timesync_callback, this, std::placeholders::_1));
 
-    state_pub_ = create_publisher<geometry_msgs::msg::PoseArray>(
-            "/state", 1);
+    state_pub_ = create_publisher<geometry_msgs::msg::PoseArray>("/state", 1);
 
     tf_buffer_ =
             std::make_unique<tf2_ros::Buffer>(this->get_clock());
@@ -355,12 +347,3 @@ void StateEstimationNode::cam_imu_callback(const sensor_msgs::msg::Imu::SharedPt
     static Eigen::Vector3f arm{0.109f, -0.030f, 0.017f};
     estimator_->update_cam_imu_accel(accel, omega, cam_R_enu, arm);
 }
-
-// TODO:
-//Eigen::Affine3f get_base2enu_T(const sensor_msgs::msg::Imu::SharedPtr msg) {
-//    geometry_msgs::msg::TransformStamped base_link_enu;
-//    bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
-//    if (!succ) return;
-//    auto base_T_odom = tf_msg_to_affine(base_link_enu);
-//    auto img_T_base = tf_msg_to_affine(*image_tf_);
-//}

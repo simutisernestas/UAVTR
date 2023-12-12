@@ -66,7 +66,6 @@ private:
     rclcpp::Publisher<sensor_msgs::msg::Range>::SharedPtr range_pub_;
 
     rclcpp::CallbackGroup::SharedPtr vel_meas_callback_group_;
-    rclcpp::CallbackGroup::SharedPtr target_bbox_callback_group_;
     rclcpp::CallbackGroup::SharedPtr imu_callback_group_;
 
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
