@@ -82,6 +82,9 @@ void StateEstimationNode::timesync_callback(const px4_msgs::msg::TimesyncStatus:
     double offset;
     if (simulation_ && msg->estimated_offset != 0) {
         offset = -(double) msg->estimated_offset / 1e6;
+    } else if (msg->estimated_offset != 0) {
+        auto delta = msg->timestamp - msg->remote_timestamp;
+        offset = (double) delta / 1e6;
     } else {
         offset = (double) msg->observed_offset / 1e6;
     }
