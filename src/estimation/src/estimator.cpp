@@ -15,8 +15,8 @@ Estimator::Estimator() {
     Eigen::MatrixXf Q = Eigen::MatrixXf::Zero(12, 12);
     Eigen::Matrix3f acc_variance;
     acc_variance << 3.182539, 0, 0,
-            0, 3.387015, 0,
-            0, 0, 1.540428;
+                    0, 3.387015, 0,
+                    0, 0, 1.540428;
     auto Q33 = Eigen::MatrixXf::Identity(3, 3) * std::pow(dt, 4) / 4.0;
     auto Q36 = Eigen::MatrixXf::Identity(3, 3) * std::pow(dt, 3) / 2.0;
     auto Q39 = Eigen::MatrixXf::Identity(3, 3) * std::pow(dt, 2) / 2.0;
@@ -417,16 +417,14 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     v_com_enu -= drone_omega.cross(r);
 
     if (kf_->is_initialized()) {
-        static Eigen::MatrixXf C_vel(3, 12);
+        static Eigen::MatrixXf C_vel(2, 12);
         C_vel << 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0;
-        static Eigen::MatrixXf R_vel(3, 3);
-        R_vel << 1.7070062e+00, 2.8741731e-01, 0,
-                2.8741731e-01, 1.1121999e+00, 0,
-                0, 0, 1.7070062e+00;
+                0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0;
+        static Eigen::MatrixXf R_vel(2, 2);
+        R_vel << 1.7070062e+00, 2.8741731e-01,
+                2.8741731e-01, 1.1121999e+00;
 
-        kf_->update(v_com_enu.segment(0, 3), C_vel, R_vel);
+        kf_->update(v_com_enu.segment(0, 2), C_vel, R_vel);
     }
 
     this->pre_frame_time_ = time;

@@ -13,7 +13,7 @@ BAGS_LIST = [
     'latest_flight_mode1',
     'latest_flight_mode2',
 ]
-BAG_NAME = BAGS_LIST[0]
+BAG_NAME = BAGS_LIST[2]
 NTH_FROM_BACK = 1
 
 latest_state_file = sorted([f for f in os.listdir(
@@ -54,9 +54,13 @@ boat_time = boat_time[boat_data_start:boat_data_end]
 boat_pos = boat_pos[boat_data_start:boat_data_end, :]
 
 state_time = state_data[:, STATE_TIME_COLUMN]
-if BAG_NAME != '18_0':
+if BAG_NAME == 'latest_flight_mode0':
     state_time -= state_time[0]
     state_time += + 1503.0070665556784
+elif BAG_NAME == 'latest_flight_mode1':
+    state_time -= state_time[0]
+    state_time += + 1941
+
 # remove everything before KF initialization
 state_non_zero = np.abs(state_data[:, 1]) > 0
 state_data = state_data[state_non_zero, :]
@@ -106,6 +110,15 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
         elif i == 2:
             axs[i].set_xlabel(axis_lbl)
         axs[i].set_xlim([t0_data[0], t0_data[-1]])
+
+        pos_index_at_t00 = np.argmin(np.abs(t0_data[0] - t1_data))
+        pos_index_at_t01 = np.argmin(np.abs(t0_data[-1] - t1_data))
+
+        min_y = np.min([np.min(state_data[:, state_idx]), np.min(
+            pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])])
+        max_y = np.max([np.max(state_data[:, state_idx]),
+                       np.max(pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])])
+        axs[i].set_ylim([min_y - 1.0, max_y + 1.0])
     fig.align_xlabels()
     fig.align_ylabels()
     fig.tight_layout()

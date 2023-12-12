@@ -63,6 +63,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr cam_imu_sub_;
 
     rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr state_pub_;
+    rclcpp::Publisher<sensor_msgs::msg::Range>::SharedPtr range_pub_;
 
     rclcpp::CallbackGroup::SharedPtr vel_meas_callback_group_;
     rclcpp::CallbackGroup::SharedPtr target_bbox_callback_group_;

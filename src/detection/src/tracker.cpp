@@ -297,7 +297,7 @@ ObjDetertor::ObjDetertor() {
 #if MODEL == 0
     _session = std::make_unique<Ort::Session>(_env, "../weights/detr.onnx", sessionOptions);
 #else
-    _session = std::make_unique<Ort::Session>(_env, "../weights/best2.onnx", sessionOptions);
+    _session = std::make_unique<Ort::Session>(_env, "../weights/best3.onnx", sessionOptions);
 #endif
     _memory_info = std::make_unique<Ort::MemoryInfo>(Ort::MemoryInfo::CreateCpu(
             OrtArenaAllocator, OrtMemTypeDefault));

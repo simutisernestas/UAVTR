@@ -2,6 +2,8 @@
 #include <cv_bridge/cv_bridge.h>
 
 StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
+    // TODO: rewrite these callback groups, important thing is to separate this image callback
+    // otherwise everything else can block, but also maybe nice to offload IMU to another thread
     {
         vel_meas_callback_group_ = this->create_callback_group(
                 rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -38,13 +40,18 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
             std::bind(&StateEstimationNode::cam_info_callback, this, std::placeholders::_1));
     range_sub_ = create_subscription<sensor_msgs::msg::Range>(
             "/teraranger_evo_40m", 1, std::bind(&StateEstimationNode::range_callback, this, std::placeholders::_1));
-    auto qos = rclcpp::QoS(rclcpp::KeepLast(1));
-    qos.best_effort();
+    auto air_data_qos = rclcpp::QoS(1);
+    air_data_qos.keep_all();
+    air_data_qos.best_effort();
     air_data_sub_ = create_subscription<px4_msgs::msg::VehicleAirData>(
-            "/fmu/out/vehicle_air_data", qos,
+            "/fmu/out/vehicle_air_data", air_data_qos,
             std::bind(&StateEstimationNode::air_data_callback, this, std::placeholders::_1));
+    auto timesync_qos = rclcpp::QoS(1);
+    timesync_qos.best_effort();
+    timesync_qos.keep_all();
+    timesync_qos.durability_volatile();
     timesync_sub_ = create_subscription<px4_msgs::msg::TimesyncStatus>(
-            "/fmu/out/timesync_status", qos,
+            "/fmu/out/timesync_status", timesync_qos,
             std::bind(&StateEstimationNode::timesync_callback, this, std::placeholders::_1));
 
     state_pub_ = create_publisher<geometry_msgs::msg::PoseArray>(
@@ -64,6 +71,8 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
 
     cam_ang_vel_accumulator_ = std::make_unique<AngVelAccumulator>();
     drone_ang_vel_accumulator_ = std::make_unique<AngVelAccumulator>();
+
+    range_pub_ = create_publisher<sensor_msgs::msg::Range>("/range", 1);
 }
 
 inline float d2f(double d) {
@@ -79,6 +88,8 @@ rclcpp::Time StateEstimationNode::get_correct_fusion_time(
 }
 
 void StateEstimationNode::timesync_callback(const px4_msgs::msg::TimesyncStatus::SharedPtr msg) {
+    RCLCPP_INFO(this->get_logger(), "TIMESYNC CALLBACK"); 
+
     double offset;
     if (simulation_ && msg->estimated_offset != 0) {
         offset = -(double) msg->estimated_offset / 1e6;
@@ -132,6 +143,8 @@ void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr ms
 }
 
 void StateEstimationNode::air_data_callback(const px4_msgs::msg::VehicleAirData::SharedPtr msg) {
+    RCLCPP_INFO(this->get_logger(), "AIRDATA CALLBACK");
+    
     float altitude;
 
     if (!simulation_)
@@ -145,6 +158,9 @@ void StateEstimationNode::air_data_callback(const px4_msgs::msg::VehicleAirData:
 void StateEstimationNode::range_callback(const sensor_msgs::msg::Range::SharedPtr msg) {
     if (std::isnan(msg->range) || std::isinf(msg->range))
         return;
+    auto est_h = std::abs(estimator_->state()[2]);
+    if (est_h > 40) //max range of sensor
+        return;
     Eigen::Vector3f altitude{0, 0, d2f(msg->range)};
 
     auto time = get_correct_fusion_time(msg->header, true);
@@ -154,6 +170,18 @@ void StateEstimationNode::range_callback(const sensor_msgs::msg::Range::SharedPt
     auto base_T_odom = tf_msg_to_affine(base_link_enu);
 
     altitude = base_T_odom.rotation() * altitude;
+    
+    sensor_msgs::msg::Range pub_range_msg;
+    pub_range_msg.header.stamp = msg->header.stamp;
+    pub_range_msg.header.frame_id = "odom";
+    pub_range_msg.range = altitude[2];
+    range_pub_->publish(pub_range_msg);
+
+    // TODO: test!!!
+    auto too_high_deviation = std::abs(est_h - altitude[2]) > 3.0;
+    if (too_high_deviation)
+        return;
+
     estimator_->update_height(altitude[2]);
 }
 
@@ -185,10 +213,10 @@ void StateEstimationNode::cam_info_callback(const sensor_msgs::msg::CameraInfo::
     // only do once
     if (is_K_received())
         return;
-    std::scoped_lock lock(mtx_);
     if (msg->header.frame_id == "x500_0/OakD-Lite/base_link/StereoOV7251")
         return;
 
+    std::scoped_lock lock(mtx_);
     cam_model_.fromCameraInfo(*msg);
     cv::Matx<float, 3, 3> cvK = cam_model_.intrinsicMatrix();
     // convert to eigen
@@ -208,8 +236,9 @@ bool StateEstimationNode::tf_lookup_helper(geometry_msgs::msg::TransformStamped 
                 time, rclcpp::Duration::from_seconds(.008));
     }
     catch (const tf2::TransformException &ex) {
-        RCLCPP_INFO(
-                this->get_logger(), "Could not transform %s to %s: %s",
+        RCLCPP_ERROR_THROTTLE(
+                this->get_logger(), *this->get_clock(), 1000 /*ms*/,
+                "Could not transform %s to %s: %s",
                 source_frame.c_str(), target_frame.c_str(), ex.what());
         return false;
     }
