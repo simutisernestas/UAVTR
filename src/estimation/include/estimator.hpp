@@ -9,6 +9,7 @@
 class Estimator {
 public:
     Estimator();
+    ~Estimator();
 
     void compute_pixel_rel_position(
             const Eigen::Vector2f &bbox_c, const Eigen::Matrix3f &cam_R_enu,
@@ -61,5 +62,5 @@ private:
     double pre_frame_time_{-1};
     double pre_imu_time_{-1};
     cv::Ptr<cv::DenseOpticalFlow> optflow_;
-    float latest_height_{0};
+    std::atomic<float> latest_height_{0};
 };

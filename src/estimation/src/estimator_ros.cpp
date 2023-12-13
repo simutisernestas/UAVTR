@@ -60,6 +60,8 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
 
     declare_parameter<bool>("simulation", false);
     get_parameter("simulation", simulation_);
+    declare_parameter<float>("baro_ground_ref", 10.0);
+    get_parameter("baro_ground_ref", baro_ground_ref_);
 
     cam_ang_vel_accumulator_ = std::make_unique<AngVelAccumulator>();
     drone_ang_vel_accumulator_ = std::make_unique<AngVelAccumulator>();
@@ -80,8 +82,6 @@ rclcpp::Time StateEstimationNode::get_correct_fusion_time(
 }
 
 void StateEstimationNode::timesync_callback(const px4_msgs::msg::TimesyncStatus::SharedPtr msg) {
-    RCLCPP_INFO(this->get_logger(), "TIMESYNC CALLBACK"); 
-
     double offset;
     if (simulation_ && msg->estimated_offset != 0) {
         offset = -(double) msg->estimated_offset / 1e6;
@@ -135,12 +135,10 @@ void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr ms
 }
 
 void StateEstimationNode::air_data_callback(const px4_msgs::msg::VehicleAirData::SharedPtr msg) {
-    RCLCPP_INFO(this->get_logger(), "AIRDATA CALLBACK");
-    
     float altitude;
 
     if (!simulation_)
-        altitude = std::abs(d2f(-25.94229507446289 - msg->baro_alt_meter));
+        altitude = msg->baro_alt_meter + baro_ground_ref_;
     else
         altitude = msg->baro_alt_meter;
 
@@ -148,12 +146,9 @@ void StateEstimationNode::air_data_callback(const px4_msgs::msg::VehicleAirData:
 }
 
 void StateEstimationNode::range_callback(const sensor_msgs::msg::Range::SharedPtr msg) {
-    if (std::isnan(msg->range) || std::isinf(msg->range))
+    // max range of sensor is 40m
+    if (std::isnan(msg->range) || std::isinf(msg->range) || msg->range > 40)
         return;
-    auto est_h = std::abs(estimator_->state()[2]);
-    if (est_h > 40) //max range of sensor
-        return;
-    Eigen::Vector3f altitude{0, 0, d2f(msg->range)};
 
     auto time = get_correct_fusion_time(msg->header, true);
     geometry_msgs::msg::TransformStamped base_link_enu;
@@ -161,8 +156,9 @@ void StateEstimationNode::range_callback(const sensor_msgs::msg::Range::SharedPt
     if (!succ) return;
     auto base_T_odom = tf_msg_to_affine(base_link_enu);
 
+    Eigen::Vector3f altitude{0, 0, d2f(msg->range)};
     altitude = base_T_odom.rotation() * altitude;
-    
+
     sensor_msgs::msg::Range pub_range_msg;
     pub_range_msg.header.stamp = msg->header.stamp;
     pub_range_msg.header.frame_id = "odom";
@@ -170,7 +166,8 @@ void StateEstimationNode::range_callback(const sensor_msgs::msg::Range::SharedPt
     range_pub_->publish(pub_range_msg);
 
     // TODO: test!!!
-    auto too_high_deviation = std::abs(est_h - altitude[2]) > 3.0;
+    float est_h = std::abs(estimator_->state()[2]);
+    bool too_high_deviation = std::abs(est_h - altitude[2]) > 3.0;
     if (too_high_deviation)
         return;
 
@@ -217,6 +214,9 @@ void StateEstimationNode::cam_info_callback(const sensor_msgs::msg::CameraInfo::
         long col = i % 3;
         K_(row, col) = cvK.operator()(row, col);
     }
+
+    // unregister callback
+    cam_info_sub_ = nullptr;
 }
 
 bool StateEstimationNode::tf_lookup_helper(geometry_msgs::msg::TransformStamped &tf,
@@ -267,6 +267,9 @@ void StateEstimationNode::tf_callback() {
             tera_tf_->transform.rotation.w = 1.0;
         }
     }
+
+    // unregister callback
+    tf_timer_ = nullptr;
 }
 
 Eigen::Transform<float, 3, Eigen::Affine>
@@ -320,30 +323,30 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
                                      cam_T_enu.translation(), K_, cam_omega, drone_omega);
 }
 
-void StateEstimationNode::cam_imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
-    if (!image_tf_)
-        return;
-
-    // accumulate angular velocity into a vector
-    cam_ang_vel_accumulator_->add(
-            d2f(msg->angular_velocity.x),
-            d2f(msg->angular_velocity.y),
-            d2f(msg->angular_velocity.z));
-
-    rclcpp::Time time = get_correct_fusion_time(msg->header, true);
-    geometry_msgs::msg::TransformStamped base_link_enu;
-    bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
-    if (!succ) return;
-    const auto base_T_odom = tf_msg_to_affine(base_link_enu);
-    const auto img_T_base = tf_msg_to_affine(*image_tf_);
-    const auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
-
-    const Eigen::Vector3f accel{d2f(msg->linear_acceleration.x),
-                                d2f(msg->linear_acceleration.y),
-                                d2f(msg->linear_acceleration.z)};
-    const Eigen::Vector3f omega{d2f(msg->angular_velocity.x),
-                                d2f(msg->angular_velocity.y),
-                                d2f(msg->angular_velocity.z)};
-    static Eigen::Vector3f arm{0.109f, -0.030f, 0.017f};
-    estimator_->update_cam_imu_accel(accel, omega, cam_R_enu, arm);
-}
+//void StateEstimationNode::cam_imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
+//    if (!image_tf_)
+//        return;
+//
+//    // accumulate angular velocity into a vector
+//    cam_ang_vel_accumulator_->add(d
+//            d2f(msg->angular_velocity.x),
+//            d2f(msg->angular_velocity.y),
+//            d2f(msg->angular_velocity.z));
+//
+//    rclcpp::Time time = get_correct_fusion_time(msg->header, true);
+//    geometry_msgs::msg::TransformStamped base_link_enu;
+//    bool succ = tf_lookup_helper(base_link_enu, "odom", "base_link", time);
+//    if (!succ) return;
+//    const auto base_T_odom = tf_msg_to_affine(base_link_enu);
+//    const auto img_T_base = tf_msg_to_affine(*image_tf_);
+//    const auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
+//
+//    const Eigen::Vector3f accel{d2f(msg->linear_acceleration.x),
+//                                d2f(msg->linear_acceleration.y),
+//                                d2f(msg->linear_acceleration.z)};
+//    const Eigen::Vector3f omega{d2f(msg->angular_velocity.x),
+//                                d2f(msg->angular_velocity.y),
+//                                d2f(msg->angular_velocity.z)};
+//    static Eigen::Vector3f arm{0.109f, -0.030f, 0.017f};
+//    estimator_->update_cam_imu_accel(accel, omega, cam_R_enu, arm);
+//}

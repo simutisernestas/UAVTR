@@ -118,10 +118,11 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
             pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])])
         max_y = np.max([np.max(state_data[:, state_idx]),
                        np.max(pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])])
-        axs[i].set_ylim([min_y - 1.0, max_y + 1.0])
+        axs[i].set_ylim([min_y - 3.0, max_y + 3.0])
     fig.align_xlabels()
     fig.align_ylabels()
     fig.tight_layout()
+    # TODO: can't see the target in sight signal
 
 # %%
 
@@ -133,7 +134,6 @@ plot_data(state_time, drone_time,
           ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z'],
           ['Distance (m)', 'Distance (m)', 'Time (s)'], binary_sight)
 plt.show()
-
 # %%
 
 plot_data(attitude_state_time, attitude_px4_time,
@@ -143,6 +143,7 @@ plot_data(attitude_state_time, attitude_px4_time,
           ['Groundtruth Roll', 'Groundtruth Pitch', 'Groundtruth Yaw'],
           ['Angle (degrees)', 'Angle (degrees)', 'Time (s)'])
 plt.show()
+exit()
 
 # %%
 

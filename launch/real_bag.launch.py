@@ -20,13 +20,6 @@ def generate_launch_description():
         output='screen'
     )
 
-    estimation = ExecuteProcess(
-        cmd=["./estimation_node"],
-        cwd=f'{root_dir}/src/estimation/build',
-        # prefix=['xterm  -e gdb -ex "b main" --args'],
-        output='screen'
-    )
-
     uncompress = ExecuteProcess(
         cmd=['ros2', 'run', 'image_transport', 'republish', 'compressed', 'raw', '--ros-args', '-r',
              '/in/compressed:=/camera/color/image_raw/compressed', '-r', 'out:=/camera/color/image_raw'],
@@ -66,6 +59,19 @@ def generate_launch_description():
         cwd=f"{root_dir}/notebooks",
         output='screen'
     )
+
+    baro_ref = 0.0
+    if WHICH == 0:
+        baro_ref = 25.94229507446289
+    else:
+        baro_ref = 7.0
+    estimation = ExecuteProcess(
+        cmd=["./estimation_node", "--ros-args", "-p", f"baro_ground_ref:={baro_ref}"],
+        cwd=f'{root_dir}/src/estimation/build',
+        # prefix=['xterm  -e gdb -ex "b main" --args'],
+        output='screen'
+    )
+
 
     return LaunchDescription([
         play_bag,

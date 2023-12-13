@@ -59,7 +59,7 @@ private:
     Eigen::MatrixXf A, B, C, Q, R, P, K, P0;
 
     // System dimensions
-    int n;
+    long n;
 
     // Is the filter initialized?
     bool initialized;

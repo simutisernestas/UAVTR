@@ -543,7 +543,6 @@ bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox) {
 void Tracker::hard_reset_bbox(const cv::Rect &bbox) {
     auto params = cv::TrackerKCF::Params();
     params.resize = true;
-    params.detect_thresh = 0.7f;
     auto local_tracker = cv::TrackerKCF::create(params);
     local_tracker->init(_frames.front(), bbox);
     while (true) {
@@ -560,7 +559,6 @@ void Tracker::catchup_reinit() {
 
     auto params = cv::TrackerKCF::Params();
     params.resize = true;
-    params.detect_thresh = 0.7f;
     auto local_tracker = cv::TrackerKCF::create(params);
     local_tracker->init(_frames.front(), bbox);
     _frames.pop();

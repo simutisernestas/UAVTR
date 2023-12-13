@@ -82,4 +82,5 @@ private:
     image_geometry::PinholeCameraModel cam_model_;
     std::unique_ptr<AngVelAccumulator> cam_ang_vel_accumulator_{nullptr};
     std::unique_ptr<AngVelAccumulator> drone_ang_vel_accumulator_{nullptr};
+    float baro_ground_ref_;
 }; // class StateEstimationNode
