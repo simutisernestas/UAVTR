@@ -294,7 +294,7 @@ bool RANSAC_vel_regression(const Eigen::MatrixXf &J,
                 cam_vel_est = Eigen::VectorXf::Zero(J.cols());
                 return false;
             }
-            if (error_norm < 5) { // in pixels
+            if (error_norm < 7) { // in pixels
                 inlier_idxs.push_back(i);
             }
         }
