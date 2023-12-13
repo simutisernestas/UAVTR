@@ -25,6 +25,8 @@ public:
 
     [[nodiscard]] inline Eigen::VectorXf state() const { return kf_->state(); };
 
+    [[nodiscard]] Eigen::MatrixXf covariance() const { return kf_->covariance(); };
+
     static void visjac_p(const Eigen::MatrixXf &uv,
                          const Eigen::VectorXf &depth,
                          const Eigen::Matrix3f &K,

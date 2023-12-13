@@ -12,7 +12,7 @@ import mplcursors
 
 storage_id = 'sqlite3'
 SAVE = True
-WHICH = 1  # 0 or 1
+WHICH = 0  # 0 or 1
 PRINT_STATIC_ZERO = False
 
 
@@ -134,14 +134,6 @@ if __name__ == '__main__':
 
     (timestamps_boat, buff_boat) = read_bag(bag_path, clear_cache=False)
 
-    if WHICH == 1:
-        timestamps_boat -= timestamps[0]
-        timestamps -= timestamps[0]
-        # plt.plot(timestamps, label='drone')
-        # plt.plot(timestamps_boat, label='boat')
-        # plt.legend()
-        # plt.show()
-        # exit()
 
     if SAVE:
         save_file = notebooks_dir + f"/data/{bag_path.split('/')[-2]}_gt.npz"

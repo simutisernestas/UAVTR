@@ -45,6 +45,8 @@ private:
 
     void tf_callback();
 
+    void state_pub_callback();
+
     rclcpp::Time get_correct_fusion_time(const std_msgs::msg::Header &header, bool use_offset);
 
     static Eigen::Transform<float, 3, Eigen::Affine> tf_msg_to_affine(geometry_msgs::msg::TransformStamped &tf_stamp);
@@ -54,6 +56,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_;
 
     rclcpp::TimerBase::SharedPtr tf_timer_;
+    rclcpp::TimerBase::SharedPtr state_pub_timer_;
     rclcpp::Subscription<vision_msgs::msg::Detection2D>::SharedPtr bbox_sub_;
     rclcpp::Subscription<sensor_msgs::msg::CameraInfo>::SharedPtr cam_info_sub_;
     rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr range_sub_;
@@ -67,6 +70,7 @@ private:
 
     rclcpp::CallbackGroup::SharedPtr vel_meas_callback_group_;
     rclcpp::CallbackGroup::SharedPtr imu_callback_group_;
+    rclcpp::CallbackGroup::SharedPtr rest_sensors_callback_group_;
 
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_{nullptr};
     std::unique_ptr<tf2_ros::Buffer> tf_buffer_;
@@ -83,4 +87,5 @@ private:
     std::unique_ptr<AngVelAccumulator> cam_ang_vel_accumulator_{nullptr};
     std::unique_ptr<AngVelAccumulator> drone_ang_vel_accumulator_{nullptr};
     float baro_ground_ref_;
+    std::atomic<long> time_{0};
 }; // class StateEstimationNode

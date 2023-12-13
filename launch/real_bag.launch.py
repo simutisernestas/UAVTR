@@ -26,11 +26,11 @@ def generate_launch_description():
         output='screen'
     )
 
-    WHICH = 1  # 0 | 1
+    WHICH = 0  # 0 | 1
     bag_name = ""
     offset = -1
     BAG0_OFF = 150
-    MODE = 1  # 0 or 1 or 2
+    MODE = 0  # 0 or 1 or 2
     if WHICH == 0:
         bag_name = "./18_0/rosbag2_2023_10_18-12_24_19"
         offset = BAG0_OFF

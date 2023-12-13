@@ -31,7 +31,7 @@ public:
             const Eigen::MatrixXf &R,
             const Eigen::MatrixXf &P);
 
-    [[nodiscard]] inline bool is_initialized() const { return initialized; }
+    [[nodiscard]] inline bool is_initialized() const { return initialized.load(); }
 
     /**
      * Initialize the filter with a guess for initial states.
@@ -48,11 +48,14 @@ public:
     void predict(const Eigen::MatrixXf &A);
 
     /**
-     * Return the current state and time.
+     * Return the current state.
      */
-    Eigen::VectorXf state() { return x_hat; };
+    Eigen::VectorXf state();
 
-    Eigen::MatrixXf covariance() { return P; };
+    /**
+     * Return the current state covariance matrix.
+     */
+    Eigen::MatrixXf covariance();
 
 private:
     // Matrices for computation
@@ -62,7 +65,7 @@ private:
     long n;
 
     // Is the filter initialized?
-    bool initialized;
+    std::atomic<bool> initialized;
 
     // n-size identity
     Eigen::MatrixXf I;

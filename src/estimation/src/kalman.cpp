@@ -31,12 +31,12 @@ void KalmanFilter::init(const Eigen::VectorXf &x0) {
     std::scoped_lock lock(mtx_);
     x_hat = x0;
     P = P0;
-    initialized = true;
+    initialized.store(true);
 }
 
 void KalmanFilter::predict(const Eigen::MatrixXf &A_cus) {
     std::scoped_lock lock(mtx_);
-    if (!initialized)
+    if (!initialized.load())
         throw std::runtime_error("Filter is not initialized!");
 
     x_hat = A_cus * x_hat;
@@ -45,7 +45,7 @@ void KalmanFilter::predict(const Eigen::MatrixXf &A_cus) {
 
 void KalmanFilter::update(const Eigen::VectorXf &y) {
     std::scoped_lock lock(mtx_);
-    if (!initialized)
+    if (!initialized.load())
         throw std::runtime_error("Filter is not initialized!");
 
     K = P * C.transpose() * (C * P * C.transpose() + R).inverse();
@@ -58,7 +58,7 @@ void KalmanFilter::update(const Eigen::VectorXf &y,
                           const Eigen::MatrixXf &C_cus,
                           const Eigen::MatrixXf &R_cus) {
     std::scoped_lock lock(mtx_);
-    if (!initialized)
+    if (!initialized.load())
         throw std::runtime_error("Filter is not initialized!");
 
     K = P * C_cus.transpose() * (C_cus * P * C_cus.transpose() + R_cus).inverse();
@@ -66,4 +66,19 @@ void KalmanFilter::update(const Eigen::VectorXf &y,
     Eigen::MatrixXf IKC = (I - K * C_cus);
     P = IKC * P * IKC.transpose() + K * R_cus * K.transpose();
 }
+
+Eigen::VectorXf KalmanFilter::state() {
+    if (!initialized.load())
+        return Eigen::VectorXf::Zero(n);
+    std::scoped_lock lock(mtx_);
+    return x_hat;
+}
+
+Eigen::MatrixXf KalmanFilter::covariance() {
+    if (!initialized.load())
+        return Eigen::MatrixXf::Zero(n, n);
+    std::scoped_lock lock(mtx_);
+    return P;
+}
+
 

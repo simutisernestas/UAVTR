@@ -434,7 +434,9 @@ bool ObjDetertor::detect(const cv::Mat &frame) {
 
     std::vector<Ort::Value> outputTensors;
     {
+#ifdef TIMEIT
         Timer timer;
+#endif
         outputTensors = _session->Run(Ort::RunOptions{nullptr},
                                       _input_names.data(), _input_tensors.data(),
                                       _input_names.size(), _output_names.data(),

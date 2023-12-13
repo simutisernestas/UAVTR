@@ -31,7 +31,7 @@ Estimator::Estimator() {
     Eigen::MatrixXf Q = Eigen::MatrixXf::Zero(12, 12);
     Eigen::Matrix3f acc_variance;
     acc_variance << 3.182539, 0, 0,
-            0, 3.387015, 0,
+            0, 3.187015, 0,
             0, 0, 1.540428;
     auto Q33 = Eigen::MatrixXf::Identity(3, 3) * std::pow(dt, 4) / 4.0;
     auto Q36 = Eigen::MatrixXf::Identity(3, 3) * std::pow(dt, 3) / 2.0;
@@ -49,7 +49,7 @@ Estimator::Estimator() {
     Q.block(6, 6, 3, 3) = Eigen::MatrixXf::Identity(3, 3) * acc_variance;
     std::cout << "Q: " << std::endl << Q << std::endl;
 
-    // relativee position measurement
+    // relative position measurement
     Eigen::MatrixXf C(2, 12);
     C << 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
@@ -58,7 +58,7 @@ Estimator::Estimator() {
             1.2523603e+01, 1.7337499e+01;
 
     Eigen::MatrixXf P(12, 12);
-    P = Eigen::MatrixXf::Identity(12, 12) * 100.0;
+    P = Eigen::MatrixXf::Identity(12, 12) * 10000.0;
 
     kf_ = std::make_unique<KalmanFilter>(A, C, Q, R, P);
 
@@ -176,7 +176,7 @@ void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double time) {
             0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0;
     static Eigen::MatrixXf R_accel(3, 3);
     R_accel << 4.3593045e+00, 2.3786352e-01, -1.0210943e-01,
-            2.3786352e-01, 4.6759682e+00, -5.7549830e-01,
+            2.3786352e-01, 4.3759682e+00, -5.7549830e-01,
             -1.0210943e-01, -5.7549830e-01, 2.1809698e+00;
     kf_->update(accel, C_accel, R_accel);
 
@@ -309,8 +309,8 @@ bool RANSAC_vel_regression(const Eigen::MatrixXf &J,
         inlier_idxs.clear();
     }
 
-    std::cout << best_inliers.size() << " inliers out of " << n_points << std::endl;
-    if (best_inliers.size() < static_cast<size_t>(static_cast<double>(n_points) * 0.05)) { // 5%
+//    std::cout << best_inliers.size() << " inliers out of " << n_points << std::endl;
+    if (best_inliers.size() < static_cast<size_t>(static_cast<double>(n_points) * 0.03)) { // 5%
         cam_vel_est = Eigen::VectorXf::Zero(J.cols());
         return false;
     }
@@ -463,7 +463,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
                 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0,
                 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0;
         static Eigen::MatrixXf R_vel(3, 3);
-        R_vel << 1.7070062e+00, 2.8741731e-01, 0,
+        R_vel << 1.1120062e+00, 2.8741731e-01, 0,
                 2.8741731e-01, 1.1121999e+00, 0,
                 0, 0, 1.7070062e+00;
 

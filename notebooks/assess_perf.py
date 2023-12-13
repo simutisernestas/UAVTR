@@ -5,7 +5,10 @@ import matplotlib.pyplot as plt
 import os
 
 STATE_TIME_COLUMN = 0
-STATE_TARGET_IN_SIGHT_COLUMN = -1
+STATE_TARGET_IN_SIGHT_COLUMN = 13
+STATE_COV_X_COLUMN = 14
+STATE_COV_Y_COLUMN = 15
+STATE_COV_Z_COLUMN = 16
 SAVE_DIR = os.path.dirname(os.path.abspath(__file__)) + '/data'
 BAGS_LIST = [
     '18_0',
@@ -13,7 +16,7 @@ BAGS_LIST = [
     'latest_flight_mode1',
     'latest_flight_mode2',
 ]
-BAG_NAME = BAGS_LIST[2]
+BAG_NAME = BAGS_LIST[0]
 NTH_FROM_BACK = 1
 
 latest_state_file = sorted([f for f in os.listdir(
@@ -24,7 +27,7 @@ GT_NAME = BAG_NAME if "mode" not in BAG_NAME else "_".join(
     BAG_NAME.split('_')[:-1])
 gt_data = np.load(f'{SAVE_DIR}/{GT_NAME}_gt.npz')
 # load state estimation data from state_data.npy
-state_data = np.load(f'{SAVE_DIR}/{latest_state_file}').reshape(-1, 14)
+state_data = np.load(f'{SAVE_DIR}/{latest_state_file}').reshape(-1, 17)
 
 # load attitude estimation data from timstamp_bag_attitude_state.npy
 latest_attitude_state_file = sorted([f for f in os.listdir(
@@ -54,17 +57,13 @@ boat_time = boat_time[boat_data_start:boat_data_end]
 boat_pos = boat_pos[boat_data_start:boat_data_end, :]
 
 state_time = state_data[:, STATE_TIME_COLUMN]
-if BAG_NAME == 'latest_flight_mode0':
-    state_time -= state_time[0]
-    state_time += + 1503.0070665556784
-elif BAG_NAME == 'latest_flight_mode1':
-    state_time -= state_time[0]
-    state_time += + 1941
 
 # remove everything before KF initialization
 state_non_zero = np.abs(state_data[:, 1]) > 0
 state_data = state_data[state_non_zero, :]
 state_time = state_time[state_non_zero]
+if BAG_NAME != '18_0':
+    state_time -= 105
 
 # Define a tolerance level
 tolerance = 0.1
@@ -100,29 +99,34 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
         axs[i].scatter(t0_data, state_data[:, state_idx],
                        label=est_lbl, s=1, marker='*')
         axs[i].scatter(t1_data, pos_data[:, pos_idx], label=gt_lbl, s=1)
+
+        pos_index_at_t00 = np.argmin(np.abs(t0_data[0] - t1_data))
+        pos_index_at_t01 = np.argmin(np.abs(t0_data[-1] - t1_data))
+        min_y = np.min([np.min(state_data[:, state_idx]), np.min(
+            pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])])
+        max_y = np.max([np.max(state_data[:, state_idx]),
+                       np.max(pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])])
+        axs[i].set_ylim([min_y - 5.0, max_y + 5.0])
+        axs[i].set_xlim([t0_data[0], t0_data[-1]])
+
         if binary_sight is not None:
             axs[i].scatter(t0_data[binary_sight], np.ones_like(t0_data)[
-                           binary_sight], label='Target in FOV', s=1, color='green', marker='x')
+                           binary_sight] * max_y + 3.0, label='Target in FOV', s=1, color='green', marker='x')
+            std = 3*np.sqrt(state_data[:, state_idx + STATE_COV_X_COLUMN - 1])
+            axs[i].fill_between(t0_data, state_data[:, state_idx] -
+                                std, state_data[:, state_idx] + std,
+                                alpha=0.1, color='blue')
+
         axs[i].legend(markerscale=5, loc='lower right')
         axs[i].grid(True, linestyle='-', linewidth=0.5)
         if i == 1:
             axs[i].set_ylabel(axis_lbl)
         elif i == 2:
             axs[i].set_xlabel(axis_lbl)
-        axs[i].set_xlim([t0_data[0], t0_data[-1]])
 
-        pos_index_at_t00 = np.argmin(np.abs(t0_data[0] - t1_data))
-        pos_index_at_t01 = np.argmin(np.abs(t0_data[-1] - t1_data))
-
-        min_y = np.min([np.min(state_data[:, state_idx]), np.min(
-            pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])])
-        max_y = np.max([np.max(state_data[:, state_idx]),
-                       np.max(pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])])
-        axs[i].set_ylim([min_y - 3.0, max_y + 3.0])
     fig.align_xlabels()
     fig.align_ylabels()
     fig.tight_layout()
-    # TODO: can't see the target in sight signal
 
 # %%
 
@@ -134,6 +138,7 @@ plot_data(state_time, drone_time,
           ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z'],
           ['Distance (m)', 'Distance (m)', 'Time (s)'], binary_sight)
 plt.show()
+
 # %%
 
 plot_data(attitude_state_time, attitude_px4_time,
@@ -143,7 +148,6 @@ plot_data(attitude_state_time, attitude_px4_time,
           ['Groundtruth Roll', 'Groundtruth Pitch', 'Groundtruth Yaw'],
           ['Angle (degrees)', 'Angle (degrees)', 'Time (s)'])
 plt.show()
-exit()
 
 # %%
 
@@ -161,7 +165,8 @@ relative_pos_gt_interp[:, 1] = f_y(state_time)
 relative_pos_gt_interp[:, 2] = f_z(state_time)
 
 # calculate mean absolute error
-MAE = np.mean(np.abs((state_data[:, 1:4] - relative_pos_gt_interp)), axis=0)
+MAE = np.mean(
+    np.abs((state_data[:, 1:4] - relative_pos_gt_interp[:])), axis=0)
 print('MAE: ', MAE)
 
 plot_data(state_time, state_time,
@@ -171,3 +176,5 @@ plot_data(state_time, state_time,
           ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z'],
           ['Distance (m)', 'Distance (m)', 'Time (s)'], binary_sight)
 plt.show()
+
+# %%

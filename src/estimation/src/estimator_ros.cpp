@@ -17,28 +17,40 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
         rclcpp::SubscriptionOptions options;
         options.callback_group = imu_callback_group_;
         imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
-                "/imu/data_raw", 1,
+                "/imu/data_raw", 2,
                 std::bind(&StateEstimationNode::imu_callback, this, std::placeholders::_1), options);
     }
+    {
+        rest_sensors_callback_group_ = this->create_callback_group(
+                rclcpp::CallbackGroupType::Reentrant);
+        rclcpp::SubscriptionOptions options;
+        options.callback_group = rest_sensors_callback_group_;
 
+        bbox_sub_ = create_subscription<vision_msgs::msg::Detection2D>(
+                "/bounding_box", 1,
+                std::bind(&StateEstimationNode::bbox_callback, this, std::placeholders::_1), options);
+        range_sub_ = create_subscription<sensor_msgs::msg::Range>(
+                "/teraranger_evo_40m", 1,
+                std::bind(&StateEstimationNode::range_callback, this, std::placeholders::_1), options);
+        auto air_data_qos = rclcpp::QoS(1);
+        air_data_qos.keep_all();
+        air_data_qos.best_effort();
+        air_data_sub_ = create_subscription<px4_msgs::msg::VehicleAirData>(
+                "/fmu/out/vehicle_air_data", air_data_qos,
+                std::bind(&StateEstimationNode::air_data_callback, this, std::placeholders::_1), options);
+    }
+
+    state_pub_timer_ = create_wall_timer(std::chrono::milliseconds(10),
+                                         std::bind(
+                                                 &StateEstimationNode::state_pub_callback, this));
     // TODO:
     // cam_imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
     //         "/camera/imu", 20,
     //         std::bind(&StateEstimationNode::cam_imu_callback, this, std::placeholders::_1));
-    bbox_sub_ = create_subscription<vision_msgs::msg::Detection2D>(
-            "/bounding_box", 1,
-            std::bind(&StateEstimationNode::bbox_callback, this, std::placeholders::_1));
     cam_info_sub_ = create_subscription<sensor_msgs::msg::CameraInfo>(
             "/camera/color/camera_info", 1,
             std::bind(&StateEstimationNode::cam_info_callback, this, std::placeholders::_1));
-    range_sub_ = create_subscription<sensor_msgs::msg::Range>(
-            "/teraranger_evo_40m", 1, std::bind(&StateEstimationNode::range_callback, this, std::placeholders::_1));
-    auto air_data_qos = rclcpp::QoS(1);
-    air_data_qos.keep_all();
-    air_data_qos.best_effort();
-    air_data_sub_ = create_subscription<px4_msgs::msg::VehicleAirData>(
-            "/fmu/out/vehicle_air_data", air_data_qos,
-            std::bind(&StateEstimationNode::air_data_callback, this, std::placeholders::_1));
+
     auto timesync_qos = rclcpp::QoS(1);
     timesync_qos.best_effort();
     timesync_qos.keep_all();
@@ -102,6 +114,7 @@ void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr ms
         // should negate the offset in get_correct_fusion_time
         assert(false);
     }
+    time_.store(time.nanoseconds());
 
     Eigen::Vector3f accel;
     accel << d2f(msg->linear_acceleration.x),
@@ -109,24 +122,6 @@ void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr ms
             d2f(msg->linear_acceleration.z);
 
     estimator_->update_imu_accel(accel, time.seconds());
-
-    // int64_t pub_time = static_cast<int64_t>(
-    //     time.seconds() * 1e9 - offset_.load() * 1e9 + time.nanoseconds());
-    auto state = estimator_->state();
-    geometry_msgs::msg::PoseArray state_msg;
-    state_msg.header.stamp = msg->header.stamp;
-    state_msg.header.frame_id = "odom";
-    state_msg.poses.resize(4);
-    for (long i = 0; i < 4; i++) {
-        state_msg.poses[i].position.x = state(i * 3);
-        state_msg.poses[i].position.y = state(i * 3 + 1);
-        state_msg.poses[i].position.z = state(i * 3 + 2);
-    }
-    if (target_in_sight_.load()) {
-        state_msg.poses[0].orientation.x = 1.0;
-        target_in_sight_.store(false);
-    }
-    state_pub_->publish(state_msg);
 
     drone_ang_vel_accumulator_->add(
             d2f(msg->angular_velocity.x),
@@ -321,6 +316,32 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
 
     estimator_->update_flow_velocity(rectified, time.seconds(), cam_T_enu.rotation(),
                                      cam_T_enu.translation(), K_, cam_omega, drone_omega);
+}
+
+void StateEstimationNode::state_pub_callback() {
+    // publish state
+    Eigen::VectorXf state = estimator_->state();
+    Eigen::MatrixXf cov = estimator_->covariance();
+    geometry_msgs::msg::PoseArray state_msg;
+    state_msg.header.stamp = rclcpp::Time(time_.load());
+    state_msg.header.frame_id = "odom";
+    state_msg.poses.resize(4);
+    for (long i = 0; i < 4; i++) {
+        state_msg.poses[i].position.x = state(i * 3);
+        state_msg.poses[i].position.y = state(i * 3 + 1);
+        state_msg.poses[i].position.z = state(i * 3 + 2);
+
+        if (i > 0) {
+            // store position covariance
+            long cov_idx = (i - 1);
+            state_msg.poses[i].orientation.x = cov(cov_idx, cov_idx);
+        }
+    }
+    if (target_in_sight_.load()) {
+        state_msg.poses[0].orientation.x = 1.0;
+        target_in_sight_.store(false);
+    }
+    state_pub_->publish(state_msg);
 }
 
 //void StateEstimationNode::cam_imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
