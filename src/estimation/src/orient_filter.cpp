@@ -26,8 +26,8 @@ public:
         qos.best_effort();
         sensor_combined_subscription_ = this->create_subscription<px4_msgs::msg::SensorCombined>(
                 "/fmu/out/sensor_combined", qos, std::bind(&SensorTranslator::sensor_combined_callback, this, _1));
-        sensor_mag_subscription_ = this->create_subscription<px4_msgs::msg::SensorMag>(
-                "/fmu/out/sensor_mag", qos, std::bind(&SensorTranslator::sensor_mag_callback, this, _1));
+        // sensor_mag_subscription_ = this->create_subscription<px4_msgs::msg::SensorMag>(
+        //         "/fmu/out/sensor_mag", qos, std::bind(&SensorTranslator::sensor_mag_callback, this, _1));
         vehicle_mag_subscription_ = this->create_subscription<px4_msgs::msg::VehicleMagnetometer>(
                 "/fmu/out/vehicle_magnetometer", qos, std::bind(&SensorTranslator::vehicle_mag_callback, this, _1));
 
@@ -56,11 +56,11 @@ private:
     const FusionVector hardIronOffset = {0.0f, 0.0f, 0.0f};
     const FusionAhrsSettings settings = {
             .convention = FusionConventionEnu,
-            .gain = 0.8f, // low gain will trust gyro, susceptible to drift
+            .gain = 0.7f, // low gain will trust gyro, susceptible to drift
             .gyroscopeRange = 2000.0f, /* replace this with actual gyroscope range in degrees/s */
-            .accelerationRejection = 10.0f,
-            .magneticRejection = 10.0f,
-            .recoveryTriggerPeriod = 5 * SAMPLE_RATE, /* 5 seconds */
+            .accelerationRejection = 15.0f,
+            .magneticRejection = 15.0f,
+            .recoveryTriggerPeriod = 1 * SAMPLE_RATE, /* 5 seconds */
     };
     FusionOffset offset;
     FusionAhrs ahrs;

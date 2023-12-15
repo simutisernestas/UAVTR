@@ -1,11 +1,11 @@
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, ExecuteProcess
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
 import os
 
 
-def generate_launch_description():
+def launch_setup(context, *args, **kwargs):
     root_dir = os.path.dirname(
         os.path.dirname(os.path.realpath(__file__)))
 
@@ -26,11 +26,11 @@ def generate_launch_description():
         output='screen'
     )
 
-    WHICH = 0  # 0 | 1
+    WHICH = int(context.launch_configurations['which'])
+    MODE = int(context.launch_configurations['mode'])
     bag_name = ""
     offset = -1
     BAG0_OFF = 150
-    MODE = 0  # 0 or 1 or 2
     if WHICH == 0:
         bag_name = "./18_0/rosbag2_2023_10_18-12_24_19"
         offset = BAG0_OFF
@@ -66,18 +66,41 @@ def generate_launch_description():
     else:
         baro_ref = 7.0
     estimation = ExecuteProcess(
-        cmd=["./estimation_node", "--ros-args", "-p", f"baro_ground_ref:={baro_ref}"],
+        cmd=["./estimation_node", "--ros-args",
+             "-p", f"baro_ground_ref:={baro_ref}"],
         cwd=f'{root_dir}/src/estimation/build',
         # prefix=['xterm  -e gdb -ex "b main" --args'],
         output='screen'
     )
 
-
-    return LaunchDescription([
+    return [
         play_bag,
         tracking,
         estimation,
         uncompress,
         orientation_filter,
         record_state
+    ]
+
+
+def generate_launch_description():
+    # Declare the command line arguments
+    which_arg = DeclareLaunchArgument(
+        'which',
+        default_value='0',  # 0 or 1
+        description='Which argument'
+    )
+
+    mode_arg = DeclareLaunchArgument(
+        'mode',
+        default_value='0',  # 0, 1, 2
+        description='Mode argument'
+    )
+
+    evaluate_args = OpaqueFunction(function=launch_setup)
+
+    return LaunchDescription([
+        which_arg,
+        mode_arg,
+        evaluate_args
     ])

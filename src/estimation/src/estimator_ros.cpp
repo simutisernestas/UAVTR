@@ -79,6 +79,7 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
     drone_ang_vel_accumulator_ = std::make_unique<AngVelAccumulator>();
 
     range_pub_ = create_publisher<sensor_msgs::msg::Range>("/range", 1);
+    target_pt_pub_ = create_publisher<geometry_msgs::msg::PointStamped>("/target_point", 1);
 }
 
 inline float d2f(double d) {
@@ -189,8 +190,16 @@ void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::Sha
     uv_point << d2f(rect_point.x), d2f(rect_point.y);
 
     auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
-    estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_);
+    Eigen::Vector3f Pt = estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_);
     target_in_sight_.store(true);
+
+    geometry_msgs::msg::PointStamped target_pt_msg;
+    target_pt_msg.header.stamp = time;
+    target_pt_msg.header.frame_id = "odom";
+    target_pt_msg.point.x = Pt[0];
+    target_pt_msg.point.y = Pt[1];
+    target_pt_msg.point.z = Pt[2];
+    target_pt_pub_->publish(target_pt_msg);
 }
 
 void StateEstimationNode::cam_info_callback(const sensor_msgs::msg::CameraInfo::SharedPtr msg) {

@@ -3,6 +3,7 @@ from scipy import interpolate
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import sys
 
 STATE_TIME_COLUMN = 0
 STATE_TARGET_IN_SIGHT_COLUMN = 13
@@ -16,12 +17,18 @@ BAGS_LIST = [
     'latest_flight_mode1',
     'latest_flight_mode2',
 ]
-BAG_NAME = BAGS_LIST[0]
 NTH_FROM_BACK = 1
+LIVE = len(sys.argv) == 1 or not sys.argv[1].isdigit()
+PLOT_DIR = os.path.dirname(os.path.abspath(__file__)) + '/plots'
+os.makedirs(PLOT_DIR, exist_ok=True)
+
+if not LIVE:
+    BAG_NAME = BAGS_LIST[int(sys.argv[1])]
 
 latest_state_file = sorted([f for f in os.listdir(
     SAVE_DIR) if f'{BAG_NAME}_state_data' in f])[-NTH_FROM_BACK]
 print('latest state file: ', latest_state_file)
+state_timestamp = latest_state_file.split('_')[0]
 # NpzFile 'gt.npz' with keys: drone_time, boat_time, drone_pos, boat_pos
 GT_NAME = BAG_NAME if "mode" not in BAG_NAME else "_".join(
     BAG_NAME.split('_')[:-1])
@@ -109,6 +116,7 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
         axs[i].set_ylim([min_y - 5.0, max_y + 5.0])
         axs[i].set_xlim([t0_data[0], t0_data[-1]])
 
+        # TODO: broken for interpolated data
         if binary_sight is not None:
             axs[i].scatter(t0_data[binary_sight], np.ones_like(t0_data)[
                            binary_sight] * max_y + 3.0, label='Target in FOV', s=1, color='green', marker='x')
@@ -127,6 +135,7 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
     fig.align_xlabels()
     fig.align_ylabels()
     fig.tight_layout()
+    return fig
 
 # %%
 
@@ -137,8 +146,10 @@ plot_data(state_time, drone_time,
           ['Estimation X', 'Estimation Y', 'Estimation Z'],
           ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z'],
           ['Distance (m)', 'Distance (m)', 'Time (s)'], binary_sight)
-plt.show()
-
+if LIVE:
+    plt.show()
+else:
+    plt.savefig(f'{PLOT_DIR}/{state_timestamp}_{BAG_NAME}_state.png')
 # %%
 
 plot_data(attitude_state_time, attitude_px4_time,
@@ -147,9 +158,18 @@ plot_data(attitude_state_time, attitude_px4_time,
           ['Estimation Roll', 'Estimation Pitch', 'Estimation Yaw'],
           ['Groundtruth Roll', 'Groundtruth Pitch', 'Groundtruth Yaw'],
           ['Angle (degrees)', 'Angle (degrees)', 'Time (s)'])
-plt.show()
+if LIVE:
+    plt.show()
+else:
+    plt.savefig(f'{PLOT_DIR}/{state_timestamp}_{BAG_NAME}_attitude.png')
 
 # %%
+
+f = interpolate.interp1d(
+    attitude_px4_time, attitude_px4_data[:, 1], kind='linear', fill_value="extrapolate")
+px4_yaw_interp = f(attitude_state_time)
+yaw_diff = np.abs(px4_yaw_interp - attitude_state_data[:, 3])
+yaw_diff_idx = np.argmax(yaw_diff < 3)
 
 # interpolate relative position data to match state estimation data timestamps
 f_x = interpolate.interp1d(
@@ -159,22 +179,34 @@ f_y = interpolate.interp1d(
 f_z = interpolate.interp1d(
     boat_time, relative_pos_gt[:, 2], kind='linear', fill_value="extrapolate")
 
-relative_pos_gt_interp = np.zeros_like(state_data[:, 1:4])
-relative_pos_gt_interp[:, 0] = f_x(state_time)
-relative_pos_gt_interp[:, 1] = f_y(state_time)
-relative_pos_gt_interp[:, 2] = f_z(state_time)
+data_frac = state_data[yaw_diff_idx:, 1:4]
+time_frac = state_time[yaw_diff_idx:]
+
+relative_pos_gt_interp = np.zeros_like(data_frac)
+relative_pos_gt_interp[:, 0] = f_x(time_frac)
+relative_pos_gt_interp[:, 1] = f_y(time_frac)
+relative_pos_gt_interp[:, 2] = f_z(time_frac)
 
 # calculate mean absolute error
 MAE = np.mean(
-    np.abs((state_data[:, 1:4] - relative_pos_gt_interp[:])), axis=0)
+    np.abs((data_frac - relative_pos_gt_interp[:])), axis=0)
 print('MAE: ', MAE)
 
-plot_data(state_time, state_time,
-          state_data, [1, 2, 3],
+fig = plot_data(time_frac, time_frac,
+          state_data[yaw_diff_idx:, :], [1, 2, 3],
           relative_pos_gt_interp, [0, 1, 2],
           ['Estimation X', 'Estimation Y', 'Estimation Z'],
           ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z'],
-          ['Distance (m)', 'Distance (m)', 'Time (s)'], binary_sight)
-plt.show()
+          ['Distance (m)', 'Distance (m)', 'Time (s)'],
+          binary_sight=binary_sight[yaw_diff_idx:])
 
-# %%
+# add MAE to the plot
+fig.text(0.5, 1.05, f'MAE: {MAE}', horizontalalignment='center',
+            verticalalignment='center', wrap=True, fontsize=10)
+
+
+if LIVE:
+    plt.show()
+else:
+    plt.savefig(f'{PLOT_DIR}/{state_timestamp}_{BAG_NAME}_interp_mae.png')
+    

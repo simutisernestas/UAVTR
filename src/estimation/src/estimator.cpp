@@ -106,20 +106,19 @@ void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1;
 }
 
-void Estimator::compute_pixel_rel_position(
+Eigen::Vector3f Estimator::compute_pixel_rel_position(
         const Eigen::Vector2f &bbox_c, const Eigen::Matrix3f &cam_R_enu,
         const Eigen::Matrix3f &K) {
     float height = get_height();
     if (height < 1.0) {
         height = latest_height_.load();
         if (height < 1.0)
-            return;
+            return {0,0,0};
     }
     // TODO: init takes ages from the first measurement
 
     Eigen::Matrix<float, 3, 3> Kinv = K.inverse();
-    Eigen::Vector3f lr;
-    lr << 0, 0, -1;
+    Eigen::Vector3f lr{0, 0, -1};
     Eigen::Vector3f Puv_hom;
     Puv_hom << bbox_c[0], bbox_c[1], 1;
     Eigen::Vector3f Pc = Kinv * Puv_hom;
@@ -137,6 +136,8 @@ void Estimator::compute_pixel_rel_position(
         x0 << Pt[0], Pt[1], Pt[2], 0, 0, 0, 0, 0, 0, 0, 0, 0;
         kf_->init(x0);
     }
+
+    return Pt;
 }
 
 void Estimator::update_height(const float height) {

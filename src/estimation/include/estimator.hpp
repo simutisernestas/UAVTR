@@ -11,7 +11,7 @@ public:
     Estimator();
     ~Estimator();
 
-    void compute_pixel_rel_position(
+    Eigen::Vector3f compute_pixel_rel_position(
             const Eigen::Vector2f &bbox_c, const Eigen::Matrix3f &cam_R_enu,
             const Eigen::Matrix3f &K);
 

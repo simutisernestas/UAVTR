@@ -17,6 +17,7 @@
 #include "image_geometry/pinhole_camera_model.h"
 #include "rclcpp/rclcpp.hpp"
 #include "angvel_accum.hpp"
+#include "geometry_msgs/msg/point_stamped.hpp"
 
 class StateEstimationNode : public rclcpp::Node {
 public:
@@ -66,6 +67,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr cam_imu_sub_;
 
     rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr state_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr target_pt_pub_;
     rclcpp::Publisher<sensor_msgs::msg::Range>::SharedPtr range_pub_;
 
     rclcpp::CallbackGroup::SharedPtr vel_meas_callback_group_;

@@ -16,3 +16,4 @@ notebooks/sandbox.py
 bags/
 **.npz
 **.npy
+**.png
