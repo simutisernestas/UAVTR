@@ -68,7 +68,13 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
     tf_timer_ = create_wall_timer(std::chrono::milliseconds(1000),
                                   std::bind(&StateEstimationNode::tf_callback, this));
 
-    estimator_ = std::make_unique<Estimator>();
+    declare_parameter<float>("spatial_vel_flow_error", 10);
+    declare_parameter<float>("flow_vel_rejection_perc", 5);
+    EstimatorConfig config {
+        .spatial_vel_flow_error = get_parameter("spatial_vel_flow_error").as_double(),
+        .flow_vel_rejection_perc = get_parameter("flow_vel_rejection_perc").as_double() / 100.0f
+    };
+    estimator_ = std::make_unique<Estimator>(config);
 
     declare_parameter<bool>("simulation", false);
     get_parameter("simulation", simulation_);
@@ -190,7 +196,7 @@ void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::Sha
     uv_point << d2f(rect_point.x), d2f(rect_point.y);
 
     auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
-    Eigen::Vector3f Pt = estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_);
+    Eigen::Vector3f Pt = estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_, img_T_base.translation());
     target_in_sight_.store(true);
 
     geometry_msgs::msg::PointStamped target_pt_msg;

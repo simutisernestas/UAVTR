@@ -6,14 +6,19 @@
 #include "kalman.hpp"
 #include "lpfilter.hpp"
 
+struct EstimatorConfig {
+    float spatial_vel_flow_error;
+    float flow_vel_rejection_perc;
+};
+
 class Estimator {
 public:
-    Estimator();
+    Estimator(EstimatorConfig config);
     ~Estimator();
 
     Eigen::Vector3f compute_pixel_rel_position(
             const Eigen::Vector2f &bbox_c, const Eigen::Matrix3f &cam_R_enu,
-            const Eigen::Matrix3f &K);
+            const Eigen::Matrix3f &K, const Eigen::Vector3f &t);
 
     Eigen::Vector3f update_flow_velocity(cv::Mat &frame, double time, const Eigen::Matrix3f &cam_R_enu,
                                          const Eigen::Vector3f &r, const Eigen::Matrix3f &K,
@@ -54,6 +59,10 @@ public:
     void update_cam_imu_accel(const Eigen::Vector3f &accel, const Eigen::Vector3f &omega,
                               const Eigen::Matrix3f &imu_R_enu, const Eigen::Vector3f &arm);
 
+    bool RANSAC_vel_regression(const Eigen::MatrixXf &J,
+                           const Eigen::VectorXf &flow_vectors,
+                           Eigen::VectorXf &cam_vel_est);
+
 private:
     static void get_A(Eigen::MatrixXf &A, double dt);
 
@@ -65,4 +74,5 @@ private:
     double pre_imu_time_{-1};
     cv::Ptr<cv::DenseOpticalFlow> optflow_;
     std::atomic<float> latest_height_{0};
+    EstimatorConfig config_;
 };

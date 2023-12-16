@@ -23,7 +23,8 @@ void record_state_update(const std::string &name) {
     state_update_freq_map[name].t1 = time;
 }
 
-Estimator::Estimator() {
+
+Estimator::Estimator(EstimatorConfig config) : config_(config) {
     const double dt = 1.0 / 128.0;
     Eigen::MatrixXf A(12, 12);
     get_A(A, dt);
@@ -110,7 +111,7 @@ void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
 
 Eigen::Vector3f Estimator::compute_pixel_rel_position(
         const Eigen::Vector2f &bbox_c, const Eigen::Matrix3f &cam_R_enu,
-        const Eigen::Matrix3f &K) {
+        const Eigen::Matrix3f &K, const Eigen::Vector3f &t) {
     float height = get_height();
     if (height < 1.0) {
         height = latest_height_.load();
@@ -124,7 +125,8 @@ Eigen::Vector3f Estimator::compute_pixel_rel_position(
     Eigen::Vector3f Puv_hom;
     Puv_hom << bbox_c[0], bbox_c[1], 1;
     Eigen::Vector3f Pc = Kinv * Puv_hom;
-    Eigen::Vector3f ls = cam_R_enu * (Pc / Pc.norm());
+    Eigen::Vector3f ls = (cam_R_enu * Pc) + t;
+    ls /= ls.norm();
     float d = height / (lr.transpose() * ls);
     Eigen::Vector3f Pt = ls * d;
 
@@ -251,7 +253,7 @@ void solve_sampled(const Eigen::MatrixXf &J,
     cam_vel_est = (J.transpose() * J).ldlt().solve(J.transpose() * flow_vectors);
 }
 
-bool RANSAC_vel_regression(const Eigen::MatrixXf &J,
+bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
                            const Eigen::VectorXf &flow_vectors,
                            Eigen::VectorXf &cam_vel_est) {
     // https://rpg.ifi.uzh.ch/docs/Visual_Odometry_Tutorial.pdf slide 68
@@ -297,7 +299,7 @@ bool RANSAC_vel_regression(const Eigen::MatrixXf &J,
                 cam_vel_est = Eigen::VectorXf::Zero(J.cols());
                 return false;
             }
-            if (error_norm < 7) { // in pixels
+            if (error_norm < config_.spatial_vel_flow_error) { // in pixels
                 inlier_idxs.push_back(i);
             }
         }
@@ -312,8 +314,8 @@ bool RANSAC_vel_regression(const Eigen::MatrixXf &J,
         inlier_idxs.clear();
     }
 
-//    std::cout << best_inliers.size() << " inliers out of " << n_points << std::endl;
-    if (best_inliers.size() < static_cast<size_t>(static_cast<double>(n_points) * 0.03)) { // 5%
+    std::cout << best_inliers.size() << " inliers out of " << n_points << std::endl;
+    if (best_inliers.size() < static_cast<size_t>(static_cast<double>(n_points) * config_.flow_vel_rejection_perc)) {
         cam_vel_est = Eigen::VectorXf::Zero(J.cols());
         return false;
     }
@@ -469,6 +471,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
         R_vel << 1.1120062e+00, 2.8741731e-01, 0,
                 2.8741731e-01, 1.1121999e+00, 0,
                 0, 0, 1.7070062e+00;
+        R_vel *= 3;
 
         kf_->update(v_com_enu.segment(0, 3), C_vel, R_vel);
         record_state_update(__FUNCTION__);
