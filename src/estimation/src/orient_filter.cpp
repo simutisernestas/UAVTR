@@ -33,6 +33,24 @@ public:
 
         FusionOffsetInitialise(&offset, SAMPLE_RATE);
         FusionAhrsInitialise(&ahrs);
+
+        declare_parameter("gain", 0.5f);
+        declare_parameter("magnetic_rejection", 0.0f);
+        declare_parameter("acceleration_rejection", 10.0f);
+        declare_parameter("recovery_trigger_period", 5);
+        get_parameter("gain", gain_);
+        get_parameter("magnetic_rejection", magnetic_rejection_);
+        get_parameter("acceleration_rejection", acceleration_rejection_);
+        get_parameter("recovery_trigger_period", recovery_trigger_period_);
+        settings = {
+            .convention = FusionConventionEnu,
+            .gain = gain_, // low gain will trust gyro, susceptible to drift
+            .gyroscopeRange = 2000.0f, /* replace this with actual gyroscope range in degrees/s */
+            .accelerationRejection = acceleration_rejection_,
+            .magneticRejection = magnetic_rejection_,
+            .recoveryTriggerPeriod = recovery_trigger_period_ * SAMPLE_RATE,
+        };
+
         FusionAhrsSetSettings(&ahrs, &settings);
 
 #define DEBUG 1
@@ -54,14 +72,7 @@ private:
     const FusionVector accelerometerOffset = {0.0f, 0.0f, 0.0f};
     const FusionMatrix softIronMatrix = {1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f};
     const FusionVector hardIronOffset = {0.0f, 0.0f, 0.0f};
-    const FusionAhrsSettings settings = {
-            .convention = FusionConventionEnu,
-            .gain = 0.7f, // low gain will trust gyro, susceptible to drift
-            .gyroscopeRange = 2000.0f, /* replace this with actual gyroscope range in degrees/s */
-            .accelerationRejection = 15.0f,
-            .magneticRejection = 15.0f,
-            .recoveryTriggerPeriod = 1 * SAMPLE_RATE, /* 5 seconds */
-    };
+    FusionAhrsSettings settings;
     FusionOffset offset;
     FusionAhrs ahrs;
     tf2_ros::TransformBroadcaster tf_broadcaster_;
@@ -222,6 +233,10 @@ private:
     rclcpp::Subscription<px4_msgs::msg::SensorCombined>::SharedPtr sensor_combined_subscription_;
     rclcpp::Subscription<px4_msgs::msg::SensorMag>::SharedPtr sensor_mag_subscription_;
     rclcpp::Subscription<px4_msgs::msg::VehicleMagnetometer>::SharedPtr vehicle_mag_subscription_;
+    float gain_;
+    float magnetic_rejection_;
+    float acceleration_rejection_;
+    unsigned int recovery_trigger_period_;
 };
 
 int main(int argc, char *argv[]) {

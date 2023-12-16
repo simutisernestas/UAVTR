@@ -24,6 +24,8 @@ os.makedirs(PLOT_DIR, exist_ok=True)
 
 if not LIVE:
     BAG_NAME = BAGS_LIST[int(sys.argv[1])]
+else:
+    BAG_NAME = BAGS_LIST[0]
 
 latest_state_file = sorted([f for f in os.listdir(
     SAVE_DIR) if f'{BAG_NAME}_state_data' in f])[-NTH_FROM_BACK]
@@ -169,7 +171,7 @@ f = interpolate.interp1d(
     attitude_px4_time, attitude_px4_data[:, 1], kind='linear', fill_value="extrapolate")
 px4_yaw_interp = f(attitude_state_time)
 yaw_diff = np.abs(px4_yaw_interp - attitude_state_data[:, 3])
-yaw_diff_idx = np.argmax(yaw_diff < 3)
+yaw_diff_idx = np.argmax(yaw_diff < 5)
 
 # interpolate relative position data to match state estimation data timestamps
 f_x = interpolate.interp1d(
@@ -193,20 +195,21 @@ MAE = np.mean(
 print('MAE: ', MAE)
 
 fig = plot_data(time_frac, time_frac,
-          state_data[yaw_diff_idx:, :], [1, 2, 3],
-          relative_pos_gt_interp, [0, 1, 2],
-          ['Estimation X', 'Estimation Y', 'Estimation Z'],
-          ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z'],
-          ['Distance (m)', 'Distance (m)', 'Time (s)'],
-          binary_sight=binary_sight[yaw_diff_idx:])
+                state_data[yaw_diff_idx:, :], [1, 2, 3],
+                relative_pos_gt_interp, [0, 1, 2],
+                ['Estimation X', 'Estimation Y', 'Estimation Z'],
+                ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z'],
+                ['Distance (m)', 'Distance (m)', 'Time (s)'],
+                binary_sight=binary_sight[yaw_diff_idx:])
 
 # add MAE to the plot
-fig.text(0.5, 1.05, f'MAE: {MAE}', horizontalalignment='center',
-            verticalalignment='center', wrap=True, fontsize=10)
+fig.text(0.5, 1.0, f'MAE: {MAE}', horizontalalignment='center',
+         verticalalignment='center', wrap=True, fontsize=8)
 
 
 if LIVE:
     plt.show()
 else:
     plt.savefig(f'{PLOT_DIR}/{state_timestamp}_{BAG_NAME}_interp_mae.png')
-    
+
+# %%

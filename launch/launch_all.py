@@ -12,24 +12,27 @@ VARIATIONS = [
     ["which:=1", "mode:=1"],
     ["which:=1", "mode:=2"]
 ]
-DURATION = 10.0
+DURATION = 150.0
 
 for i in range(4):
     process = Popen(BASE + VARIATIONS[i], text=True)
     sleep(DURATION)
 
     process.send_signal(SIGINT)
-    return_code = process.wait(timeout=10)
-    print(f"return_code: {return_code}")
+    process.send_signal(SIGINT)
+    process.send_signal(SIGINT)
 
     for proc in psutil.process_iter():
         if "republish" in proc.name():
             proc.kill()
 
-    sleep(3.0)
+    return_code = process.wait(timeout=10)
+    print(f"return_code: {return_code}")
 
     root_dir = os.path.dirname(os.path.dirname(
         os.path.realpath(__file__)))
-    Popen(["python3", root_dir + "/notebooks/assess_perf.py", str(i)])
+    plot_proc = Popen(["python3", root_dir + "/notebooks/assess_perf.py", str(i)])
+    return_code = plot_proc.wait(timeout=10)
+    print(f"return_code: {return_code}")
 
     exit()  # stop on first for now

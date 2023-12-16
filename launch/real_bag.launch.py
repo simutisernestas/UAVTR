@@ -9,9 +9,18 @@ def launch_setup(context, *args, **kwargs):
     root_dir = os.path.dirname(
         os.path.dirname(os.path.realpath(__file__)))
 
+    gain = 0.7
+    magnetic_rejection = 0.0
+    acceleration_rejection = 15.0
+    recovery_trigger_period = 1
+    params = ["--ros-args",
+              "-p", f"gain:={gain}",
+              "-p", f"magnetic_rejection:={magnetic_rejection}",
+              "-p", f"acceleration_rejection:={acceleration_rejection}",
+              "-p", f"recovery_trigger_period:={recovery_trigger_period}"]
     orientation_filter = ExecuteProcess(
-        cmd=[f'{root_dir}/src/estimation/build/orientation_filter'],
-        output='screen'
+        cmd=[f'{root_dir}/src/estimation/build/orientation_filter'] + params,
+        output='screen',
     )
 
     tracking = ExecuteProcess(
@@ -30,7 +39,7 @@ def launch_setup(context, *args, **kwargs):
     MODE = int(context.launch_configurations['mode'])
     bag_name = ""
     offset = -1
-    BAG0_OFF = 150
+    BAG0_OFF = 140
     if WHICH == 0:
         bag_name = "./18_0/rosbag2_2023_10_18-12_24_19"
         offset = BAG0_OFF

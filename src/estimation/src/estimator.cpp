@@ -47,6 +47,7 @@ Estimator::Estimator() {
     Q.block(3, 6, 3, 3) = Q69 * acc_variance;
     Q.block(6, 3, 3, 3) = Q69 * acc_variance;
     Q.block(6, 6, 3, 3) = Eigen::MatrixXf::Identity(3, 3) * acc_variance;
+    Q *= 4;
     std::cout << "Q: " << std::endl << Q << std::endl;
 
     // relative position measurement
@@ -56,6 +57,7 @@ Estimator::Estimator() {
     Eigen::MatrixXf R(2, 2);
     R << 1.7931606e+01, 1.2523603e+01,
             1.2523603e+01, 1.7337499e+01;
+    R *= 3;
 
     Eigen::MatrixXf P(12, 12);
     P = Eigen::MatrixXf::Identity(12, 12) * 10000.0;

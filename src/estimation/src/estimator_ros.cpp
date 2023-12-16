@@ -341,9 +341,13 @@ void StateEstimationNode::state_pub_callback() {
         state_msg.poses[i].position.z = state(i * 3 + 2);
 
         if (i > 0) {
+            // compute eigen values of 3x3 covariance matrix of position
+            Eigen::Matrix3f cov_pos = cov.block<3, 3>(0,0,3,3);
+            Eigen::EigenSolver<Eigen::Matrix3f> es(cov_pos);
+            Eigen::Vector3f eigenvalues = es.eigenvalues().real();
             // store position covariance
             long cov_idx = (i - 1);
-            state_msg.poses[i].orientation.x = cov(cov_idx, cov_idx);
+            state_msg.poses[i].orientation.x = eigenvalues(cov_idx);
         }
     }
     if (target_in_sight_.load()) {
