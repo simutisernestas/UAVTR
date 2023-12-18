@@ -510,13 +510,12 @@ Tracker::Tracker() {
             if (_frames.empty())
                 continue;
 
+            while (_frames.read_available() > 1) { _frames.pop(); }
+
             // this will take long time and will need to catchup with new entries
             bool success = _detector->detect(_frames.front());
             if (success) {
                 this->catchup_reinit();
-                // return;
-            } else {
-                while (_frames.pop()) {}
             }
         }
     });

@@ -9,8 +9,8 @@ class TrackerROSNode : public rclcpp::Node {
 public:
     TrackerROSNode() : Node("image_subscriber") {
         img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-                "/camera/color/image_raw", 10, std::bind(&TrackerROSNode::image_callback, this, std::placeholders::_1));
-        detection_pub_ = this->create_publisher<vision_msgs::msg::Detection2D>("/bounding_box", 10);
+                "/camera/color/image_raw", 1, std::bind(&TrackerROSNode::image_callback, this, std::placeholders::_1));
+        detection_pub_ = this->create_publisher<vision_msgs::msg::Detection2D>("/bounding_box", 1);
     }
 
 private:

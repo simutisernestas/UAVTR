@@ -18,9 +18,9 @@ for i in range(4):
     process = Popen(BASE + VARIATIONS[i], text=True)
     sleep(DURATION)
 
-    process.send_signal(SIGINT)
-    process.send_signal(SIGINT)
-    process.send_signal(SIGINT)
+    for _ in range(5):
+        process.send_signal(SIGINT)
+        sleep(.1)
 
     for proc in psutil.process_iter():
         if "republish" in proc.name():
