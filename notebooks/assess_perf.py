@@ -141,6 +141,20 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
 
 # %%
 
+# plot norm of both state position and relative ground truth position data
+state_pos_norm = np.linalg.norm(state_data[:, 1:4], axis=1)
+relative_pos_gt_norm = np.linalg.norm(relative_pos_gt, axis=1)
+plt.plot(state_time, state_pos_norm, label='Estimation')
+plt.plot(drone_time, relative_pos_gt_norm, label='Groundtruth')
+plt.legend()
+plt.grid(True, linestyle='-', linewidth=0.5)
+plt.tight_layout()
+plt.xlabel('Time (s)')
+plt.ylabel('Distance (m)')
+if LIVE:
+    plt.show()
+
+#%%
 
 plot_data(state_time, drone_time,
           state_data, [1, 2, 3],

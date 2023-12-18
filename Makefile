@@ -27,3 +27,7 @@ configure:
 clean:
 	rm -rf src/detection/build
 	rm -rf src/estimation/build
+
+test:
+	$(call build_target,estimation)
+	./src/estimation/build/flow_velocity_test
