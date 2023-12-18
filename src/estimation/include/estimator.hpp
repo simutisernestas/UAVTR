@@ -43,13 +43,15 @@ public:
 
   [[nodiscard]] float get_pixel_z_in_camera_frame(
       const Eigen::Vector2f &pixel, const Eigen::Matrix3f &cam_R_enu,
-      const Eigen::Matrix3f &K) const {
+      const Eigen::Matrix3f &K, float height = -1) const {
     Eigen::Matrix<float, 3, 3> Kinv = K.inverse();
     Eigen::Vector3f lr{0, 0, -1};
     Eigen::Vector3f Puv_hom{pixel[0], pixel[1], 1};
     Eigen::Vector3f Pc = Kinv * Puv_hom;
     Eigen::Vector3f ls = cam_R_enu * (Pc / Pc.norm());
-    float d = get_height() / (lr.transpose() * ls);
+    if (height < 0)
+      height = get_height();
+    float d = height / (lr.transpose() * ls);
     Eigen::Vector3f Pt = ls * d;
     // transform back to camera frame
     Pt = cam_R_enu.inverse() * Pt;

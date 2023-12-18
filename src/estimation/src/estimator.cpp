@@ -49,8 +49,6 @@ Estimator::Estimator(EstimatorConfig config) : config_(config) {
   Q.block(6, 3, 3, 3) = Q69 * acc_variance;
   Q.block(6, 6, 3, 3) = Eigen::MatrixXf::Identity(3, 3) * acc_variance;
   Q *= 4;
-  std::cout << "Q: " << std::endl
-            << Q << std::endl;
 
   // relative position measurement
   Eigen::MatrixXf C(2, 12);
@@ -59,7 +57,6 @@ Estimator::Estimator(EstimatorConfig config) : config_(config) {
   Eigen::MatrixXf R(2, 2);
   R << 1.7931606e+01, 1.2523603e+01,
       1.2523603e+01, 1.7337499e+01;
-  R *= 3;
 
   Eigen::MatrixXf P(12, 12);
   P = Eigen::MatrixXf::Identity(12, 12) * 10000.0;
@@ -72,7 +69,7 @@ Estimator::Estimator(EstimatorConfig config) : config_(config) {
   for (int i = 0; i < 3; i++)
     lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<float, 3>>(b, a);
 
-  optflow_ = cv::DISOpticalFlow::create(1);
+  optflow_ = cv::DISOpticalFlow::create(2);
 }
 
 Estimator::~Estimator() {
@@ -94,13 +91,14 @@ void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
   A.setZero();
   // incorporate IMU after tests
   auto ddt2 = static_cast<float>(dt * dt * .5);
+  float mult = 1.0;
   assert(dt > 0 && dt < 1);
-  A << 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2, 0, 0,
-      0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2, 0,
-      0, 0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2,
-      0, 0, 0, 1, 0, 0, dt, 0, 0, -dt, 0, 0,
-      0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt, 0,
-      0, 0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt,
+  A << 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2 * mult, 0, 0,
+      0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2 * mult, 0,
+      0, 0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2 * mult,
+      0, 0, 0, 1, 0, 0, dt, 0, 0, -dt * mult, 0, 0,
+      0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt * mult, 0,
+      0, 0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt * mult,
       0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
@@ -256,11 +254,14 @@ void solve_sampled(const Eigen::MatrixXf &J,
 bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
                                       const Eigen::VectorXf &flow_vectors,
                                       Eigen::VectorXf &cam_vel_est) {
+  cam_vel_est = (J.transpose() * J).ldlt().solve(J.transpose() * flow_vectors);
+  return true;
+
   // https://rpg.ifi.uzh.ch/docs/Visual_Odometry_Tutorial.pdf slide 68
   // >> outlier_percentage = .75
   // >>> np.log(1 - 0.999) / np.log(1 - (1 - outlier_percentage) ** n_samples)
   // 438.63339476983924
-  const size_t n_iterations = 4000;
+  const size_t n_iterations = 5000;
   const size_t n_samples{3}; // minimum required to fit model
   const size_t n_points = flow_vectors.rows() / 2;
 
@@ -273,7 +274,6 @@ bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
   J_samples.setZero();
   Eigen::VectorXf flow_samples(n_samples * 2);
   flow_samples.setZero();
-  assert(J.cols() == 3);
   Eigen::VectorXf x_est(J.cols());
   std::vector<size_t> inlier_idxs;
   inlier_idxs.reserve(n_points);
@@ -304,11 +304,12 @@ bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
       }
     }
 
-    if (best_inliers.size() < inlier_idxs.size()) {
+    bool is_omega_zero = x_est.segment(3, 3).norm() < 1e-1;
+    if (best_inliers.size() < inlier_idxs.size() && is_omega_zero) {
       best_inliers = inlier_idxs;
     }
 
-    if (static_cast<float>(best_inliers.size()) > 0.75f * static_cast<float>(n_points))
+    if (static_cast<float>(best_inliers.size()) > 0.5f * static_cast<float>(n_points))
       break;
 
     inlier_idxs.clear();
@@ -344,7 +345,6 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
   }
 
   const double dt = time - pre_frame_time_;
-  std::cout << "dt: " << dt << std::endl;
   assert(dt > 0);
   if (dt > .2) {
     this->pre_frame_time_ = time;
@@ -375,7 +375,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
   cv::Mat flow;
   optflow_->calc(*prev_frame_, frame, flow);
 
-  int every_nth = 8;
+  int every_nth = 4;
   std::vector<cv::Point2f> flow_vecs;
   flow_vecs.reserve(frame.rows * frame.cols / (every_nth * every_nth));
   std::vector<cv::Point> samples;
@@ -417,7 +417,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
   //######################    DRAWING
 #endif
 
-  const float MAX_Z = 50;
+  const float MAX_Z = 30;
   Eigen::VectorXf depth(samples.size());
   Eigen::MatrixXf uv = Eigen::MatrixXf(2, samples.size());
   Eigen::VectorXf flow_eigen(2 * flow_vecs.size());
@@ -429,7 +429,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
 
     const float Z = get_pixel_z_in_camera_frame(
         Eigen::Vector2f(samples[i].x, samples[i].y), cam_R_enu, K);
-    if (Z < 0 || Z > MAX_Z)
+    if (Z < 0 || Z > MAX_Z || std::isnan(Z))
       continue;
 
     depth(insert_idx) = Z;
@@ -456,26 +456,28 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
   for (long i = 0; i < J.rows(); i++) {
     Eigen::Vector3f Jw = {J(i, 3), J(i, 4), J(i, 5)};
     flow_eigen(i) -= Jw.dot(omega);
+    Eigen::Vector3f Jv = {J(i, 0), J(i, 1), J(i, 2)};
+    flow_eigen(i) += Jv.dot(drone_omega.cross(r));
   }
 
   Eigen::VectorXf cam_vel_est;
   bool success = RANSAC_vel_regression(J.block(0, 0, J.rows(), 3), flow_eigen, cam_vel_est);
+  // bool success = RANSAC_vel_regression(J, flow_eigen, cam_vel_est);
 
-  Eigen::Vector3f v_com_enu = cam_R_enu * cam_vel_est.segment(0, 3);
-  v_com_enu -= drone_omega.cross(r);
+  Eigen::Vector3f vel = cam_vel_est.segment(0, 3);
+  Eigen::Vector3f v_com_enu = cam_R_enu * vel;
+  // v_com_enu += drone_omega.cross(r);
 
   if (success && kf_->is_initialized()) {
-    static Eigen::MatrixXf C_vel(3, 12);
+    static Eigen::MatrixXf C_vel(2, 12);
     C_vel << 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0;
-    static Eigen::MatrixXf R_vel(3, 3);
-    R_vel << 1.1120062e+00, 2.8741731e-01, 0,
-        2.8741731e-01, 1.1121999e+00, 0,
-        0, 0, 1.7070062e+00;
-    R_vel *= 3;
+        0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0;
+    static Eigen::MatrixXf R_vel(2, 2);
+    R_vel << 1.1120062e+00, 2.8741731e-01,
+        2.8741731e-01, 1.1121999e+00;
 
-    kf_->update(v_com_enu.segment(0, 3), C_vel, R_vel);
+    kf_->update(v_com_enu.segment(0, 2), C_vel, R_vel);
+
     record_state_update(__FUNCTION__);
   }
 
