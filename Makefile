@@ -7,6 +7,7 @@ define build_target
 	ninja -C src/$(1)/build
 endef
 
+# -D CMAKE_CXX_FLAGS="-DEIGEN_NO_DEBUG=1"
 define configure_target
 	mkdir -p src/$(1)/build
 	cd src/$(1)/build && cmake -G Ninja .. -D CMAKE_BUILD_TYPE=$(BUILD_TYPE)

@@ -108,6 +108,24 @@ TEST(TestFlowVelocityParts, TestPixelDepthIsCorrectlyComputed) {
     float Z = estimator.get_pixel_z_in_camera_frame(pixel, cam_R_enu, K, height);
     EXPECT_NEAR(Z, height, 1e-3);
   }
+
+  // TODO: should get this depth map out of the experiment and try to plot it!
+  Eigen::Matrix3f cam_R_enu;
+  cam_R_enu << 0.499455, -0.624689, 0.600257,
+      -0.866339, -0.360991, 0.34517,
+      0.00106359, -0.692423, -0.721491;
+  float height = 6.30986;
+
+  // get_pixel_z_in_camera_frame(pixel, cam_R_enu, K, height)
+
+  // iterate all the pixels
+  for (int i = 0; i < 640; i++) {
+    for (int j = 0; j < 480; j++) {
+      Eigen::Vector2f pixel(i, j);
+      auto P = estimator.target_position(pixel, cam_R_enu, K, height);
+      EXPECT_NEAR(P[2], -height, 1e-3);
+    }
+  }
 }
 
 TEST(TestFlowVelocityParts, RansacIsAbleToFilterOutDominantFlow) {

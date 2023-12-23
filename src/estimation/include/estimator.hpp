@@ -16,7 +16,7 @@ public:
   Estimator(EstimatorConfig config);
   ~Estimator();
 
-  Eigen::Vector3f compute_pixel_rel_position(
+  Eigen::Vector3f update_target_position(
       const Eigen::Vector2f &bbox_c, const Eigen::Matrix3f &cam_R_enu,
       const Eigen::Matrix3f &K, const Eigen::Vector3f &t);
 
@@ -38,25 +38,17 @@ public:
                        Eigen::MatrixXf &L);
 
   [[nodiscard]] inline float get_height() const {
-    return -kf_->state()[2];
+    float h = -kf_->state()[2];
+    if (std::abs(h) < 1.0f)
+      h = latest_height_.load();
+    return h;
   }
 
-  [[nodiscard]] float get_pixel_z_in_camera_frame(
+  Eigen::Vector3f target_position(const Eigen::Vector2f &pixel, const Eigen::Matrix3f &cam_R_enu, const Eigen::Matrix3f &K, float height) const;
+
+  float get_pixel_z_in_camera_frame(
       const Eigen::Vector2f &pixel, const Eigen::Matrix3f &cam_R_enu,
-      const Eigen::Matrix3f &K, float height = -1) const {
-    Eigen::Matrix<float, 3, 3> Kinv = K.inverse();
-    Eigen::Vector3f lr{0, 0, -1};
-    Eigen::Vector3f Puv_hom{pixel[0], pixel[1], 1};
-    Eigen::Vector3f Pc = Kinv * Puv_hom;
-    Eigen::Vector3f ls = cam_R_enu * (Pc / Pc.norm());
-    if (height < 0)
-      height = get_height();
-    float d = height / (lr.transpose() * ls);
-    Eigen::Vector3f Pt = ls * d;
-    // transform back to camera frame
-    Pt = cam_R_enu.inverse() * Pt;
-    return Pt[2];
-  }
+      const Eigen::Matrix3f &K, float height = -1) const;
 
   void update_cam_imu_accel(const Eigen::Vector3f &accel, const Eigen::Vector3f &omega,
                             const Eigen::Matrix3f &imu_R_enu, const Eigen::Vector3f &arm);

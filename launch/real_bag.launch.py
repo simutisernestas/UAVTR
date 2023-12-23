@@ -74,7 +74,7 @@ def launch_setup(context, *args, **kwargs):
         baro_ref = 25.94229507446289
     else:
         baro_ref = 7.0
-    flow_err_threshold = 20.0
+    flow_err_threshold = 15.0
     estimation = ExecuteProcess(
         cmd=["./estimation_node", "--ros-args",
              "-p", f"baro_ground_ref:={baro_ref}",

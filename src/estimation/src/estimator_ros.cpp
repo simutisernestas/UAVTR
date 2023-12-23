@@ -43,10 +43,9 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
   state_pub_timer_ = create_wall_timer(std::chrono::milliseconds(10),
                                        std::bind(
                                            &StateEstimationNode::state_pub_callback, this));
-  // TODO:
-  // cam_imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
-  //         "/camera/imu", 20,
-  //         std::bind(&StateEstimationNode::cam_imu_callback, this, std::placeholders::_1));
+  cam_imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
+      "/camera/imu", 20,
+      std::bind(&StateEstimationNode::cam_imu_callback, this, std::placeholders::_1));
   cam_info_sub_ = create_subscription<sensor_msgs::msg::CameraInfo>(
       "/camera/color/camera_info", 1,
       std::bind(&StateEstimationNode::cam_info_callback, this, std::placeholders::_1));
@@ -72,8 +71,7 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
   declare_parameter<float>("flow_vel_rejection_perc", 5);
   EstimatorConfig config{
       .spatial_vel_flow_error = get_parameter("spatial_vel_flow_error").as_double(),
-      .flow_vel_rejection_perc = get_parameter("flow_vel_rejection_perc").as_double() / 100.0f
-  };
+      .flow_vel_rejection_perc = get_parameter("flow_vel_rejection_perc").as_double() / 100.0f};
   estimator_ = std::make_unique<Estimator>(config);
 
   declare_parameter<bool>("simulation", false);
@@ -86,6 +84,10 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
 
   range_pub_ = create_publisher<sensor_msgs::msg::Range>("/range", 1);
   target_pt_pub_ = create_publisher<geometry_msgs::msg::PointStamped>("/target_point", 1);
+
+  ins_angl_vel_pub_ = create_publisher<sensor_msgs::msg::Imu>("/ins_angl_vel", 1);
+  ins_angl_vel_pub_2_ = create_publisher<sensor_msgs::msg::Imu>("/ins_angl_vel_2", 1);
+  twist_pub_ = create_publisher<geometry_msgs::msg::TwistStamped>("/vel", 1);
 }
 
 inline float d2f(double d) {
@@ -198,7 +200,7 @@ void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::Sha
   uv_point << d2f(rect_point.x), d2f(rect_point.y);
 
   auto cam_R_enu = base_T_odom.rotation() * img_T_base.rotation();
-  Eigen::Vector3f Pt = estimator_->compute_pixel_rel_position(uv_point, cam_R_enu, K_, img_T_base.translation());
+  Eigen::Vector3f Pt = estimator_->update_target_position(uv_point, cam_R_enu, K_, img_T_base.translation());
   target_in_sight_.store(true);
 
   geometry_msgs::msg::PointStamped target_pt_msg;
@@ -238,8 +240,7 @@ bool StateEstimationNode::tf_lookup_helper(geometry_msgs::msg::TransformStamped 
     tf = tf_buffer_->lookupTransform(
         target_frame, source_frame,
         time, rclcpp::Duration::from_seconds(.008));
-  }
-  catch (const tf2::TransformException &ex) {
+  } catch (const tf2::TransformException &ex) {
     RCLCPP_ERROR_THROTTLE(
         this->get_logger(), *this->get_clock(), 1000 /*ms*/,
         "Could not transform %s to %s: %s",
@@ -316,8 +317,7 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
   cv_bridge::CvImagePtr cv_ptr;
   try {
     cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::RGB8);
-  }
-  catch (const std::exception &e) {
+  } catch (const std::exception &e) {
     RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
     return;
   }
@@ -329,11 +329,41 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
   if (simulation_)
     cv::resize(cv_ptr->image, cv_ptr->image, cv::Size(), 0.5, 0.5);
 
+  // actually these are in body and camera frame
   auto cam_omega = cam_ang_vel_accumulator_->get_ang_vel();
   auto drone_omega = drone_ang_vel_accumulator_->get_ang_vel();
 
-  estimator_->update_flow_velocity(rectified, time.seconds(), cam_T_enu.rotation(),
-                                   cam_T_enu.translation(), K_, cam_omega, drone_omega);
+  {
+    sensor_msgs::msg::Imu ins_angl_vel_msg;
+    ins_angl_vel_msg.header.stamp = time;
+    ins_angl_vel_msg.header.frame_id = "camera";
+    ins_angl_vel_msg.angular_velocity.x = cam_omega[0];
+    ins_angl_vel_msg.angular_velocity.y = cam_omega[1];
+    ins_angl_vel_msg.angular_velocity.z = cam_omega[2];
+    ins_angl_vel_pub_->publish(ins_angl_vel_msg);
+  }
+  {
+    sensor_msgs::msg::Imu ins_angl_vel_msg;
+    ins_angl_vel_msg.header.stamp = time;
+    ins_angl_vel_msg.header.frame_id = "base_link";
+    ins_angl_vel_msg.angular_velocity.x = drone_omega[0];
+    ins_angl_vel_msg.angular_velocity.y = drone_omega[1];
+    ins_angl_vel_msg.angular_velocity.z = drone_omega[2];
+    ins_angl_vel_pub_2_->publish(ins_angl_vel_msg);
+  }
+
+  Eigen::Vector3f vel = estimator_->update_flow_velocity(
+      rectified, time.seconds(), cam_T_enu.rotation(),
+      cam_T_enu.translation(), K_, cam_omega, drone_omega);
+
+  // publish velocity
+  geometry_msgs::msg::TwistStamped vel_msg;
+  vel_msg.header.stamp = time;
+  vel_msg.header.frame_id = "odom";
+  vel_msg.twist.linear.x = vel[0];
+  vel_msg.twist.linear.y = vel[1];
+  vel_msg.twist.linear.z = vel[2];
+  twist_pub_->publish(vel_msg);
 }
 
 void StateEstimationNode::state_pub_callback() {
@@ -367,14 +397,14 @@ void StateEstimationNode::state_pub_callback() {
 }
 
 void StateEstimationNode::cam_imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
-   if (!image_tf_)
-       return;
+  if (!image_tf_)
+    return;
 
-   // accumulate angular velocity into a vector
-   cam_ang_vel_accumulator_->add(
-           d2f(msg->angular_velocity.x),
-           d2f(msg->angular_velocity.y),
-           d2f(msg->angular_velocity.z));
+  // accumulate angular velocity into a vector
+  cam_ang_vel_accumulator_->add(
+      d2f(msg->angular_velocity.x),
+      d2f(msg->angular_velocity.y),
+      d2f(msg->angular_velocity.z));
 
   //  rclcpp::Time time = get_correct_fusion_time(msg->header, true);
   //  geometry_msgs::msg::TransformStamped base_link_enu;

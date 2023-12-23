@@ -55,8 +55,7 @@ Estimator::Estimator(EstimatorConfig config) : config_(config) {
   C << 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
       0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
   Eigen::MatrixXf R(2, 2);
-  R << 1.7931606e+01, 1.2523603e+01,
-      1.2523603e+01, 1.7337499e+01;
+  R = Eigen::MatrixXf::Identity(2, 2) * 1.0;
 
   Eigen::MatrixXf P(12, 12);
   P = Eigen::MatrixXf::Identity(12, 12) * 10000.0;
@@ -107,26 +106,14 @@ void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
       0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1;
 }
 
-Eigen::Vector3f Estimator::compute_pixel_rel_position(
+Eigen::Vector3f Estimator::update_target_position(
     const Eigen::Vector2f &bbox_c, const Eigen::Matrix3f &cam_R_enu,
     const Eigen::Matrix3f &K, const Eigen::Vector3f &t) {
   float height = get_height();
-  if (height < 1.0) {
-    height = latest_height_.load();
-    if (height < 1.0)
-      return {0, 0, 0};
-  }
-  // TODO: init takes ages from the first measurement
+  if (height < 1.0f)
+    return {0, 0, 0};
 
-  Eigen::Matrix<float, 3, 3> Kinv = K.inverse();
-  Eigen::Vector3f lr{0, 0, -1};
-  Eigen::Vector3f Puv_hom;
-  Puv_hom << bbox_c[0], bbox_c[1], 1;
-  Eigen::Vector3f Pc = Kinv * Puv_hom;
-  Eigen::Vector3f ls = (cam_R_enu * Pc) + t;
-  ls /= ls.norm();
-  float d = height / (lr.transpose() * ls);
-  Eigen::Vector3f Pt = ls * d;
+  Eigen::Vector3f Pt = target_position(bbox_c, cam_R_enu, K, height);
 
   if (kf_->is_initialized()) {
     Eigen::Vector2f xy_meas(2);
@@ -178,15 +165,11 @@ void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double time) {
       0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0;
   static Eigen::MatrixXf R_accel(3, 3);
-  R_accel << 4.3593045e+00, 2.3786352e-01, -1.0210943e-01,
-      2.3786352e-01, 4.3759682e+00, -5.7549830e-01,
-      -1.0210943e-01, -5.7549830e-01, 2.1809698e+00;
+  R_accel << Eigen::Matrix3f::Identity() * 5;
   kf_->update(accel, C_accel, R_accel);
 
-  // update A matrix
   Eigen::MatrixXf A(12, 12);
   get_A(A, dt);
-
   kf_->predict(A);
 
   record_state_update(__FUNCTION__);
@@ -254,8 +237,8 @@ void solve_sampled(const Eigen::MatrixXf &J,
 bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
                                       const Eigen::VectorXf &flow_vectors,
                                       Eigen::VectorXf &cam_vel_est) {
-  cam_vel_est = (J.transpose() * J).ldlt().solve(J.transpose() * flow_vectors);
-  return true;
+  // cam_vel_est = (J.transpose() * J).ldlt().solve(J.transpose() * flow_vectors);
+  // return true;
 
   // https://rpg.ifi.uzh.ch/docs/Visual_Odometry_Tutorial.pdf slide 68
   // >> outlier_percentage = .75
@@ -304,7 +287,8 @@ bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
       }
     }
 
-    bool is_omega_zero = x_est.segment(3, 3).norm() < 1e-1;
+    // bool is_omega_zero = x_est.segment(3, 3).norm() < 1e-1;
+    bool is_omega_zero = true;
     if (best_inliers.size() < inlier_idxs.size() && is_omega_zero) {
       best_inliers = inlier_idxs;
     }
@@ -375,7 +359,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
   cv::Mat flow;
   optflow_->calc(*prev_frame_, frame, flow);
 
-  int every_nth = 4;
+  int every_nth = 8;
   std::vector<cv::Point2f> flow_vecs;
   flow_vecs.reserve(frame.rows * frame.cols / (every_nth * every_nth));
   std::vector<cv::Point> samples;
@@ -457,7 +441,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     Eigen::Vector3f Jw = {J(i, 3), J(i, 4), J(i, 5)};
     flow_eigen(i) -= Jw.dot(omega);
     Eigen::Vector3f Jv = {J(i, 0), J(i, 1), J(i, 2)};
-    flow_eigen(i) += Jv.dot(drone_omega.cross(r));
+    flow_eigen(i) -= Jv.dot(drone_omega.cross(r));
   }
 
   Eigen::VectorXf cam_vel_est;
@@ -473,8 +457,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     C_vel << 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0;
     static Eigen::MatrixXf R_vel(2, 2);
-    R_vel << 1.1120062e+00, 2.8741731e-01,
-        2.8741731e-01, 1.1121999e+00;
+    R_vel = Eigen::MatrixXf::Identity(2, 2) * 0.3;
 
     kf_->update(v_com_enu.segment(0, 2), C_vel, R_vel);
 
@@ -484,4 +467,26 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
   this->pre_frame_time_ = time;
   *prev_frame_ = frame;
   return v_com_enu;
+}
+
+float Estimator::get_pixel_z_in_camera_frame(
+    const Eigen::Vector2f &pixel, const Eigen::Matrix3f &cam_R_enu,
+    const Eigen::Matrix3f &K, float height) const {
+  if (height < 0)
+    height = get_height();
+  Eigen::Vector3f Pt = target_position(pixel, cam_R_enu, K, height);
+  // transform back to camera frame
+  Pt = cam_R_enu.inverse() * Pt;
+  return Pt[2];
+}
+
+Eigen::Vector3f Estimator::target_position(const Eigen::Vector2f &pixel, const Eigen::Matrix3f &cam_R_enu, const Eigen::Matrix3f &K, float height) const {
+  Eigen::Matrix<float, 3, 3> Kinv = K.inverse();
+  Eigen::Vector3f lr{0, 0, -1};
+  Eigen::Vector3f Puv_hom{pixel[0], pixel[1], 1};
+  Eigen::Vector3f Pc = Kinv * Puv_hom;
+  Eigen::Vector3f ls = cam_R_enu * (Pc / Pc.norm());
+  float d = height / (lr.transpose() * ls);
+  Eigen::Vector3f Pt = ls * d;
+  return Pt;
 }
