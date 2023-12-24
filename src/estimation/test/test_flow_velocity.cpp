@@ -242,3 +242,23 @@ TEST(TestFlowVelocityParts, PureRotationGivesZeroVelocity) {
 // // PJ - get from PJ
 
 // }
+
+// #ifdef SAVEOUT
+//   static int count{0};
+//   count++;
+//   if (count == 1) {
+//     // dump everything to a file
+//     cv::imwrite("/tmp/frame0.png", *prev_frame_);
+//     cv::imwrite("/tmp/frame1.png", frame);
+//     // open a text file
+//     std::ofstream file("/tmp/flowinfo.txt");
+//     file << "time:" << time << std::endl;
+//     file << "prev_time:" << pre_frame_time_ << std::endl;
+//     file << "cam_R_enu:" << cam_R_enu << std::endl;
+//     file << "height:" << get_height() << std::endl;
+//     file << "r:" << r << std::endl;
+//     file << "K:" << std::endl
+//          << K << std::endl;
+//     exit(0);
+//   }
+// #endif

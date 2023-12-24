@@ -24,6 +24,8 @@ public:
                                        const Eigen::Vector3f &r, const Eigen::Matrix3f &K,
                                        const Eigen::Vector3f &omega, const Eigen::Vector3f &drone_omega);
 
+  void store_flow_state(cv::Mat &frame, double time, const Eigen::Matrix3f &cam_R_enu);
+
   void update_imu_accel(const Eigen::Vector3f &accel, double time);
 
   void update_height(float height);
@@ -63,10 +65,12 @@ private:
   std::unique_ptr<KalmanFilter> kf_;
   typedef LowPassFilter<float, 3> LPF;
   std::array<std::unique_ptr<LPF>, 3> lp_acc_filter_arr_;
-  std::shared_ptr<cv::Mat> prev_frame_{nullptr};
-  double pre_frame_time_{-1};
   double pre_imu_time_{-1};
   cv::Ptr<cv::DenseOpticalFlow> optflow_;
   std::atomic<float> latest_height_{0};
   EstimatorConfig config_;
+
+  std::shared_ptr<cv::Mat> prev_frame_{nullptr};
+  Eigen::Matrix3f prev_cam_R_enu_;
+  double pre_frame_time_{-1};
 };

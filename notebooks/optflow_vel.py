@@ -1,4 +1,5 @@
 # %%
+import numpy.linalg as la
 import scipy.optimize as opt
 import numpy as np
 import matplotlib.pyplot as plt
@@ -55,12 +56,13 @@ P0 = np.array([[1, 0, 0, 0],
 vel = 1
 dt = 1/30
 dx = vel * dt
-dy = vel * dt
-dz = vel * dt
+dy = -vel * dt
+dz = (vel-.5) * dt
+vvec = np.array([dx, dy, dz]) / dt
 P1 = np.array([[1, 0, 0, dx],
                [0, 1, 0, dy],
                [0, 0, 1, dz]])
-w = .3
+w = .1
 theta = w * dt
 print(f"theta: {theta}, w: {w} rad/s")
 Rz = np.array([[np.cos(theta), -np.sin(theta), 0],
@@ -73,27 +75,37 @@ Ry = np.array([[np.cos(theta), 0, np.sin(theta)],
                [0, 1, 0],
                [-np.sin(theta), 0, np.cos(theta)]])
 # Once rotation is introduces it collapses : )
-# P1[:3, :3] = Rz @ P1[:3, :3]
-# P1[:3, :3] = Rx @ P1[:3, :3]
-# P1[:3, :3] = Ry @ P1[:3, :3]
+P1[:3, :3] = Rz @ P1[:3, :3]
+P1[:3, :3] = Rx @ P1[:3, :3]
+P1[:3, :3] = Ry @ P1[:3, :3]
 X = np.identity(4)
 C0 = K @ P0 @ X
 C1 = K @ P1 @ X
 
 # %%
 
+def polygon_area(coords):
+    n = len(coords)
+    area = 0.0
+    for i in range(n):
+        j = (i + 1) % n
+        area += coords[i][0] * coords[j][1]
+        area -= coords[j][0] * coords[i][1]
+    area = abs(area) / 2.0
+    return area
+
 
 def simulation(plot=False, depth_assumption=False, lower_bound=5):
     # Existing code for Points initialization
-    Points = np.random.uniform(-10, 10, (5000, 3))
+    Points = np.random.uniform(-10, 10, (4000, 3))
     # sort by y
     Points = Points[Points[:, 1].argsort()]
     Points[:, 2] = np.random.uniform(
-        lower_bound, lower_bound+5, Points.shape[0])
-    for i in range(Points.shape[0]):
-        Points[i, 2] += i * .005
+        lower_bound, lower_bound+0, Points.shape[0])
+    # for i in range(Points.shape[0]):
+    #     Points[i, 2] += i * .005
 
-    NOISE = 1 / lower_bound
+    NOISE = 1 / lower_bound * 0
     projected0 = project(Points.T, C0, NOISE)
     projected0_xy = Kinv @ e2h(projected0)
     projected1 = project(Points.T, C1, NOISE)
@@ -103,9 +115,9 @@ def simulation(plot=False, depth_assumption=False, lower_bound=5):
     flows_xy = (projected0_xy[:2, :] - projected1_xy[:2, :]).T
 
     # flip sign of random flows; RANSAC should handle..
-    for i in range(flows.shape[1]):
-        if np.random.rand() > .95:
-            flows_xy[i] *= -1
+    # for i in range(flows.shape[1]):
+    #     if np.random.rand() > .95:
+    #         flows_xy[i] *= -1
 
     if plot:
         plt.scatter(projected0[0, :], projected0[1, :], c='r')
@@ -131,12 +143,14 @@ def simulation(plot=False, depth_assumption=False, lower_bound=5):
     return vel
 
 
-SIZE = 1
-gt = np.array([vel]*3 + [w]*3).reshape(-1, 1)
+SIZE = 10
+gt = np.concatenate([vvec, np.ones(3)*w]).reshape(-1, 1)
+
+print(gt.T)
 errors = np.zeros((SIZE, 6))
 for i in range(SIZE):
     res = simulation(lower_bound=15,
-                     plot=True,
+                     plot=False,
                      depth_assumption=False)
     if res.shape[0] == 3:
         res = np.append(res, np.zeros((3, 1)), axis=0)
@@ -202,3 +216,54 @@ plt.plot(RANGE, np.array(
 plt.xlabel('lower bound of depth')
 plt.ylabel('average error (m/s)')
 plt.legend()
+
+
+# %%
+
+def skew(w):
+    if isinstance(w, float):
+        w = np.array([w, w, w])
+    return np.array([[0, -w[2], w[1]],
+                     [w[2], 0, -w[0]],
+                     [-w[1], w[0], 0]])
+
+
+lower_bound = 25
+Points = np.random.uniform(-20, 20, (10000, 3))
+Points[:, 2] = np.random.uniform(
+    lower_bound, lower_bound+3, Points.shape[0])
+for i in range(Points.shape[0]):
+    Points[i, 2] += i * .005
+
+NOISE = 1 / lower_bound * 0
+projected0 = project(Points.T, C0, NOISE)
+projected0_xy = Kinv @ e2h(projected0)
+projected1 = project(Points.T, C1, NOISE)
+projected1_xy = Kinv @ e2h(projected1)
+Z = Points[:, 2]  # BEST! so the previous depth values go here?
+
+vels = np.zeros((Points.shape[0], 3))
+idxs = []
+for i in range(Points.shape[0]):
+    p0 = projected0_xy[:, i]
+    p1 = projected1_xy[:, i]
+    w = np.array([-.1, -.1, -.1]) + np.random.normal(0, .01, 3)
+    skew_w = skew(w)
+    v = ((Z[i] + dz) * (np.eye(3) + skew_w*dt) @ p1 - p0 * Z[i]) / dt
+    vels[i] = v
+    if np.linalg.norm(v - vvec) < 1e-1:
+        idxs.append(i)
+
+plt.plot(projected0[0, idxs], projected0[1, idxs], 'r.')
+plt.ylim(0, 480)
+plt.xlim(0, 640)
+
+plt.figure()
+plt.hist(vels[:, 0], bins=50, alpha=.5)
+plt.hist(vels[:, 1], bins=50, alpha=.5)
+plt.show()
+
+# get most frequent float velocity value for each axis
+vels = np.round(vels, 1)
+vels = np.unique(vels, axis=0, return_counts=True)
+vels[0][vels[1].argmax()]
