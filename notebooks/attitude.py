@@ -1,6 +1,6 @@
 # %%
 from ahrs.filters import Madgwick
-from ahrs.common.orientation import q_prod
+from ahrs.common.orientation import q_prod, q_conj
 import numpy.linalg as la
 from sympy import lambdify
 from sympy.algebras.quaternion import Quaternion
@@ -8,6 +8,7 @@ from sympy import symbols
 import ahrs
 import numpy as np
 import matplotlib.pyplot as plt
+import sympy
 
 # Basic parameters
 NUM_SAMPLES = 1000
@@ -285,7 +286,7 @@ q = Quaternion(qw, qx, qy, qz)
 ref_d = Quaternion(0, dx, dy, dz)
 sensor = Quaternion(0, sx, sy, sz)
 
-min_obj = q.conjugate() * ref_d * q - sensor
+min_obj = (q.conjugate() * ref_d * q - sensor)
 min_obj = min_obj.expand().simplify()
 min_objM = min_obj.to_Matrix()
 min_obj_lamb = lambdify((qw, qx, qy, qz, dx, dy, dz, sx, sy, sz), min_objM)
@@ -293,6 +294,35 @@ min_obj_lamb = lambdify((qw, qx, qy, qz, dx, dy, dz, sx, sy, sz), min_objM)
 obj_J = min_objM.jacobian([qw, qx, qy, qz])
 obj_J_lamb = lambdify((qw, qx, qy, qz, dx, dy, dz), obj_J)
 obj_J_lamb(*np.random.rand(7))
+
+sympy.print_latex(obj_J.T)
+
+g = Quaternion(0, 0, 0, 1)
+ax, ay, az = symbols('a_x a_y a_z')
+a = Quaternion(0, ax, ay, az)
+
+min_obj = q.conjugate() * g * q - a
+min_obj = min_obj.expand().simplify()
+min_objM = min_obj.to_Matrix()
+sympy.print_latex(min_objM)
+obj_J = min_objM.jacobian([qw, qx, qy, qz])
+sympy.print_latex(obj_J.T)
+
+bx, bz = symbols('b_x b_z')
+b = Quaternion(0, bx, 0, bz)
+mx, my, mz = symbols('m_x m_y m_z')
+m = Quaternion(0, mx, my, mz)
+
+min_obj = q.conjugate() * b * q - m
+min_obj = min_obj.expand().simplify()
+min_objM = min_obj.to_Matrix()
+sympy.print_latex(min_objM)
+
+obj_J = min_objM.jacobian([qw, qx, qy, qz])
+sympy.print_latex(obj_J.T)
+obj_J
+
+# %%
 
 
 def objfun(q, d, s): return min_obj_lamb(*q, *d, *s)
@@ -302,22 +332,35 @@ def ojbJ(q, d): return obj_J_lamb(*q, *d)
 q = ahrs.Quaternion().to_array()
 gyroscopes = np.copy(SENSOR_DATA.gyroscopes)
 accelerometers = np.copy(SENSOR_DATA.accelerometers)
+mags = SENSOR_DATA.magnetometers
+
 Qs = np.zeros((len(gyroscopes), 4))
-beta = 0.033
+beta = 0.1
 dt = 1/SAMPLING_FREQUENCY
 for i in range(len(gyroscopes)):
     acc = ahrs.Quaternion(accelerometers[i]).to_array()[1:]
     g = ahrs.Quaternion([0, 0, 0, 1]).to_array()[1:]
+    m = ahrs.Quaternion(mags[i]).to_array()[1:]
 
     qDot = 0.5 * q_prod(q, [0, *gyroscopes[i]])
-    f = objfun(q, g, acc)[1:]
-    if np.linalg.norm(f) > 0:
-        J = ojbJ(q, g)[1:]
-        assert la.norm(f) > 1e-6
-        grad = J.T @ f
-        grad /= np.linalg.norm(grad)
-        grad = grad.reshape(4)
-        qDot -= beta * grad
+
+    h = q_prod(q, q_prod([0, *m], q_conj(q)))
+    bx = np.linalg.norm([h[1], h[2]])
+    bz = h[3]
+    b = np.array([bx, 0, bz])
+
+    f_mag = objfun(q, b, m)[1:]
+    J_mag = ojbJ(q, b)[1:]
+    f_acc = objfun(q, g, acc)[1:]
+    J_acc = ojbJ(q, g)[1:]
+    f = np.vstack((f_mag, f_acc))
+    J = np.vstack((J_mag, J_acc))
+
+    assert la.norm(f) > 1e-6
+    grad = J.T @ f
+    grad /= np.linalg.norm(grad)
+    grad = grad.reshape(4)
+    qDot -= beta * grad
 
     q += qDot * dt
     q /= np.linalg.norm(q)
@@ -333,10 +376,12 @@ madgwick = Madgwick()
 Q_ahrs = np.tile([1., 0., 0., 0.], (len(gyroscopes), 1)
                  )  # Allocate for quaternions
 for t in range(1, len(gyroscopes)):
-    Q_ahrs[t] = madgwick.updateIMU(
-        Q_ahrs[t-1], gyr=gyroscopes[t], acc=accelerometers[t])
+    Q_ahrs[t] = madgwick.updateMARG(
+        Q_ahrs[t-1], gyr=gyroscopes[t], acc=accelerometers[t],
+        mag=mags[t], dt=1/SAMPLING_FREQUENCY)
 
 ahrs_q = ahrs.QuaternionArray(Q_ahrs)
+
 mean_err_ahrs = np.nanmean(ahrs.utils.metrics.qad(
     REFERENCE_QUATERNIONS, ahrs_q))
 print(mean_err_ahrs, mean_err)  # outperforms
