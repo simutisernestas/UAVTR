@@ -68,7 +68,7 @@ Estimator::Estimator(EstimatorConfig config) : config_(config) {
   for (int i = 0; i < 3; i++)
     lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<float, 3>>(b, a);
 
-  optflow_ = cv::DISOpticalFlow::create(2);
+  optflow_ = cv::DISOpticalFlow::create(1);
 }
 
 Estimator::~Estimator() {
@@ -366,7 +366,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     }
   }
 
-  const float MAX_Z = 50;
+  const float MAX_Z = 120;
   Eigen::VectorXf depth(samples.size());
   Eigen::MatrixXf uv = Eigen::MatrixXf(2, samples.size());
   Eigen::VectorXf flow_eigen(2 * flow_vecs.size());

@@ -27,6 +27,8 @@ def project(P, C, noise=0):
 
 
 def Lx(p_xy, Zs):
+    if not isinstance(Zs, type(np.array)):
+        Zs = np.ones_like(p_xy[:, 0]) * Zs
 
     Lx = np.zeros((p_xy.shape[0] * 2, 6))
 
@@ -41,6 +43,14 @@ def Lx(p_xy, Zs):
 
     return Lx
 
+
+def skew(w):
+    if isinstance(w, float):
+        w = np.array([w, w, w])
+    return np.array([[0, -w[2], w[1]],
+                     [w[2], 0, -w[0]],
+                     [-w[1], w[0], 0]])
+
 # %%
 
 
@@ -53,17 +63,18 @@ Kinv = np.linalg.inv(K)
 P0 = np.array([[1, 0, 0, 0],
                [0, 1, 0, 0],
                [0, 0, 1, 0]])
-vel = 1
+vel = 3
 dt = 1/30
 dx = vel * dt
 dy = -vel * dt
-dz = (vel-.5) * dt
+dz = .5*vel * dt
 vvec = np.array([dx, dy, dz]) / dt
 P1 = np.array([[1, 0, 0, dx],
                [0, 1, 0, dy],
                [0, 0, 1, dz]])
 w = .1
 theta = w * dt
+wvec = np.array([w, w, w])
 print(f"theta: {theta}, w: {w} rad/s")
 Rz = np.array([[np.cos(theta), -np.sin(theta), 0],
                [np.sin(theta), np.cos(theta), 0],
@@ -84,6 +95,67 @@ C1 = K @ P1 @ X
 
 # %%
 
+lower_bound = 10
+Points = np.random.uniform(
+    -lower_bound*3/4, lower_bound*3/4, (100, 3))
+Points[:, 2] = np.random.uniform(
+    lower_bound, lower_bound, Points.shape[0])
+
+NOISE = .1
+projected0 = project(Points.T, C0, NOISE)
+projected0_xy = Kinv @ e2h(projected0)
+projected1 = project(Points.T, C1, NOISE)
+projected1_xy = Kinv @ e2h(projected1)
+
+flows = projected1 - projected0
+flows_xy = (projected0_xy[:2, :] - projected1_xy[:2, :]).T
+flows_xy = flows_xy.reshape(-1, 1) / dt  # over time
+
+# subtract known angular velocity
+Lx1 = Lx(projected1_xy.T, lower_bound)
+Lx1 = np.vstack(Lx1)
+flows_xy -= Lx1[:, 3:] @ (wvec.reshape(-1, 1) +
+                          np.random.normal(0, .001, (3, 1)))
+flows_xy = flows_xy.reshape(-1, 2)
+
+plt.scatter(projected0[0, :], projected0[1, :], c='r')
+plt.scatter(projected1[0, :], projected1[1, :], c='g')
+plt.quiver(projected0[0, :], projected0[1, :],
+           flows[0, :], flows[1, :],
+           color='b', label='flow',
+           angles='xy', scale_units='xy', scale=1)
+plt.xlim(0, u0 * 2)
+plt.ylim(0, v0 * 2)
+plt.gca().invert_yaxis()
+plt.show()
+
+# R = P1[:3, :3]
+R = la.inv(P1[:3, :3])
+# R = np.eye(3)
+N = R @ np.array([0, 0, -1]).reshape(3, 1)
+skew_pts = np.zeros((projected1_xy.shape[1], 3, 3))
+for i in range(projected1_xy.shape[1]):
+    skew_pts[i] = skew(projected1_xy[:, i])
+flows_xy = np.concatenate(
+    (flows_xy, np.zeros((flows_xy.shape[0], 1))), axis=1)
+
+# Implementation of:
+# On-board velocity estimation and closed-loop control of a quadrotor UAV based on optical flow
+b = np.zeros((skew_pts.shape[0], 3))
+for i in range(skew_pts.shape[0]):
+    int1 = skew_pts[i] @ flows_xy[i].reshape(-1, 1)
+    int2 = N.T @ projected1_xy[:, i].reshape(-1, 1)
+    b[i] = (int1 / int2).reshape(-1)
+
+A = skew_pts.reshape(-1, 3)
+b = b.reshape(-1)
+
+est_vel = np.linalg.pinv(A) @ b * lower_bound
+est_vel - vvec
+
+# %%
+
+
 def polygon_area(coords):
     n = len(coords)
     area = 0.0
@@ -97,7 +169,7 @@ def polygon_area(coords):
 
 def simulation(plot=False, depth_assumption=False, lower_bound=5):
     # Existing code for Points initialization
-    Points = np.random.uniform(-10, 10, (4000, 3))
+    Points = np.random.uniform(-10, 10, (100, 3))
     # sort by y
     Points = Points[Points[:, 1].argsort()]
     Points[:, 2] = np.random.uniform(
@@ -149,7 +221,7 @@ gt = np.concatenate([vvec, np.ones(3)*w]).reshape(-1, 1)
 print(gt.T)
 errors = np.zeros((SIZE, 6))
 for i in range(SIZE):
-    res = simulation(lower_bound=15,
+    res = simulation(lower_bound=10,
                      plot=False,
                      depth_assumption=False)
     if res.shape[0] == 3:
@@ -220,16 +292,9 @@ plt.legend()
 
 # %%
 
-def skew(w):
-    if isinstance(w, float):
-        w = np.array([w, w, w])
-    return np.array([[0, -w[2], w[1]],
-                     [w[2], 0, -w[0]],
-                     [-w[1], w[0], 0]])
-
 
 lower_bound = 25
-Points = np.random.uniform(-20, 20, (10000, 3))
+Points = np.random.uniform(-20, 20, (1000, 3))
 Points[:, 2] = np.random.uniform(
     lower_bound, lower_bound+3, Points.shape[0])
 for i in range(Points.shape[0]):
@@ -267,3 +332,5 @@ plt.show()
 vels = np.round(vels, 1)
 vels = np.unique(vels, axis=0, return_counts=True)
 vels[0][vels[1].argmax()]
+
+# %%
