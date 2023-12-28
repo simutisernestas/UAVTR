@@ -354,7 +354,7 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
 
   Eigen::Vector3f vel = estimator_->update_flow_velocity(
       rectified, time.seconds(), cam_T_enu.rotation(),
-      cam_T_enu.translation(), K_, cam_omega, drone_omega);
+      img_T_base.translation(), K_, cam_omega, drone_omega);
 
   // publish velocity
   geometry_msgs::msg::TwistStamped vel_msg;

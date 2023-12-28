@@ -68,7 +68,7 @@ Estimator::Estimator(EstimatorConfig config) : config_(config) {
   for (int i = 0; i < 3; i++)
     lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<float, 3>>(b, a);
 
-  optflow_ = cv::DISOpticalFlow::create(1);
+  optflow_ = cv::DISOpticalFlow::create(2);
 }
 
 Estimator::~Estimator() {
@@ -90,7 +90,7 @@ void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
   A.setZero();
   // incorporate IMU after tests
   auto ddt2 = static_cast<float>(dt * dt * .5);
-  float mult = 0.0;
+  float mult = 1.0;
   assert(dt > 0 && dt < 1);
   A << 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2 * mult, 0, 0,
       0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2 * mult, 0,
@@ -205,14 +205,14 @@ void Estimator::visjac_p(const Eigen::MatrixXf &uv,
 
   L.resize(depth.size() * 2, 6);
   L.setZero();
-  Eigen::Matrix3f Kinv = K.inverse();
+  const Eigen::Matrix3f Kinv = K.inverse();
 
   for (int i = 0; i < uv.cols(); i++) {
-    float z = depth(i);
-    Eigen::Vector3f p(uv(0, i), uv(1, i), 1.0);
+    const float z = depth(i);
+    const Eigen::Vector3f p(uv(0, i), uv(1, i), 1.0);
 
     // convert to normalized image-plane coordinates
-    Eigen::Vector3f xy = Kinv * p;
+    const Eigen::Vector3f xy = Kinv * p;
     float x = xy(0);
     float y = xy(1);
 
@@ -244,7 +244,7 @@ bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
   // >> outlier_percentage = .75
   // >>> np.log(1 - 0.999) / np.log(1 - (1 - outlier_percentage) ** n_samples)
   // 438.63339476983924
-  const size_t n_iterations = 500;
+  const size_t n_iterations = 2000;
   const size_t n_samples{3}; // minimum required to fit model
   const size_t n_points = flow_vectors.rows() / 2;
 
@@ -305,6 +305,9 @@ bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
     return false;
   }
 
+  cam_vel_est = x_est;
+  return true;
+
   J_samples.resize(best_inliers.size() * 2, J.cols());
   flow_samples.resize(best_inliers.size() * 2);
 
@@ -341,17 +344,17 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     return {0, 0, 0};
   }
 
-  for (int i = 0; i < 3; i++) {
-    if (std::abs(omega[i]) > 0.3 || std::abs(drone_omega[i]) > 0.2) {
-      store_flow_state(frame, time, cam_R_enu);
-      return {0, 0, 0};
-    }
-  }
+  // for (int i = 0; i < 3; i++) {
+  //   if (std::abs(omega[i]) > 0.3 || std::abs(drone_omega[i]) > 0.3) {
+  //     store_flow_state(frame, time, cam_R_enu);
+  //     return {0, 0, 0};
+  //   }
+  // }
 
   cv::Mat flow;
   optflow_->calc(*prev_frame_, frame, flow);
 
-  int every_nth = 8;
+  int every_nth = 16;
   std::vector<cv::Point2f> flow_vecs;
   flow_vecs.reserve(frame.rows * frame.cols / (every_nth * every_nth));
   std::vector<cv::Point> samples;
@@ -404,8 +407,8 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
   for (long i = 0; i < J.rows(); i++) {
     Eigen::Vector3f Jw = {J(i, 3), J(i, 4), J(i, 5)};
     flow_eigen(i) -= Jw.dot(omega);
-    Eigen::Vector3f Jv = {J(i, 0), J(i, 1), J(i, 2)};
-    flow_eigen(i) -= Jv.dot(drone_omega.cross(r));
+    // Eigen::Vector3f Jv = {J(i, 0), J(i, 1), J(i, 2)};
+    // flow_eigen(i) -= Jv.dot(drone_omega.cross(r));
   }
   Eigen::VectorXf cam_vel_est;
   bool success = RANSAC_vel_regression(J.block(0, 0, J.rows(), 3), flow_eigen, cam_vel_est);
@@ -419,7 +422,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     C_vel << 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0;
     static Eigen::MatrixXf R_vel(2, 2);
-    R_vel = Eigen::MatrixXf::Identity(2, 2) * 1.0;
+    R_vel = Eigen::MatrixXf::Identity(2, 2) * 3.0;
 
     kf_->update(v_com_enu.segment(0, 2), C_vel, R_vel);
 

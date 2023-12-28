@@ -243,22 +243,21 @@ TEST(TestFlowVelocityParts, PureRotationGivesZeroVelocity) {
 
 // }
 
-// #ifdef SAVEOUT
-//   static int count{0};
-//   count++;
-//   if (count == 1) {
-//     // dump everything to a file
-//     cv::imwrite("/tmp/frame0.png", *prev_frame_);
-//     cv::imwrite("/tmp/frame1.png", frame);
-//     // open a text file
-//     std::ofstream file("/tmp/flowinfo.txt");
-//     file << "time:" << time << std::endl;
-//     file << "prev_time:" << pre_frame_time_ << std::endl;
-//     file << "cam_R_enu:" << cam_R_enu << std::endl;
-//     file << "height:" << get_height() << std::endl;
-//     file << "r:" << r << std::endl;
-//     file << "K:" << std::endl
-//          << K << std::endl;
-//     exit(0);
-//   }
-// #endif
+// static int count{0};
+// count++;
+// if (count > 1) {
+//   std::string time_str = std::to_string(time);
+//   cv::imwrite("/tmp/" + time_str + "_frame0.png", *prev_frame_);
+//   cv::imwrite("/tmp/" + time_str + "_frame1.png", frame);
+//   std::ofstream file("/tmp/" + time_str + "_flowinfo.txt");
+//   file << "time:" << time << std::endl;
+//   file << "prev_time:" << pre_frame_time_ << std::endl;
+//   file << "cam_R_enu:" << cam_R_enu << std::endl;
+//   file << "height:" << get_height() << std::endl;
+//   file << "r:" << r << std::endl;
+//   file << "K:" << std::endl
+//        << K << std::endl;
+//   file << "omega:" << omega << std::endl;
+//   file << "drone_omega:" << drone_omega << std::endl;
+//   file << "prev_R:" << prev_cam_R_enu_ << std::endl;
+// }

@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 from signal import SIGINT
 from subprocess import Popen
 from time import sleep

@@ -44,6 +44,32 @@ def Lx(p_xy, Zs):
     return Lx
 
 
+def Lp(p_uv, Zs, K):
+    assert p_uv.shape[1] == 3
+    assert p_uv.shape[0] > 3
+
+    if not isinstance(Zs, type(np.array)):
+        Zs = np.ones_like(p_uv[:, 0]) * Zs
+
+    Lx = np.zeros((p_uv.shape[0] * 2, 6))
+
+    assert p_uv.shape[1] == 3
+
+    for i in range(p_uv.shape[0]):
+        xy = Kinv @ p_uv[i, :]
+        assert xy.shape == (3,)
+        assert xy[2] == 1
+        x = xy[0]
+        y = xy[1]
+        Z = Zs[i]
+
+        Lx[2*i:2*i+2, :] = K[:2, :2] @ np.array([
+            [-1/Z,  0,     x/Z, x * y,      -(1 + x**2), y,],
+            [0,   -1/Z,   y/Z, (1 + y**2), -x*y,       -x]])
+
+    return Lx
+
+
 def skew(w):
     if isinstance(w, float):
         w = np.array([w, w, w])
@@ -63,7 +89,7 @@ Kinv = np.linalg.inv(K)
 P0 = np.array([[1, 0, 0, 0],
                [0, 1, 0, 0],
                [0, 0, 1, 0]])
-vel = 3
+vel = 1
 dt = 1/30
 dx = vel * dt
 dy = -vel * dt
@@ -111,8 +137,10 @@ flows = projected1 - projected0
 flows_xy = (projected0_xy[:2, :] - projected1_xy[:2, :]).T
 flows_xy = flows_xy.reshape(-1, 1) / dt  # over time
 
+Z = (P1[:3, :3] @ Points.T + P1[:3, 3].reshape(-1, 1))[2, :]
+
 # subtract known angular velocity
-Lx1 = Lx(projected1_xy.T, lower_bound)
+Lx1 = Lx(projected1_xy.T, Z.reshape(-1))
 Lx1 = np.vstack(Lx1)
 flows_xy -= Lx1[:, 3:] @ (wvec.reshape(-1, 1) +
                           np.random.normal(0, .001, (3, 1)))
@@ -168,22 +196,20 @@ def polygon_area(coords):
 
 
 def simulation(plot=False, depth_assumption=False, lower_bound=5):
-    # Existing code for Points initialization
-    Points = np.random.uniform(-10, 10, (100, 3))
-    # sort by y
-    Points = Points[Points[:, 1].argsort()]
+    Points = np.random.uniform(-lower_bound*3/4, lower_bound*3/4, (100, 3))
+    # Points = Points[Points[:, 1].argsort()]
     Points[:, 2] = np.random.uniform(
         lower_bound, lower_bound+0, Points.shape[0])
     # for i in range(Points.shape[0]):
     #     Points[i, 2] += i * .005
 
-    NOISE = 1 / lower_bound * 0
+    NOISE = 1 / lower_bound
     projected0 = project(Points.T, C0, NOISE)
     projected0_xy = Kinv @ e2h(projected0)
     projected1 = project(Points.T, C1, NOISE)
     projected1_xy = Kinv @ e2h(projected1)
 
-    flows = projected1 - projected0
+    flows = (projected0 - projected1).T
     flows_xy = (projected0_xy[:2, :] - projected1_xy[:2, :]).T
 
     # flip sign of random flows; RANSAC should handle..
@@ -192,10 +218,10 @@ def simulation(plot=False, depth_assumption=False, lower_bound=5):
     #         flows_xy[i] *= -1
 
     if plot:
-        plt.scatter(projected0[0, :], projected0[1, :], c='r')
-        plt.scatter(projected1[0, :], projected1[1, :], c='g')
+        plt.scatter(projected0[0, :], projected0[1, :], c='r', s=1)
+        plt.scatter(projected1[0, :], projected1[1, :], c='g', s=1)
         plt.quiver(projected0[0, :], projected0[1, :],
-                   flows[0, :], flows[1, :],
+                   flows[:, 0], flows[:, 1],
                    color='b', label='flow',
                    angles='xy', scale_units='xy', scale=1)
         plt.xlim(0, u0 * 2)
@@ -206,26 +232,35 @@ def simulation(plot=False, depth_assumption=False, lower_bound=5):
     if depth_assumption:
         Points[:, 2] = lower_bound
 
+    projected1 = np.concatenate(
+        (projected1, np.ones((1, projected1.shape[1]))), axis=0)
+
     Z = Points[:, 2]  # BEST! so the previous depth values go here?
-    Lx1 = Lx(projected1_xy.T, Z)
+    # Z = (la.inv(P1[:3, :3]) @ Points.T + P1[:3, 3].reshape(-1, 1))[2,:]
+    # Z = (P1[:3, :3] @ Points.T - P1[:3, 3].reshape(-1, 1))[2,:]
+    # Z = np.ones_like(Z) * lower_bound
+
+    # print(projected1.T.shape, Z.shape, flows.shape)
+    # (100, 3) (100,) (100, 2)
+    Lx1 = Lp(projected1.T, Z, K)
     Lx1 = np.vstack(Lx1)
 
-    flows_xy = flows_xy.reshape(-1, 1) / dt
-    vel = np.linalg.pinv(Lx1) @ flows_xy
+    flows = flows.reshape(-1, 1) / dt
+    vel = np.linalg.pinv(Lx1) @ flows
     return vel
 
 
-SIZE = 10
+SIZE = 1
 gt = np.concatenate([vvec, np.ones(3)*w]).reshape(-1, 1)
-
 print(gt.T)
 errors = np.zeros((SIZE, 6))
 for i in range(SIZE):
-    res = simulation(lower_bound=10,
-                     plot=False,
+    res = simulation(lower_bound=80,
+                     plot=True,
                      depth_assumption=False)
     if res.shape[0] == 3:
         res = np.append(res, np.zeros((3, 1)), axis=0)
+    print(res)
     errors[i] = np.linalg.norm(res - gt, axis=1, ord=1)
 
 # make statistics of error along every dimension
