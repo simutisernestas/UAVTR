@@ -11,20 +11,24 @@ struct EstimatorConfig {
   float flow_vel_rejection_perc; // %%%
 };
 
+typedef Eigen::Transform<float, 3, Eigen::Affine> EigenAffine;
+
 class Estimator {
 public:
   Estimator(EstimatorConfig config);
   ~Estimator();
 
   Eigen::Vector3f update_target_position(
-      const Eigen::Vector2f &bbox_c, const Eigen::Matrix3f &cam_R_enu,
+      const Eigen::Vector2f &bbox_c, const EigenAffine &cam_T_enu,
       const Eigen::Matrix3f &K, const Eigen::Vector3f &t);
 
-  Eigen::Vector3f update_flow_velocity(cv::Mat &frame, double time, const Eigen::Matrix3f &cam_R_enu,
-                                       const Eigen::Vector3f &r, const Eigen::Matrix3f &K,
-                                       const Eigen::Vector3f &omega, const Eigen::Vector3f &drone_omega);
+  Eigen::Vector3f update_flow_velocity(cv::Mat &frame, double time,
+                                       const EigenAffine &base_T_odom,
+                                       const EigenAffine &img_T_base,
+                                       const Eigen::Matrix3f &K, const Eigen::Vector3f &omega,
+                                       const Eigen::Vector3f &drone_omega);
 
-  void store_flow_state(cv::Mat &frame, double time, const Eigen::Matrix3f &cam_R_enu);
+  void store_flow_state(cv::Mat &frame, double time, const EigenAffine &cam_T_enu);
 
   void update_imu_accel(const Eigen::Vector3f &accel, double time);
 
@@ -46,10 +50,10 @@ public:
     return h;
   }
 
-  Eigen::Vector3f target_position(const Eigen::Vector2f &pixel, const Eigen::Matrix3f &cam_R_enu, const Eigen::Matrix3f &K, float height) const;
+  Eigen::Vector3f target_position(const Eigen::Vector2f &pixel, const EigenAffine &cam_T_enu, const Eigen::Matrix3f &K, float height) const;
 
   float get_pixel_z_in_camera_frame(
-      const Eigen::Vector2f &pixel, const Eigen::Matrix3f &cam_R_enu,
+      const Eigen::Vector2f &pixel, const EigenAffine &cam_T_enu,
       const Eigen::Matrix3f &K, float height = -1) const;
 
   void update_cam_imu_accel(const Eigen::Vector3f &accel, const Eigen::Vector3f &omega,
@@ -71,6 +75,6 @@ private:
   EstimatorConfig config_;
 
   std::shared_ptr<cv::Mat> prev_frame_{nullptr};
-  Eigen::Matrix3f prev_cam_R_enu_;
+  EigenAffine prev_cam_T_enu_;
   double pre_frame_time_{-1};
 };

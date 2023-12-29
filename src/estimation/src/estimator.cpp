@@ -107,13 +107,13 @@ void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
 }
 
 Eigen::Vector3f Estimator::update_target_position(
-    const Eigen::Vector2f &bbox_c, const Eigen::Matrix3f &cam_R_enu,
+    const Eigen::Vector2f &bbox_c, const EigenAffine &cam_T_enu,
     const Eigen::Matrix3f &K, const Eigen::Vector3f &t) {
   float height = get_height();
   if (height < 1.0f)
     return {0, 0, 0};
 
-  Eigen::Vector3f Pt = target_position(bbox_c, cam_R_enu, K, height);
+  Eigen::Vector3f Pt = target_position(bbox_c, cam_T_enu, K, height);
 
   if (kf_->is_initialized()) {
     Eigen::Vector2f xy_meas(2);
@@ -321,18 +321,21 @@ bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
 }
 
 void Estimator::store_flow_state(cv::Mat &frame, double time,
-                                 const Eigen::Matrix3f &cam_R_enu) {
+                                 const EigenAffine &cam_T_enu) {
   this->pre_frame_time_ = time;
   this->prev_frame_ = std::make_shared<cv::Mat>(frame);
-  this->prev_cam_R_enu_ = cam_R_enu;
+  this->prev_cam_T_enu_ = cam_T_enu;
 }
 
-Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, const Eigen::Matrix3f &cam_R_enu,
-                                                const Eigen::Vector3f &r, const Eigen::Matrix3f &K,
-                                                const Eigen::Vector3f &omega, const Eigen::Vector3f &drone_omega) {
+Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time,
+                                                const EigenAffine &base_T_odom,
+                                                const EigenAffine &img_T_base,
+                                                const Eigen::Matrix3f &K, const Eigen::Vector3f &omega,
+                                                const Eigen::Vector3f &drone_omega) {
   cv::cvtColor(frame, frame, cv::COLOR_BGR2GRAY);
+  EigenAffine cam_T_enu = base_T_odom * img_T_base;
   if (!prev_frame_) {
-    store_flow_state(frame, time, cam_R_enu);
+    store_flow_state(frame, time, cam_T_enu);
     return {0, 0, 0};
   }
 
@@ -346,7 +349,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
 
   // for (int i = 0; i < 3; i++) {
   //   if (std::abs(omega[i]) > 0.3 || std::abs(drone_omega[i]) > 0.3) {
-  //     store_flow_state(frame, time, cam_R_enu);
+  //     store_flow_state(frame, time, cam_T_enu);
   //     return {0, 0, 0};
   //   }
   // }
@@ -369,7 +372,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     }
   }
 
-  const float MAX_Z = 120;
+  const float MAX_Z = 200;
   Eigen::VectorXf depth(samples.size());
   Eigen::MatrixXf uv = Eigen::MatrixXf(2, samples.size());
   Eigen::VectorXf flow_eigen(2 * flow_vecs.size());
@@ -380,7 +383,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
       continue;
 
     const float Z = get_pixel_z_in_camera_frame(
-        Eigen::Vector2f(samples[i].x, samples[i].y), prev_cam_R_enu_, K);
+        Eigen::Vector2f(samples[i].x, samples[i].y), prev_cam_T_enu_, K);
     if (Z < 0 || Z > MAX_Z || std::isnan(Z))
       continue;
 
@@ -392,7 +395,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
     ++insert_idx;
   }
   if (insert_idx < 3) {
-    store_flow_state(frame, time, cam_R_enu);
+    store_flow_state(frame, time, cam_T_enu);
     return {0, 0, 0};
   }
 
@@ -414,42 +417,45 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time, con
   bool success = RANSAC_vel_regression(J.block(0, 0, J.rows(), 3), flow_eigen, cam_vel_est);
   // bool success = RANSAC_vel_regression(J, flow_eigen, cam_vel_est);
 
-  Eigen::Vector3f v_com_enu = cam_R_enu * cam_vel_est.segment(0, 3);
-  // v_com_enu -= drone_omega.cross(r);
+  const Eigen::Vector3f v_base = img_T_base.rotation() * cam_vel_est.segment(0, 3)
+      - drone_omega.cross(img_T_base.translation());
+  const Eigen::Vector3f v_enu = base_T_odom.rotation() * v_base;
 
   if (success && kf_->is_initialized()) {
     static Eigen::MatrixXf C_vel(2, 12);
     C_vel << 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0;
     static Eigen::MatrixXf R_vel(2, 2);
-    R_vel = Eigen::MatrixXf::Identity(2, 2) * 3.0;
+    R_vel = Eigen::MatrixXf::Identity(2, 2) * 1.0;
 
-    kf_->update(v_com_enu.segment(0, 2), C_vel, R_vel);
+    kf_->update(v_enu.segment(0, 2), C_vel, R_vel);
 
     record_state_update(__FUNCTION__);
   }
 
-  store_flow_state(frame, time, cam_R_enu);
-  return -v_com_enu;
+  store_flow_state(frame, time, cam_T_enu);
+  return -v_enu;
 }
 
 float Estimator::get_pixel_z_in_camera_frame(
-    const Eigen::Vector2f &pixel, const Eigen::Matrix3f &cam_R_enu,
+    const Eigen::Vector2f &pixel, const EigenAffine &cam_T_enu,
     const Eigen::Matrix3f &K, float height) const {
   if (height < 0)
     height = get_height();
-  Eigen::Vector3f Pt = target_position(pixel, cam_R_enu, K, height);
+  Eigen::Vector3f Pt = target_position(pixel, cam_T_enu, K, height);
   // transform back to camera frame
-  Pt = cam_R_enu.inverse() * Pt;
+  Pt = cam_T_enu.inverse() * Pt;
   return Pt[2];
 }
 
-Eigen::Vector3f Estimator::target_position(const Eigen::Vector2f &pixel, const Eigen::Matrix3f &cam_R_enu, const Eigen::Matrix3f &K, float height) const {
+Eigen::Vector3f Estimator::target_position(const Eigen::Vector2f &pixel,
+                                           const EigenAffine &cam_T_enu,
+                                           const Eigen::Matrix3f &K, float height) const {
   Eigen::Matrix<float, 3, 3> Kinv = K.inverse();
   Eigen::Vector3f lr{0, 0, -1};
   Eigen::Vector3f Puv_hom{pixel[0], pixel[1], 1};
   Eigen::Vector3f Pc = Kinv * Puv_hom;
-  Eigen::Vector3f ls = cam_R_enu * (Pc / Pc.norm());
+  Eigen::Vector3f ls = cam_T_enu * (Pc / Pc.norm());
   float d = height / (lr.transpose() * ls);
   Eigen::Vector3f Pt = ls * d;
   return Pt;
