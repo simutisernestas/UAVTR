@@ -36,7 +36,7 @@ ls = R @ (Pc / la.norm(Pc, axis=0))
 d = H / (np.array([[0, 0, -1]]) @ ls)
 Pt = ls * d
 distance = la.norm(Pt, axis=0)
-distance = Pt[0, :]
+distance = Pt[2, :]
 im_d[v, u] = distance
 # visualize image with color gradient as distance
 plt.imshow(im_d, cmap='jet')
