@@ -237,8 +237,13 @@ void solve_sampled(const Eigen::MatrixXf &J,
 bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
                                       const Eigen::VectorXf &flow_vectors,
                                       Eigen::VectorXf &cam_vel_est) {
+
+  // J.templatebdcSvd<Eigen::ComputeThinU | Eigen::ComputeThinV>().solve(b)
+
+  cam_vel_est = J.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(flow_vectors);
+
   // cam_vel_est = (J.transpose() * J).ldlt().solve(J.transpose() * flow_vectors);
-  // return true;
+  return true;
 
   // https://rpg.ifi.uzh.ch/docs/Visual_Odometry_Tutorial.pdf slide 68
   // >> outlier_percentage = .75
@@ -347,6 +352,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time,
     return {0, 0, 0};
   }
 
+#ifdef TESTWRITE
   static int count{0};
   static float height{0};
   count++;
@@ -370,89 +376,23 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time,
     file << "imgTbase:" << img_T_base.matrix() << std::endl;
   }
   height = get_height();
-
-  // for (int i = 0; i < 3; i++) {
-  //   if (std::abs(omega[i]) > 0.3 || std::abs(drone_omega[i]) > 0.3) {
-  //     store_flow_state(frame, time, cam_T_enu);
-  //     return {0, 0, 0};
-  //   }
-  // }
+#endif
 
   cv::Mat flow;
   optflow_->calc(*prev_frame_, frame, flow);
 
-  int every_nth = 16;
-  std::vector<cv::Point2f> flow_vecs;
-  flow_vecs.reserve(frame.rows * frame.cols / (every_nth * every_nth));
-  std::vector<cv::Point> samples;
-  samples.reserve(frame.rows * frame.cols / (every_nth * every_nth));
-  // the multiplies are orientation dependant
-  for (int row = (int) every_nth; row < (frame.rows - every_nth); row += every_nth) {
-    for (int col = (int) every_nth; col < (frame.cols - every_nth); col += every_nth) {
-      // Get the flow from `flow`, which is a 2-channel matrix
-      const cv::Point2f &fxy = flow.at<cv::Point2f>(row, col);
-      flow_vecs.push_back(fxy);
-      samples.emplace_back(row, col);
-    }
-  }
+  Eigen::Vector3f v_enu = computeCameraVelocity(
+      flow, K, prev_cam_T_enu_.rotation(), get_height(), dt);
 
-  const float MAX_Z = 200;
-  Eigen::VectorXf depth(samples.size());
-  Eigen::MatrixXf uv = Eigen::MatrixXf(2, samples.size());
-  Eigen::VectorXf flow_eigen(2 * flow_vecs.size());
-  long insert_idx = 0;
-  for (size_t i = 0; i < samples.size(); i++) {
-    const bool is_flow_present = (flow_vecs[i].x != 0 && flow_vecs[i].y != 0);
-    if (!is_flow_present)
-      continue;
-
-    const float Z = get_pixel_z_in_camera_frame(
-        Eigen::Vector2f(samples[i].x, samples[i].y), prev_cam_T_enu_, K);
-    if (Z < 0 || Z > MAX_Z || std::isnan(Z))
-      continue;
-
-    depth(insert_idx) = Z;
-    uv(0, insert_idx) = static_cast<float>(samples[i].x);
-    uv(1, insert_idx) = static_cast<float>(samples[i].y);
-    flow_eigen(2 * insert_idx) = flow_vecs[i].x / dt;
-    flow_eigen(2 * insert_idx + 1) = flow_vecs[i].y / dt;
-    ++insert_idx;
-  }
-  if (insert_idx < 3) {
-    store_flow_state(frame, time, cam_T_enu);
-    return {0, 0, 0};
-  }
-
-  // resize the matrices to fit the filled values
-  depth.conservativeResize(insert_idx);
-  uv.conservativeResize(Eigen::NoChange, insert_idx);
-  flow_eigen.conservativeResize(2 * insert_idx);
-
-  Eigen::MatrixXf J; // Jacobian
-  visjac_p(uv, depth, K, J);
-
-  for (long i = 0; i < J.rows(); i++) {
-    Eigen::Vector3f Jw = {J(i, 3), J(i, 4), J(i, 5)};
-    flow_eigen(i) -= Jw.dot(omega);
-    // Eigen::Vector3f Jv = {J(i, 0), J(i, 1), J(i, 2)};
-    // flow_eigen(i) -= Jv.dot(drone_omega.cross(r));
-  }
-  Eigen::VectorXf cam_vel_est;
-  bool success = RANSAC_vel_regression(J.block(0, 0, J.rows(), 3), flow_eigen, cam_vel_est);
-  // bool success = RANSAC_vel_regression(J, flow_eigen, cam_vel_est);
-
-  const Eigen::Vector3f v_base = img_T_base.rotation() * cam_vel_est.segment(0, 3)
-      - drone_omega.cross(img_T_base.translation());
-  const Eigen::Vector3f v_enu = base_T_odom.rotation() * v_base;
-
-  if (success && kf_->is_initialized()) {
-    static Eigen::MatrixXf C_vel(2, 12);
+  if (kf_->is_initialized()) {
+    static Eigen::MatrixXf C_vel(3, 12);
     C_vel << 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0;
-    static Eigen::MatrixXf R_vel(2, 2);
-    R_vel = Eigen::MatrixXf::Identity(2, 2) * 1.0;
+        0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0;
+    static Eigen::MatrixXf R_vel(3, 3);
+    R_vel = Eigen::MatrixXf::Identity(3, 3) * 2.0;
 
-    kf_->update(v_enu.segment(0, 2), C_vel, R_vel);
+    kf_->update(v_enu, C_vel, R_vel);
 
     record_state_update(__FUNCTION__);
   }
@@ -483,6 +423,43 @@ Eigen::Vector3f Estimator::target_position(const Eigen::Vector2f &pixel,
   float d = height / (lr.transpose() * ls);
   Eigen::Vector3f Pt = ls * d;
   return Pt;
+}
+
+Eigen::VectorXf Estimator::computeCameraVelocity(
+    const cv::Mat &flow, const Eigen::Matrix3f &K,
+    const Eigen::Matrix3f &R, float height, float dt) {
+  int NTH = 13;
+  long size = flow.rows * flow.cols / (NTH * NTH);
+  Eigen::MatrixXf pixels(2, size);
+  Eigen::VectorXf flows(2 * size);
+  Eigen::VectorXf depths(size);
+  long insert_idx = 0;
+  for (int i = 0; i < flow.rows; i += NTH) {
+    for (int j = 0; j < flow.cols; j += NTH) {
+      if (insert_idx >= size)
+        break;
+
+      cv::Vec2f f = flow.at<cv::Vec2f>(i, j);
+      pixels(0, insert_idx) = static_cast<float>(j);
+      pixels(1, insert_idx) = static_cast<float>(i);
+      flows(2 * insert_idx) = f[0] / dt;
+      flows(2 * insert_idx + 1) = f[1] / dt;
+      Eigen::Affine3f cam_T_enu(R);
+      depths(insert_idx) = get_pixel_z_in_camera_frame(
+          pixels.col(insert_idx), cam_T_enu, K, height);
+      insert_idx++;
+    }
+  }
+  assert(insert_idx == size);
+
+  Eigen::MatrixXf Jac;
+  visjac_p(pixels, depths, K, Jac);
+
+  Eigen::VectorXf vel_omega = // 6D twist vector
+      Jac.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(flows);
+
+  Eigen::VectorXf v_enu = R * vel_omega.segment(0, 3);
+  return v_enu;
 }
 
 void draw_flow() {

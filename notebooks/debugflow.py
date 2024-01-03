@@ -1,4 +1,5 @@
 # %%
+from sklearn.linear_model import Ridge
 import numpy as np
 import numpy.linalg as la
 import matplotlib.pyplot as plt
@@ -8,6 +9,26 @@ import pandas as pd
 import re
 from scipy import optimize
 import transforms3d as tf
+
+
+def extract_z_rot(R):
+    z = np.array([R[0, 2], R[1, 2], R[2, 2]])
+    z /= la.norm(z)
+    theta = np.arctan2(z[1], z[0])
+    Rz = np.array([
+        [np.cos(theta), -np.sin(theta), 0],
+        [np.sin(theta), np.cos(theta), 0],
+        [0, 0, 1]])
+    return Rz
+
+
+def get_timestamp(f):
+    parts = f.split("_")
+    try:
+        ts = float(parts[0])
+    except ValueError:
+        return None
+    return ts
 
 
 def e2h(e):
@@ -75,40 +96,6 @@ def h2e(h):
     return h[:-1, :]/h[-1, :]
 
 
-data = pd.read_csv('pjdata.csv')
-
-# %%
-
-TIMEPOINT = 412
-
-velx = data["/fmu/out/vehicle_gps_position/vel_e_m_s"].dropna().to_numpy()
-vely = data["/fmu/out/vehicle_gps_position/vel_n_m_s"].dropna().to_numpy()
-velz = data["/fmu/out/vehicle_gps_position/vel_d_m_s"].dropna().to_numpy()
-time = data["/fmu/out/vehicle_gps_position/timestamp"].dropna() / 1e6
-
-# velx = data["/fmu/out/vehicle_odometry/velocity.0"].dropna().to_numpy()
-# vely = data["/fmu/out/vehicle_odometry/velocity.1"].dropna().to_numpy()
-# velz = data["/fmu/out/vehicle_odometry/velocity.2"].dropna().to_numpy()
-# time = data["/fmu/out/vehicle_odometry/timestamp"].dropna() / 1e6
-
-
-def getGT(timestamp):
-    # find the time closest to TIMEPOINT seconds
-    gt_vel = np.array([
-        velx[np.argmin(np.abs(time - timestamp))],
-        vely[np.argmin(np.abs(time - timestamp))],
-        velz[np.argmin(np.abs(time - timestamp))],
-    ])
-    return gt_vel
-
-
-plt.plot(time, velx, label="velx")
-plt.plot(time, vely, label="vely")
-plt.plot(time, velz, label="velz")
-plt.legend()
-plt.show()
-
-
 def parse_meta(datafile):
     # Define patterns for single and multi-line values
     single_value_pattern = r"(\w+):\s*([-+]?\d*\.\d+|\d+)(?=\s*\w+:|$)"
@@ -145,6 +132,25 @@ def parse_meta(datafile):
     return parsed_data
 
 
+def get_timestamp(f):
+    parts = f.split("_")
+    try:
+        ts = float(parts[0])
+    except ValueError:
+        return None
+    return ts
+
+
+def getGT(timestamp):
+    # find the time closest to TIMEPOINT seconds
+    gt_vel = np.array([
+        velx[np.argmin(np.abs(time - timestamp))],
+        vely[np.argmin(np.abs(time - timestamp))],
+        velz[np.argmin(np.abs(time - timestamp))],
+    ])
+    return gt_vel
+
+
 u, v = np.meshgrid(range(0, 640), range(0, 480))
 u = u.reshape(-1)
 v = v.reshape(-1)
@@ -156,6 +162,15 @@ def getPt(K, Rot, height):
     global Puv_hom
     Kinv = la.inv(K)
     Pc = Kinv @ Puv_hom.T
+    ls = Rot @ (Pc / la.norm(Pc, axis=0))
+    d = height / (np.array([[0, 0, -1]]) @ ls)
+    Pt = ls * d  # world points
+    return Pt
+
+
+def getPts(pixels, K, Rot, height):
+    Kinv = la.inv(K)
+    Pc = Kinv @ pixels.T
     ls = Rot @ (Pc / la.norm(Pc, axis=0))
     d = height / (np.array([[0, 0, -1]]) @ ls)
     Pt = ls * d  # world points
@@ -220,21 +235,41 @@ def bev(image, Rot, height, jet=False, warp=False):
     return tim0, Pt, M
 
 
+data = pd.read_csv('pjdata.csv')
+
+
+# %%
+
+TIMEPOINT = 412
+
+velx = data["/fmu/out/vehicle_gps_position/vel_e_m_s"].dropna().to_numpy()
+vely = data["/fmu/out/vehicle_gps_position/vel_n_m_s"].dropna().to_numpy()
+velz = data["/fmu/out/vehicle_gps_position/vel_d_m_s"].dropna().to_numpy()
+time = data["/fmu/out/vehicle_gps_position/timestamp"].dropna() / 1e6
+# velx = data["/fmu/out/vehicle_odometry/velocity.0"].dropna().to_numpy()
+# vely = data["/fmu/out/vehicle_odometry/velocity.1"].dropna().to_numpy()
+# velz = data["/fmu/out/vehicle_odometry/velocity.2"].dropna().to_numpy()
+# time = data["/fmu/out/vehicle_odometry/timestamp"].dropna() / 1e6
+
+plt.plot(time, velx, label="velx")
+plt.plot(time, vely, label="vely")
+plt.plot(time, velz, label="velz")
+plt.legend()
+
 saved = os.listdir('/tmp/')
 saved.sort()
+
+print(time.min(), time.max())
 
 # %%
 
 
-def extract_z_rot(R):
-    z = np.array([R[0, 2], R[1, 2], R[2, 2]])
-    z /= la.norm(z)
-    theta = np.arctan2(z[1], z[0])
-    Rz = np.array([
-        [np.cos(theta), -np.sin(theta), 0],
-        [np.sin(theta), np.cos(theta), 0],
-        [0, 0, 1]])
-    return Rz
+def read_data_from_disk(timestamp):
+    im0 = cv2.imread(f'/tmp/{ts_spot:.6f}_frame0.png', cv2.IMREAD_GRAYSCALE)
+    im1 = cv2.imread(f'/tmp/{ts_spot:.6f}_frame1.png', cv2.IMREAD_GRAYSCALE)
+    flowdatafile = open(f'/tmp/{ts_spot:.6f}_flowinfo.txt')
+    flowdata = flowdatafile.read()
+    return im0, im1, flowdata
 
 
 def get_timestamp(f):
@@ -247,7 +282,9 @@ def get_timestamp(f):
 
 
 disflow = cv2.DISOpticalFlow_create(2)
-T0 = 440
+T0 = time.to_numpy().min()
+T0 = 470.517327
+T1 = 473.517327
 meas_vel = []
 meas_time = []
 ts_spot = None
@@ -264,15 +301,11 @@ for i in range(len(saved)):
     if tmp == ts_spot:
         continue
     ts_spot = tmp
-
-    if ts_spot < T0:
+    if ts_spot < T0 or ts_spot > T1:
         continue
 
-    # read these in at ts_spot
-    im0 = cv2.imread(f'/tmp/{ts_spot:.6f}_frame0.png', cv2.IMREAD_GRAYSCALE)
-    im1 = cv2.imread(f'/tmp/{ts_spot:.6f}_frame1.png', cv2.IMREAD_GRAYSCALE)
-    flowdatafile = open(f'/tmp/{ts_spot:.6f}_flowinfo.txt')
-    flowdata = flowdatafile.read()
+    print(ts_spot)
+    im0, im1, flowdata = read_data_from_disk(ts_spot)
 
     parsed_data = parse_meta(flowdata)
     if not isinstance(parsed_data, dict):
@@ -285,62 +318,201 @@ for i in range(len(saved)):
     R = parsed_data["cam_R_enu"]
     prevR = parsed_data["prev_R"]
     dt = parsed_data["dt"]
+    imgTbase = parsed_data["imgTbase"].reshape(4, 4)
+    baseTodom = parsed_data["baseTodom"].reshape(4, 4)
 
-    bev0, _, H0 = bev(im0, prevR, pH, warp=False)
-    bev1, _, H1 = bev(im1, R, H, warp=False)
-    flow = disflow.calc(bev0, bev1, None)  # (480, 640, 2)
-    flow = flow.reshape(-1, 2)
-    NTH = 7
+    flow = disflow.calc(im0, im1, None)  # (480, 640, 2)
+
+    NTH = 13
     pixels = np.stack((u, v, ones), axis=-1)
-    filter_zeros = np.where(bev0[pixels[:, 1], pixels[:, 0]] > 0)
-    pixels = pixels[filter_zeros][::NTH**2, :]
-    flow = flow[filter_zeros][::NTH**2, :]
+    flow = flow.reshape(-1, 2)
+    pixels = pixels[::NTH**2, :]
+    flow = flow[::NTH**2, :]
 
-    Kinv = la.inv(K)
-    Jac = Lp(pixels, H, K)
-    Jac = Jac[:, [1, 2, 5]]
-    velocity = la.pinv(Jac) @ (flow.reshape(-1, 1) / dt)
-    # Rz = extract_z_rot(R)
-    # velocity[:3] = la.inv(Rz) @ velocity[:3]
-    meas_vel.append([velocity[0][0], velocity[1][0],
+    # TODO try it out! with pH
+    points = getPts(pixels, K, prevR, pH)
+    points = la.inv(prevR) @ points
+
+    Jac = Lp(pixels, points[2, :], K)
+    velw = la.pinv(Jac) @ (flow.reshape(-1, 1) / dt)
+    v_enu = prevR @ velw.reshape(-1, 1)[:3]
+
+    meas_vel.append([v_enu[0][0], v_enu[1][0], v_enu[2][0],
                      (la.norm(omega_drone) + la.norm(omega_cam))])
-
-    # flow_avg = np.mean(flow, axis=0)
-    # pp = np.array([320, 240, 1], dtype=np.float32)
-    # pp_org = h2e(la.inv(H0) @ pp)
-    # pp_flow = np.copy(pp)
-    # pp_flow[:2] += flow_avg
-    # pp_flow_org = h2e(la.inv(H1) @ pp_flow)
-    # dp = get3D(e2h(pp_org), K, prevR, pH) - get3D(e2h(pp_flow_org), K, R, H)
-    # velocity = dp / dt
-    # meas_vel.append([velocity[0], velocity[1],
-    #                  (la.norm(omega_drone) + la.norm(omega_cam))])
-
     meas_time.append(ts_spot)
+    if ts_spot > 473:
+        break
+
 
 # %%
 
 meas_vel_np = np.array(meas_vel)
 # meas_vel_np[:, 0] = pd.Series(meas_vel_np[:, 0]).rolling(30).mean()
 # meas_vel_np[:, 1] = pd.Series(meas_vel_np[:, 1]).rolling(30).mean()
-plt.figure()
-plt.xlim(T0, 442.1)
-plt.ylim(-5, 5)
-plt.plot(meas_time, meas_vel_np[:, 0], label="meas velx")
-plt.plot(meas_time, meas_vel_np[:, 1], label="meas vely")
+plt.figure(figsize=(10, 10))
+plt.xlim(T0, T1)
+plt.ylim(-3, 3)
+plt.scatter(meas_time, meas_vel_np[:, 0], label="meas velx", s=2)
+plt.scatter(meas_time, meas_vel_np[:, 1], label="meas vely", s=2)
+plt.scatter(meas_time, meas_vel_np[:, 2], label="meas velz", s=2)
 plt.plot(time, velx, label="gt velx")
 plt.plot(time, vely, label="gt vely")
+plt.plot(time, -velz, label="gt velz")
 plt.legend()
 
-plt.figure()
-plt.xlim(T0, 442)
-plt.ylim(0, 2)
+plt.figure(figsize=(10, 10))
+plt.xlim(T0, T1)
+plt.ylim(0, 5)
 plt.plot(time, np.sqrt(velx**2 + vely**2), label="NORM GT")
-plt.plot(meas_time, np.sqrt(meas_vel_np[:, 0]**2 + meas_vel_np[:, 1]**2),
+plt.plot(meas_time, np.sqrt(meas_vel_np[:, 0]**2
+                            + meas_vel_np[:, 1]**2
+                            + meas_vel_np[:, 2]**2),
          label="NORM MEAS")
-plt.plot(meas_time, meas_vel_np[:, 2], label="omega")
+plt.scatter(meas_time,
+            np.abs(meas_vel_np[:, 3]),
+            label="omega", s=2, c='green')
 plt.legend()
 plt.show()
+
+meas_vel_np
+
+# %%
+
+# v_base = imgTbase[:3, :3] @ cam_vel_est - \
+#     np.cross(omega_drone.T, imgTbase[:3, 3]).T
+# v_enu = baseTodom[:3, :3] @ v_base.reshape(-1, 1)
+
+# bev0, _, H0 = bev(im0, prevR, pH, warp=False)
+# bev1, _, H1 = bev(im1, R, H, warp=False)
+# flow = disflow.calc(bev0, bev1, None)  # (480, 640, 2)
+# flow = flow.reshape(-1, 2)
+# NTH = 7
+# pixels = np.stack((u, v, ones), axis=-1)
+# filter_zeros = np.where(bev0[pixels[:, 1], pixels[:, 0]] > 0)
+# filter_center = np.where(
+#     (np.abs(pixels[:, 0] - 320) < 100) &
+#     (np.abs(pixels[:, 1] - 240) < 100))
+# filter_zeros = np.intersect1d(filter_zeros, filter_center)
+# pixels = pixels[filter_zeros][::NTH**2, :]
+# flow = flow[filter_zeros][::NTH**2, :]
+
+# # Kinv = la.inv(K)
+# # Jac = Lp(pixels, H, K)
+# # Jac = Jac[:, [1, 2, 5]]
+# # velocity = la.pinv(Jac) @ (flow.reshape(-1, 1) / dt)
+# # # Rz = extract_z_rot(R)
+# # # velocity[:3] = la.inv(Rz) @ velocity[:3]
+# # meas_vel.append([velocity[0][0], velocity[1][0],
+# #                  (la.norm(omega_drone) + la.norm(omega_cam))])
+
+# flow_avg = np.mean(flow, axis=0)
+# pp = np.array([320, 240, 1], dtype=np.float32)
+# pp_org = h2e(la.inv(H0) @ pp)
+# pp_flow = np.copy(pp)
+# pp_flow[:2] += flow_avg
+# pp_flow_org = h2e(la.inv(H1) @ pp_flow)
+# dp = get3D(e2h(pp_org), K, prevR, pH) - get3D(e2h(pp_flow_org), K, R, H)
+# velocity = dp / dt
+# meas_vel.append([velocity[0], velocity[1],
+#                  (la.norm(omega_drone) + la.norm(omega_cam))])
+
+
+exit()
+T0 = 443
+ts_spot = None
+for i in range(10000):
+    try:
+        sample = saved[i]
+    except IndexError:
+        break
+    ts = get_timestamp(sample)
+    if ts is None:
+        continue
+    if ts - T0 < (30/1000):
+        ts_spot = ts
+
+# read these in at ts_spot
+im0 = cv2.imread(f'/tmp/{ts_spot:.6f}_frame0.png', cv2.IMREAD_GRAYSCALE)
+im1 = cv2.imread(f'/tmp/{ts_spot:.6f}_frame1.png', cv2.IMREAD_GRAYSCALE)
+flow = open(f'/tmp/{ts_spot:.6f}_flowinfo.txt')
+flowdata = flow.read()
+
+parsed_data = parse_meta(flowdata)
+K = parsed_data["K"]
+omega_cam = parsed_data["omega"]
+omega_drone = parsed_data["drone_omega"]
+print(f"omegas {omega_cam.T} {omega_drone.T}")
+H = float(parsed_data["height"][0])
+pH = float(parsed_data["prev_height"][0])
+R = parsed_data["cam_R_enu"]
+prevR = parsed_data["prev_R"]
+dt = parsed_data["dt"]
+imgTbase = parsed_data["imgTbase"].reshape(4, 4)
+baseTodom = parsed_data["baseTodom"].reshape(4, 4)
+
+disflow = cv2.DISOpticalFlow_create(2)
+flow = disflow.calc(im0, im1, None)  # (480, 640, 2)
+
+NTH = 13
+pixels = np.stack((u, v, ones), axis=-1)
+flow = flow.reshape(-1, 2)
+pixels = pixels[::NTH**2, :]
+flow = flow[::NTH**2, :]
+points = getPts(pixels, K, R, H)
+points = la.inv(prevR) @ points
+
+# # plot 3d
+# fig = plt.figure()
+# ax = fig.add_subplot(projection='3d')
+# ax.scatter(points[0, :], points[1, :], points[2, :])
+# ax.set_xlabel('X Label')
+# ax.set_ylabel('Y Label')
+# ax.set_zlabel('Z Label')
+# plt.show()
+
+# if True:
+plt.scatter(pixels[:, 0], pixels[:, 1], s=1)
+# invert y axis
+plt.gca().invert_yaxis()
+plt.figure()
+plt.imshow(im0)
+plt.quiver(pixels[:, 0], pixels[:, 1],
+           flow[:, 1]*10, flow[:, 0]*10, color='r',
+           angles='xy', scale_units='xy', scale=1)
+flow_avg = np.mean(flow, axis=0)
+plt.quiver(320, 240, flow_avg[1]*20, flow_avg[0]*100, color='b',
+           angles='xy', scale_units='xy', scale=1)
+plt.show()
+
+Jac = Lp(pixels, points[2, :], K)
+
+y = flow.reshape(-1, 1) / dt
+X = Jac
+clf = Ridge(alpha=1.0, tol=1e-6)
+res = clf.fit(X, y).coef_
+
+Jac = Jac[:, [0, 1, 2]]
+
+velw = la.pinv(Jac) @ (flow.reshape(-1, 1) / dt)
+gtvel = getGT(ts_spot)
+velw.T[:, :3], getGT(ts_spot), ts_spot, la.norm(
+    velw.T[:, :3]), la.norm(gtvel), res
+
+cam_vel_est = res[:, :3].T
+cam_vel_est = velw[:3]
+
+v_base = imgTbase[:3, :3] @ cam_vel_est - \
+    np.cross(omega_drone.T, imgTbase[:3, 3]).T
+v_enu = baseTodom[:3, :3] @ v_base.reshape(-1, 1)
+v_enu.T, gtvel
+
+
+# %%
+
+# def costK(x):
+# costK(np.eye(3), pixels, K, H0)
+# res = optimize.minimize(costK, np.eye(3).reshape(-1), args=(pixels, K, H0))
+# res
 
 # %%
 
@@ -372,16 +544,7 @@ h2e(la.inv(Kcom) @ pp)
 # %%
 
 
-def get_timestamp(f):
-    parts = f.split("_")
-    try:
-        ts = float(parts[0])
-    except ValueError:
-        return None
-    return ts
-
-
-T0 = 440
+T0 = 440.7
 ts_spot = None
 for i in range(10000):
     try:
@@ -415,20 +578,6 @@ bev0, Pt0, H0 = bev(im0, prevR, pH, warp=False)
 bev1, Pt1, H1 = bev(im1, R, pH, warp=False)
 
 
-def modcont(image):
-    blurred_img = cv2.GaussianBlur(image, (21, 21), 0)
-    mask = np.zeros(image.shape, np.uint8)
-    thresh = cv2.threshold(image, 60, 255, cv2.THRESH_BINARY)[1]
-    contours, hierarchy = cv2.findContours(
-        thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    cv2.drawContours(mask, contours, -1, (255), 5)
-    output = np.where(mask == np.array([255]), blurred_img, image)
-    return output
-
-
-bev0 = modcont(bev0)
-bev1 = modcont(bev1)
-
 disflow = cv2.DISOpticalFlow_create(2)
 flow = disflow.calc(bev0, bev1, None)  # (480, 640, 2)
 
@@ -438,8 +587,13 @@ NTH = 15
 pixels = np.stack((u, v, ones), axis=-1)
 flow = flow.reshape(-1, 2)
 filter_zeros = np.where(bev0[pixels[:, 1], pixels[:, 0]] > 0)
-pixels = pixels[filter_zeros][::NTH**2, :]
-flow = flow[filter_zeros][::NTH**2, :]
+# where pixels are not too far from principal point
+filter_center = np.where(
+    (np.abs(pixels[:, 0] - 320) < 100) &
+    (np.abs(pixels[:, 1] - 240) < 100))
+filter_center = np.intersect1d(filter_zeros, filter_center)
+pixels = pixels[filter_center][::NTH**2, :]
+flow = flow[filter_center][::NTH**2, :]
 
 # if True:
 plt.scatter(pixels[:, 0], pixels[:, 1], s=1)
@@ -451,7 +605,7 @@ plt.quiver(pixels[:, 0], pixels[:, 1],
            flow[:, 1]*10, flow[:, 0]*10, color='r',
            angles='xy', scale_units='xy', scale=1)
 flow_avg = np.mean(flow, axis=0)
-plt.quiver(320, 240, flow_avg[1]*100, flow_avg[0]*100, color='b',
+plt.quiver(320, 240, flow_avg[1]*10, flow_avg[0]*100, color='b',
            angles='xy', scale_units='xy', scale=1)
 plt.show()
 
@@ -462,16 +616,16 @@ velw, getGT(ts_spot), ts_spot
 
 # %%
 
-pp = np.array([320, 240, 1], dtype=np.float32)
-pp_org = h2e(la.inv(H0) @ pp)
+# pp = np.array([320, 240, 1], dtype=np.float32)
+# pp_org = h2e(la.inv(H0) @ pp)
 
-pp_flow = np.copy(pp)
-pp_flow[:2] += flow_avg
-pp_flow_org = h2e(la.inv(H1) @ pp_flow)
-dp = get3D(e2h(pp_org), K, prevR, pH) - get3D(e2h(pp_flow_org), K, R, H)
+# pp_flow = np.copy(pp)
+# pp_flow[:2] += flow_avg
+# pp_flow_org = h2e(la.inv(H1) @ pp_flow)
+# dp = get3D(e2h(pp_org), K, prevR, pH) - get3D(e2h(pp_flow_org), K, R, H)
 
-v = dp / dt
-v, getGT(ts_spot)
+# v = dp / dt
+# v, getGT(ts_spot)
 
 # np.set_printoptions(precision=3, suppress=True)
 # back = la.inv(K @ H0) @ pixels.T
@@ -488,6 +642,17 @@ v, getGT(ts_spot)
 # plt.scatter(pixels_b[0, :], pixels_b[1, :], s=1)
 # plt.gca().invert_yaxis()
 
+# def modcont(image):
+#     blurred_img = cv2.GaussianBlur(image, (21, 21), 0)
+#     mask = np.zeros(image.shape, np.uint8)
+#     thresh = cv2.threshold(image, 60, 255, cv2.THRESH_BINARY)[1]
+#     contours, hierarchy = cv2.findContours(
+#         thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#     cv2.drawContours(mask, contours, -1, (255), 5)
+#     output = np.where(mask == np.array([255]), blurred_img, image)
+#     return output
+# bev0 = modcont(bev0)
+# bev1 = modcont(bev1)
 # %%
 
 

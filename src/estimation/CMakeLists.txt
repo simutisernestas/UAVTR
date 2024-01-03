@@ -102,11 +102,11 @@ target_include_directories(orientation_filter PUBLIC
 get_filename_component(TEST_SOURCE test/test_flow_velocity.cpp ABSOLUTE)
 get_filename_component(TEST_PATH ${TEST_SOURCE} DIRECTORY)
 
-# find_package(ament_cmake_gtest REQUIRED)
-# add_executable(flow_velocity_test test/test_flow_velocity.cpp)
-# include_directories(flow_velocity_test PUBLIC 
-#         ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR} include ${EIGEN3_INCLUDE_DIR})
-# target_link_libraries(flow_velocity_test 
-#         gtest gtest_main gmock gmock_main estimator_lib ${EIGEN3_LIBRARIES})
-# ament_target_dependencies(flow_velocity_test OpenCV)
-# target_compile_definitions(flow_velocity_test PRIVATE TEST_DIR="${TEST_PATH}")
+find_package(ament_cmake_gtest REQUIRED)
+add_executable(flow_velocity_test test/test_flow_velocity.cpp)
+include_directories(flow_velocity_test PUBLIC 
+        ${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR} include ${EIGEN3_INCLUDE_DIR})
+target_link_libraries(flow_velocity_test 
+        gtest gtest_main gmock gmock_main estimator_lib ${EIGEN3_LIBRARIES})
+ament_target_dependencies(flow_velocity_test OpenCV)
+target_compile_definitions(flow_velocity_test PRIVATE TEST_DIR="${TEST_PATH}")

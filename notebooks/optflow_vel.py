@@ -1,4 +1,5 @@
 # %%
+from sklearn.linear_model import Ridge
 import numpy.linalg as la
 import scipy.optimize as opt
 import numpy as np
@@ -196,14 +197,14 @@ def polygon_area(coords):
 
 
 def simulation(plot=False, depth_assumption=False, lower_bound=5):
-    Points = np.random.uniform(-lower_bound*3/4, lower_bound*3/4, (100, 3))
+    Points = np.random.uniform(-lower_bound*3/4, lower_bound*3/4, (1000, 3))
     # Points = Points[Points[:, 1].argsort()]
     Points[:, 2] = np.random.uniform(
         lower_bound, lower_bound+0, Points.shape[0])
     # for i in range(Points.shape[0]):
     #     Points[i, 2] += i * .005
 
-    NOISE = 1 / lower_bound
+    NOISE = 10 / lower_bound
     projected0 = project(Points.T, C0, NOISE)
     projected0_xy = Kinv @ e2h(projected0)
     projected1 = project(Points.T, C1, NOISE)
@@ -213,9 +214,9 @@ def simulation(plot=False, depth_assumption=False, lower_bound=5):
     flows_xy = (projected0_xy[:2, :] - projected1_xy[:2, :]).T
 
     # flip sign of random flows; RANSAC should handle..
-    # for i in range(flows.shape[1]):
-    #     if np.random.rand() > .95:
-    #         flows_xy[i] *= -1
+    for i in range(flows.shape[1]):
+        if np.random.rand() > .8:
+            flows_xy[i] *= -1
 
     if plot:
         plt.scatter(projected0[0, :], projected0[1, :], c='r', s=1)
@@ -245,18 +246,24 @@ def simulation(plot=False, depth_assumption=False, lower_bound=5):
     Lx1 = Lp(projected1.T, Z, K)
     Lx1 = np.vstack(Lx1)
 
+    # y = flows.reshape(-1, 1) / dt
+    # X = Lx1
+    # clf = Ridge(alpha=1.0, tol=1e-6)
+    # res = clf.fit(X, y).coef_
+    # return res.reshape(-1, 1)
+
     flows = flows.reshape(-1, 1) / dt
     vel = np.linalg.pinv(Lx1) @ flows
     return vel
 
 
-SIZE = 1
+SIZE = 100
 gt = np.concatenate([vvec, np.ones(3)*w]).reshape(-1, 1)
 print(gt.T)
 errors = np.zeros((SIZE, 6))
 for i in range(SIZE):
-    res = simulation(lower_bound=80,
-                     plot=True,
+    res = simulation(lower_bound=20,
+                     plot=False,
                      depth_assumption=False)
     if res.shape[0] == 3:
         res = np.append(res, np.zeros((3, 1)), axis=0)

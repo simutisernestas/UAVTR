@@ -63,6 +63,10 @@ public:
                              const Eigen::VectorXf &flow_vectors,
                              Eigen::VectorXf &cam_vel_est);
 
+  Eigen::VectorXf computeCameraVelocity(
+      const cv::Mat &flow, const Eigen::Matrix3f &K,
+      const Eigen::Matrix3f &R, float height, float dt);
+
 private:
   static void get_A(Eigen::MatrixXf &A, double dt);
 
