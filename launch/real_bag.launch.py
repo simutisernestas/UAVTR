@@ -39,7 +39,7 @@ def launch_setup(context, *args, **kwargs):
     MODE = int(context.launch_configurations['mode'])
     bag_name = ""
     offset = -1
-    BAG0_OFF = 140
+    BAG0_OFF = 130
     if WHICH == 0:
         bag_name = "./18_0/rosbag2_2023_10_18-12_24_19"
         offset = BAG0_OFF
