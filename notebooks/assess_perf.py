@@ -97,12 +97,12 @@ print('state_data.shape: ', state_data.shape)
 relative_pos_gt = boat_pos - drone_pos[:boat_pos.shape[0], :]
 # binary signal indicating whether the target is in sight or not
 target_in_sight = state_data[:, STATE_TARGET_IN_SIGHT_COLUMN]
-binary_sight = np.where(target_in_sight > 0)
+binary_sight = target_in_sight > 0
 
 # %%
 
 
-def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, est_label, gt_label, axis_label, binary_sight=None):
+def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, est_label, gt_label, axis_label, bns=None):
     fig, axs = plt.subplots(3, 1, figsize=(10, 5), dpi=200)
     for i, (state_idx, pos_idx, est_lbl, gt_lbl, axis_lbl) in enumerate(zip(state_index, pos_index, est_label, gt_label, axis_label)):
         axs[i].scatter(t0_data, state_data[:, state_idx],
@@ -119,9 +119,9 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
         axs[i].set_xlim([t0_data[0], t0_data[-1]])
 
         # TODO: broken for interpolated data
-        if binary_sight is not None:
-            axs[i].scatter(t0_data[binary_sight], np.ones_like(t0_data)[
-                           binary_sight] * max_y + 3.0, label='Target in FOV', s=1, color='green', marker='x')
+        if bns is not None:
+            axs[i].scatter(t0_data[bns], np.ones_like(t0_data)[
+                           bns] * max_y + 3.0, label='Target in FOV', s=1, color='green', marker='x')
             std = 3*np.sqrt(state_data[:, state_idx + STATE_COV_X_COLUMN - 1])
             axs[i].fill_between(t0_data, state_data[:, state_idx] -
                                 std, state_data[:, state_idx] + std,
@@ -141,6 +141,7 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
 
 # %%
 
+
 # plot norm of both state position and relative ground truth position data
 state_pos_norm = np.linalg.norm(state_data[:, 1:4], axis=1)
 relative_pos_gt_norm = np.linalg.norm(relative_pos_gt, axis=1)
@@ -154,7 +155,7 @@ plt.ylabel('Distance (m)')
 if LIVE:
     plt.show()
 
-#%%
+# %%
 
 plot_data(state_time, drone_time,
           state_data, [1, 2, 3],
@@ -214,16 +215,13 @@ fig = plot_data(time_frac, time_frac,
                 ['Estimation X', 'Estimation Y', 'Estimation Z'],
                 ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z'],
                 ['Distance (m)', 'Distance (m)', 'Time (s)'],
-                binary_sight=binary_sight[yaw_diff_idx:])
+                bns=binary_sight[yaw_diff_idx:])
 
 # add MAE to the plot
-fig.text(0.5, 1.0, f'MAE: {MAE}', horizontalalignment='center',
-         verticalalignment='center', wrap=True, fontsize=8)
-
+fig.text(0.5, 0.95, f'MAE: {MAE}', horizontalalignment='center',
+         verticalalignment='center', wrap=True, fontsize=12)
 
 if LIVE:
     plt.show()
 else:
     plt.savefig(f'{PLOT_DIR}/{state_timestamp}_{BAG_NAME}_interp_mae.png')
-
-# %%

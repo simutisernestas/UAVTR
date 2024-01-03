@@ -1,14 +1,14 @@
+#include "Fusion.h"
+#include "FusionMath.h"
+#include "geometry_msgs/msg/transform_stamped.hpp"
 #include "px4_msgs/msg/sensor_combined.hpp"
-#include "px4_msgs/msg/vehicle_attitude.hpp"
 #include "px4_msgs/msg/sensor_mag.hpp"
+#include "px4_msgs/msg/vehicle_attitude.hpp"
 #include "px4_msgs/msg/vehicle_magnetometer.hpp"
 #include "sensor_msgs/msg/imu.hpp"
 #include "sensor_msgs/msg/magnetic_field.hpp"
-#include "Fusion.h"
 #include "tf2_ros/transform_broadcaster.h"
-#include "geometry_msgs/msg/transform_stamped.hpp"
 #include <Eigen/Dense>
-#include "FusionMath.h"
 
 #define RCLCPP__NODE_IMPL_HPP_
 
@@ -44,7 +44,7 @@ public:
     get_parameter("recovery_trigger_period", recovery_trigger_period_);
     settings = {
         .convention = FusionConventionEnu,
-        .gain = gain_, // low gain will trust gyro, susceptible to drift
+        .gain = gain_,             // low gain will trust gyro, susceptible to drift
         .gyroscopeRange = 2000.0f, /* replace this with actual gyroscope range in degrees/s */
         .accelerationRejection = acceleration_rejection_,
         .magneticRejection = magnetic_rejection_,
@@ -81,9 +81,7 @@ private:
   static Eigen::Quaternionf quaternion_from_rpy(const Eigen::Vector3f &rpy) {
     // YPR - ZYX
     return Eigen::Quaternionf(
-        Eigen::AngleAxisf(rpy.z(), Eigen::Vector3f::UnitZ()) *
-            Eigen::AngleAxisf(rpy.y(), Eigen::Vector3f::UnitY()) *
-            Eigen::AngleAxisf(rpy.x(), Eigen::Vector3f::UnitX()));
+        Eigen::AngleAxisf(rpy.z(), Eigen::Vector3f::UnitZ()) * Eigen::AngleAxisf(rpy.y(), Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(rpy.x(), Eigen::Vector3f::UnitX()));
   }
 
   static inline Eigen::Quaternionf quaternion_from_rpy(
@@ -124,7 +122,7 @@ private:
 
     // Calculate delta time
     const uint64_t delta = msg->timestamp - last_timestamp_; // microseconds
-    const double dt = (float) delta / 1000000.0f;              // seconds
+    const double dt = (float) delta / 1000000.0f;            // seconds
     assert(dt > 0.0f && dt < 1.0);
     last_timestamp_ = msg->timestamp;
 
@@ -134,6 +132,11 @@ private:
       mag_msg_.header.stamp.sec = -1;
     } else {
       FusionAhrsUpdateNoMagnetometer(&ahrs, gyroscope, accelerometer, dt);
+    }
+
+    // FusionAhrsFlags FusionAhrsGetFlags(&ahrs);
+    if (ahrs.initialising) {
+      return;
     }
 
     // publish tf

@@ -159,13 +159,13 @@ TEST(TestFlowVelocity, ImageJacobianGivesCorrectResult) {
     Eigen::VectorXf v_enu = estimator.computeCameraVelocity(
         flow, dronedata.K, dronedata.prev_R,
         dronedata.prev_height, dronedata.dt);
-    print(v_enu.transpose());
+    // print(v_enu.transpose());
 
-    if (iter == 0) {
-      ASSERT_NEAR(v_enu(0), -0.136, 1e-1);
-      ASSERT_NEAR(v_enu(1), 0.814, 1e-1);
-      ASSERT_NEAR(v_enu(2), -0.177, 1e-1);
-    }
+    ASSERT_NEAR(v_enu(0), -0.136, 1e-1);
+    ASSERT_NEAR(v_enu(1), 0.814, 1e-1);
+    ASSERT_NEAR(v_enu(2), -0.177, 1e-1);
+    break;
+
     if (ts_spot > 473) {
       break;
     }
