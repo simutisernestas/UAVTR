@@ -18,6 +18,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "angvel_accum.hpp"
 #include "geometry_msgs/msg/point_stamped.hpp"
+#include "geometry_msgs/msg/twist_stamped.hpp"
 
 class StateEstimationNode : public rclcpp::Node {
 public:
@@ -69,6 +70,9 @@ private:
   rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr state_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr target_pt_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Range>::SharedPtr range_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr ins_angl_vel_pub_;
+  rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr ins_angl_vel_pub_2_;
+  rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr twist_pub_;
 
   rclcpp::CallbackGroup::SharedPtr vel_meas_callback_group_;
   rclcpp::CallbackGroup::SharedPtr imu_callback_group_;
