@@ -70,8 +70,8 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
   declare_parameter<float>("spatial_vel_flow_error", 10);
   declare_parameter<float>("flow_vel_rejection_perc", 5);
   EstimatorConfig config{
-      .spatial_vel_flow_error = get_parameter("spatial_vel_flow_error").as_double(),
-      .flow_vel_rejection_perc = get_parameter("flow_vel_rejection_perc").as_double() / 100.0f};
+      .spatial_vel_flow_error = static_cast<float>(get_parameter("spatial_vel_flow_error").as_double()),
+      .flow_vel_rejection_perc = static_cast<float>(get_parameter("flow_vel_rejection_perc").as_double()) / 100.0f};
   estimator_ = std::make_unique<Estimator>(config);
 
   declare_parameter<bool>("simulation", false);
@@ -153,6 +153,10 @@ void StateEstimationNode::range_callback(const sensor_msgs::msg::Range::SharedPt
   // max range of sensor is 40m
   if (std::isnan(msg->range) || std::isinf(msg->range) || msg->range > 40)
     return;
+  static float prev_range = 0;
+  if (std::abs(msg->range - prev_range) < 1e-2)
+    return;
+  prev_range = msg->range;
 
   auto time = get_correct_fusion_time(msg->header, true);
   geometry_msgs::msg::TransformStamped base_link_enu;
@@ -170,11 +174,12 @@ void StateEstimationNode::range_callback(const sensor_msgs::msg::Range::SharedPt
   pub_range_msg.range = altitude[2];
   range_pub_->publish(pub_range_msg);
 
-  // TODO: test!!!
   float est_h = std::abs(estimator_->state()[2]);
   bool too_high_deviation = std::abs(est_h - altitude[2]) > 3.0;
-  if (too_high_deviation)
+  if (too_high_deviation) {
+    RCLCPP_WARN(this->get_logger(), "Height deviation too high: %f", est_h - altitude[2]);
     return;
+  }
 
   estimator_->update_height(altitude[2]);
 }
@@ -193,15 +198,27 @@ void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::Sha
   auto base_T_odom = tf_msg_to_affine(base_link_enu);
   auto img_T_base = tf_msg_to_affine(*image_tf_);
 
-  Eigen::Vector2f uv_point;
-  uv_point << d2f(bbox->bbox.center.position.x),
-      d2f(bbox->bbox.center.position.y);
-  auto rect_point = cam_model_.rectifyPoint(cv::Point2d(uv_point[0], uv_point[1]));
-  uv_point << d2f(rect_point.x), d2f(rect_point.y);
+  Eigen::Vector2f avg_target_pixel{d2f(bbox->bbox.center.position.x),
+                                   d2f(bbox->bbox.center.position.y)};
+  Eigen::Vector2f c1, c2, c3, c4; // corners
+  c1 << d2f(bbox->bbox.center.position.x - bbox->bbox.size_x / 2),
+      d2f(bbox->bbox.center.position.y - bbox->bbox.size_y / 2);
+  c2 << d2f(bbox->bbox.center.position.x + bbox->bbox.size_x / 2),
+      d2f(bbox->bbox.center.position.y - bbox->bbox.size_y / 2);
+  c3 << d2f(bbox->bbox.center.position.x - bbox->bbox.size_x / 2),
+      d2f(bbox->bbox.center.position.y + bbox->bbox.size_y / 2);
+  c4 << d2f(bbox->bbox.center.position.x + bbox->bbox.size_x / 2),
+      d2f(bbox->bbox.center.position.y + bbox->bbox.size_y / 2);
+  avg_target_pixel += (c1 + c2 + c3 + c4);
+  avg_target_pixel /= 5;
+  auto rect_point = cam_model_.rectifyPoint(cv::Point2d(avg_target_pixel[0],
+                                                        avg_target_pixel[1]));
+  avg_target_pixel[0] = d2f(rect_point.x);
+  avg_target_pixel[1] = d2f(rect_point.y);
 
   auto cam_T_enu = base_T_odom * img_T_base;
   Eigen::Vector3f Pt = estimator_->update_target_position(
-      uv_point, cam_T_enu, K_, img_T_base.translation());
+      avg_target_pixel, cam_T_enu, K_, img_T_base.translation());
   target_in_sight_.store(true);
 
   geometry_msgs::msg::PointStamped target_pt_msg;
@@ -311,7 +328,6 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
     return;
   const auto base_T_odom = tf_msg_to_affine(base_link_enu);
   const auto img_T_base = tf_msg_to_affine(*image_tf_);
-  const auto cam_T_enu = base_T_odom * img_T_base;
 
   cv_bridge::CvImagePtr cv_ptr;
   try {

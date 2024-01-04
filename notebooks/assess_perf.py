@@ -118,7 +118,6 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
         axs[i].set_ylim([min_y - 5.0, max_y + 5.0])
         axs[i].set_xlim([t0_data[0], t0_data[-1]])
 
-        # TODO: broken for interpolated data
         if bns is not None:
             axs[i].scatter(t0_data[bns], np.ones_like(t0_data)[
                            bns] * max_y + 3.0, label='Target in FOV', s=1, color='green', marker='x')

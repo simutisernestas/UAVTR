@@ -26,6 +26,7 @@ def launch_setup(context, *args, **kwargs):
     tracking = ExecuteProcess(
         cmd=['./tracking_ros_node'],
         cwd=f'{root_dir}/src/detection/build',
+        # prefix=['xterm  -e gdb -ex "run" --args'],
         output='screen'
     )
 
@@ -81,7 +82,7 @@ def launch_setup(context, *args, **kwargs):
              "-p", f"spatial_vel_flow_error:={flow_err_threshold}",
              "-p", f"flow_vel_rejection_perc:={10.0}"],
         cwd=f'{root_dir}/src/estimation/build',
-        # prefix=['xterm  -e gdb -ex "b main" --args'],
+        # prefix=['xterm  -e gdb -ex "run" --args'],
         output='screen'
     )
 

@@ -293,7 +293,7 @@ ObjDetertor::ObjDetertor() {
     Ort::SessionOptions sessionOptions;
     sessionOptions.SetExecutionMode(ExecutionMode::ORT_PARALLEL);
     sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-    sessionOptions.SetIntraOpNumThreads(4);
+    sessionOptions.SetIntraOpNumThreads(2);
 #if MODEL == 0
     _session = std::make_unique<Ort::Session>(_env, "../weights/detr.onnx", sessionOptions);
 #else
@@ -442,7 +442,6 @@ bool ObjDetertor::detect(const cv::Mat &frame) {
                                       _input_names.size(), _output_names.data(),
                                       _output_names.size());
     }
-
 
     std::vector<Result> resultVector = postprocess(frame.size(), outputTensors);
 

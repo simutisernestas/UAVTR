@@ -49,6 +49,8 @@ find_package(OpenCV REQUIRED)
 find_package(px4_msgs REQUIRED)
 find_package(image_geometry REQUIRED)
 
+add_definitions(-DEIGEN_NO_DEBUG)
+
 ### Estimator library
 add_library(estimator_lib SHARED
         src/estimator.cpp

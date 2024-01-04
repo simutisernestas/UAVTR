@@ -66,7 +66,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    raise NotImplementedError("TODO: no bag")
+    raise NotImplementedError("no bag")
     play_bag_cmd = '''ros2 bag play rosbag2_2023_10_20-14_06_24'''  #
     play_bag = ExecuteProcess(
         cmd=play_bag_cmd.split(),

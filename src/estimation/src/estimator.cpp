@@ -1,5 +1,5 @@
 #include "estimator.hpp"
-#include <Eigen/Sparse>
+#include "eigen_ridge.hpp"
 #include <cassert>
 #include <chrono>
 #include <fstream>
@@ -48,14 +48,14 @@ Estimator::Estimator(EstimatorConfig config) : config_(config) {
   Q.block(3, 6, 3, 3) = Q69 * acc_variance;
   Q.block(6, 3, 3, 3) = Q69 * acc_variance;
   Q.block(6, 6, 3, 3) = Eigen::MatrixXf::Identity(3, 3) * acc_variance;
-  Q *= 4;
+  // Q *= 4;
 
   // relative position measurement
   Eigen::MatrixXf C(2, 12);
   C << 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
       0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
   Eigen::MatrixXf R(2, 2);
-  R = Eigen::MatrixXf::Identity(2, 2) * 1.0;
+  R = Eigen::MatrixXf::Identity(2, 2) * 5.0;
 
   Eigen::MatrixXf P(12, 12);
   P = Eigen::MatrixXf::Identity(12, 12) * 10000.0;
@@ -88,7 +88,6 @@ Estimator::~Estimator() {
 
 void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
   A.setZero();
-  // incorporate IMU after tests
   auto ddt2 = static_cast<float>(dt * dt * .5);
   float mult = 1.0;
   assert(dt > 0 && dt < 1);
@@ -339,16 +338,10 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time,
                                                 const Eigen::Vector3f &drone_omega) {
   cv::cvtColor(frame, frame, cv::COLOR_BGR2GRAY);
   EigenAffine cam_T_enu = base_T_odom * img_T_base;
-  if (!prev_frame_) {
-    store_flow_state(frame, time, cam_T_enu);
-    return {0, 0, 0};
-  }
-
   const double dt = time - pre_frame_time_;
   assert(dt > 0);
-  if (dt > .2) {
-    this->pre_frame_time_ = time;
-    *prev_frame_ = frame;
+  if (!prev_frame_ || dt > .2) {
+    store_flow_state(frame, time, cam_T_enu);
     return {0, 0, 0};
   }
 
@@ -428,7 +421,7 @@ Eigen::Vector3f Estimator::target_position(const Eigen::Vector2f &pixel,
 Eigen::VectorXf Estimator::computeCameraVelocity(
     const cv::Mat &flow, const Eigen::Matrix3f &K,
     const Eigen::Matrix3f &R, float height, float dt) {
-  int NTH = 13;
+  int NTH = 21;
   long size = flow.rows * flow.cols / (NTH * NTH);
   Eigen::MatrixXf pixels(2, size);
   Eigen::VectorXf flows(2 * size);
@@ -457,6 +450,8 @@ Eigen::VectorXf Estimator::computeCameraVelocity(
 
   Eigen::VectorXf vel_omega = // 6D twist vector
       Jac.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(flows);
+  // Eigen::VectorXf vel_omega = // 6D twist vector
+  //     ridge(Jac, flows, 1.0);
 
   Eigen::VectorXf v_enu = R * vel_omega.segment(0, 3);
   return v_enu;
