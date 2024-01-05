@@ -271,6 +271,7 @@ private:
     std::unique_ptr<Ort::Session> _session;
     Ort::AllocatorWithDefaultOptions _allocator;
     std::unique_ptr<Ort::MemoryInfo> _memory_info;
+    Ort::ThreadingOptions _thread_options;
 
     std::vector<int64_t> _input_dims;
     std::vector<const char *> _input_names;
@@ -288,12 +289,17 @@ ObjDetertor::ObjDetertor() {
             Ort::GetAvailableProviders();
     for (auto &&provider: providers) { (void) provider; }
 
+    const OrtApi* g_ort = OrtGetApiBase()->GetApi(ORT_API_VERSION);
+    g_ort->SetGlobalIntraOpThreadAffinity(_thread_options, "1");
+    _thread_options.SetGlobalIntraOpNumThreads(1);
     // initialize ONNX environment and session
-    _env = Ort::Env(OrtLoggingLevel::ORT_LOGGING_LEVEL_WARNING, "inference-engine");
+    _env = Ort::Env(_thread_options, OrtLoggingLevel::ORT_LOGGING_LEVEL_WARNING, "inference-engine");
     Ort::SessionOptions sessionOptions;
     sessionOptions.SetExecutionMode(ExecutionMode::ORT_PARALLEL);
     sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-    sessionOptions.SetIntraOpNumThreads(2);
+    sessionOptions.SetIntraOpNumThreads(1);
+    // set thread affinity
+
 #if MODEL == 0
     _session = std::make_unique<Ort::Session>(_env, "../weights/detr.onnx", sessionOptions);
 #else

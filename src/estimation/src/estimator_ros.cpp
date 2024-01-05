@@ -115,7 +115,14 @@ void StateEstimationNode::timesync_callback(const px4_msgs::msg::TimesyncStatus:
   offset_.store(offset);
 }
 
+typedef std::chrono::high_resolution_clock Clock;
+#define LATENCY_MEASUREMENT 0
+
 void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
+#if LATENCY_MEASUREMENT
+  auto t0 = Clock::now();
+#endif
+
   rclcpp::Time time;
   if (!simulation_) {
     time = get_correct_fusion_time(msg->header, false);
@@ -131,11 +138,16 @@ void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr ms
       d2f(msg->linear_acceleration.z);
 
   estimator_->update_imu_accel(accel, time.seconds());
+  
+#if LATENCY_MEASUREMENT
+  auto t1 = Clock::now();
+  RCLCPP_INFO(this->get_logger(), "imu callback took %f ms", std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count() / 1000.0f);
+#endif
 
-  drone_ang_vel_accumulator_->add(
-      d2f(msg->angular_velocity.x),
-      d2f(msg->angular_velocity.y),
-      d2f(msg->angular_velocity.z));
+  // drone_ang_vel_accumulator_->add(
+  //     d2f(msg->angular_velocity.x),
+  //     d2f(msg->angular_velocity.y),
+  //     d2f(msg->angular_velocity.z));
 }
 
 void StateEstimationNode::air_data_callback(const px4_msgs::msg::VehicleAirData::SharedPtr msg) {
