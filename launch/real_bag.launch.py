@@ -66,7 +66,7 @@ def launch_setup(context, *args, **kwargs):
 
     record_state = ExecuteProcess(
         cmd=["python3", "record_state.py", run_name],
-        cwd=f"{root_dir}/notebooks",
+        cwd=f"{root_dir}/scripts",
         output='screen'
     )
 

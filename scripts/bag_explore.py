@@ -117,8 +117,8 @@ def read_bag(path, clear_cache=False) -> (np.array, np.array):
 
 if __name__ == '__main__':
     # parent directory
-    notebooks_dir = os.path.dirname(os.path.realpath(__file__))
-    root_dir = os.path.dirname(notebooks_dir)
+    scripts_dir = os.path.dirname(os.path.realpath(__file__))
+    root_dir = os.path.dirname(scripts_dir)
 
     if WHICH == 0:
         bag_path = f"{root_dir}/bags/18_0/rosbag2_2023_10_18-12_24_19"
@@ -136,7 +136,7 @@ if __name__ == '__main__':
 
 
     if SAVE:
-        save_file = notebooks_dir + f"/data/{bag_path.split('/')[-2]}_gt.npz"
+        save_file = scripts_dir + f"/data/{bag_path.split('/')[-2]}_gt.npz"
         print(f"Saving to {save_file}")
         # cache these GT values in one file
         np.savez(save_file,

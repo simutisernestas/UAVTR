@@ -12,7 +12,7 @@ data/
 metadata.yaml
 .idea/
 *.csv
-notebooks/sandbox.py
+scripts/sandbox.py
 bags/
 **.npz
 **.npy

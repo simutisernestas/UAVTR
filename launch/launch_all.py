@@ -32,7 +32,7 @@ for i in range(4):
 
     root_dir = os.path.dirname(os.path.dirname(
         os.path.realpath(__file__)))
-    plot_proc = Popen(["python3", root_dir + "/notebooks/assess_perf.py", str(i)])
+    plot_proc = Popen(["python3", root_dir + "/scripts/assess_perf.py", str(i)])
     return_code = plot_proc.wait(timeout=10)
     print(f"return_code: {return_code}")
 
