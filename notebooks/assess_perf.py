@@ -93,8 +93,17 @@ print('drone_pos.shape: ', drone_pos.shape)
 print('boat_pos.shape: ', boat_pos.shape)
 print('state_data.shape: ', state_data.shape)
 
-# relative ground truth position
-relative_pos_gt = boat_pos - drone_pos[:boat_pos.shape[0], :]
+if BAG_NAME == BAGS_LIST[0]:
+    t0 = np.argmin(np.abs(500 - boat_time))
+    boat_pos_var = np.var(boat_pos[t0:, :], axis=0)
+    boat_pos_std = np.sqrt(boat_pos_var)
+    groundtruth_3std = boat_pos_std*3*2
+    static_boat_pos = np.mean(boat_pos[t0:, :], axis=0)
+    print("3 std: ", groundtruth_3std)
+    relative_pos_gt = static_boat_pos - drone_pos[:boat_pos.shape[0], :]
+else:
+    raise NotImplementedError("TODO:")
+
 # binary signal indicating whether the target is in sight or not
 target_in_sight = state_data[:, STATE_TARGET_IN_SIGHT_COLUMN]
 binary_sight = target_in_sight > 0
@@ -103,7 +112,7 @@ binary_sight = target_in_sight > 0
 
 
 def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, est_label, gt_label, axis_label, bns=None):
-    fig, axs = plt.subplots(3, 1, figsize=(10, 5), dpi=200)
+    fig, axs = plt.subplots(3, 1, figsize=(10, 10), dpi=200)
     for i, (state_idx, pos_idx, est_lbl, gt_lbl, axis_lbl) in enumerate(zip(state_index, pos_index, est_label, gt_label, axis_label)):
         axs[i].scatter(t0_data, state_data[:, state_idx],
                        label=est_lbl, s=1, marker='*')
@@ -125,8 +134,12 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
             axs[i].fill_between(t0_data, state_data[:, state_idx] -
                                 std, state_data[:, state_idx] + std,
                                 alpha=0.1, color='blue')
+            axs[i].fill_between(
+                t1_data, pos_data[:, pos_idx] - groundtruth_3std[pos_idx],
+                pos_data[:, pos_idx] + groundtruth_3std[pos_idx],
+                alpha=0.1, color='red')
 
-        axs[i].legend(markerscale=5, loc='lower right')
+        axs[i].legend(markerscale=5)
         axs[i].grid(True, linestyle='-', linewidth=0.5)
         if i == 1:
             axs[i].set_ylabel(axis_lbl)
@@ -140,21 +153,6 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
 
 # %%
 
-
-# plot norm of both state position and relative ground truth position data
-state_pos_norm = np.linalg.norm(state_data[:, 1:4], axis=1)
-relative_pos_gt_norm = np.linalg.norm(relative_pos_gt, axis=1)
-plt.plot(state_time, state_pos_norm, label='Estimation')
-plt.plot(drone_time, relative_pos_gt_norm, label='Groundtruth')
-plt.legend()
-plt.grid(True, linestyle='-', linewidth=0.5)
-plt.tight_layout()
-plt.xlabel('Time (s)')
-plt.ylabel('Distance (m)')
-if LIVE:
-    plt.show()
-
-# %%
 
 plot_data(state_time, drone_time,
           state_data, [1, 2, 3],
@@ -215,10 +213,6 @@ fig = plot_data(time_frac, time_frac,
                 ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z'],
                 ['Distance (m)', 'Distance (m)', 'Time (s)'],
                 bns=binary_sight[yaw_diff_idx:])
-
-# add MAE to the plot
-fig.text(0.5, 0.95, f'MAE: {MAE}', horizontalalignment='center',
-         verticalalignment='center', wrap=True, fontsize=12)
 
 if LIVE:
     plt.show()
