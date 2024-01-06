@@ -82,7 +82,7 @@ def launch_setup(context, *args, **kwargs):
              "-p", f"spatial_vel_flow_error:={flow_err_threshold}",
              "-p", f"flow_vel_rejection_perc:={10.0}"],
         cwd=f'{root_dir}/src/estimation/build',
-        # prefix=['xterm  -e gdb -ex "run" --args'],
+        prefix=['xterm  -e gdb -ex "run" --args'],
         output='screen'
     )
 

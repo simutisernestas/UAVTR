@@ -131,14 +131,23 @@ plt.show()
 # %%
 
 # read in data from data/estimation_node_22074_1704467489560.log
-with open("./data/estimation_node_22074_1704467489560.log", "r") as f:
-    lines = f.readlines()
+with open("./data/estimation_node_14990_1704552700774.log", "r") as f:
+    est_lines = f.readlines()
+with open("./data/orientation_filter_14874_1704552697959.log", "r") as f:
+    orien_lines = f.readlines()
 
-times = [float(x.split(" ")[-2]) for x in lines if "imu callback took" in x]
+times_est = [float(x.split(" ")[-2])
+             for x in est_lines if "imu callback took" in x]
+times_ort = [float(x.split(" ")[-2])
+             for x in orien_lines if "imu callback took" in x]
+
+times = [sum(x) for x in zip(times_est, times_ort[:len(times_est)])]
+times = [x for x in times if x > .3]
+
 plt.figure(figsize=(7, 5), dpi=200)
 plt.hist(times, bins='auto', rwidth=.8,
          alpha=.9, label="IMU Fusion Latency",
-         color='green', range=(.1, 2))
+         color='green')
 plt.xlabel("Latency [ms]")
 plt.ylabel("Samples")
 plt.legend()

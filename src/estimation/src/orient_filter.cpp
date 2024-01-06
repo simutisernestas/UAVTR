@@ -9,6 +9,10 @@
 #include "sensor_msgs/msg/magnetic_field.hpp"
 #include "tf2_ros/transform_broadcaster.h"
 #include <Eigen/Dense>
+#include <chrono>
+
+typedef std::chrono::high_resolution_clock Clock;
+#define LATENCY_MEASUREMENT 0
 
 #define RCLCPP__NODE_IMPL_HPP_
 
@@ -92,6 +96,9 @@ private:
   ///////// funcs from mavros ftf_frame_conversions.cpp
 
   void sensor_combined_callback(const px4_msgs::msg::SensorCombined::SharedPtr msg) {
+#if LATENCY_MEASUREMENT
+    auto t0 = Clock::now();
+#endif
     if (last_timestamp_ == 0) {
       last_timestamp_ = msg->timestamp;
       return;
@@ -166,6 +173,11 @@ private:
     imu_msg.angular_velocity.y = gyro[1];
     imu_msg.angular_velocity.z = gyro[2];
     imu_publisher_->publish(imu_msg);
+
+#if LATENCY_MEASUREMENT
+    auto t1 = Clock::now();
+    RCLCPP_INFO(this->get_logger(), "imu callback took %f ms", std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count() / 1000.0f);
+#endif
 
 #ifdef DEBUG
     const FusionEuler euler = FusionQuaternionToEuler(quaternion);
