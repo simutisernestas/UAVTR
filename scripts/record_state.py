@@ -1,10 +1,10 @@
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import PoseArray
+from geometry_msgs.msg import (
+    PoseArray, PointStamped, TwistStamped)
 from sensor_msgs.msg import Imu
 import numpy as np
 import sys
-import os
 import time
 
 
@@ -32,11 +32,27 @@ class StateSubscriber(Node):
             '/imu/euler_px4',
             self.callback_imu_px4,
             1000)
+        self.vel_measurements = []
+        self.vel_measurements_counter = 0
+        self.subscription_vel_measurements = self.create_subscription(
+            TwistStamped,
+            '/vel',
+            self.callback_vel_measurements,
+            1000)
+        self.pos_measurements = []
+        self.pos_measurements_counter = 0
+        self.subscription_pos_measurements = self.create_subscription(
+            PointStamped,
+            '/target_point',
+            self.callback_pos_measurements,
+            1000)
 
         timestamp = int(time.time())
         self.pos_data_file = f'data/{timestamp}_{bag_name}_state_data.npy'
         self.attitude_state_file = f'data/{timestamp}_{bag_name}_attitude_state.npy'
         self.attitude_px4_file = f'data/{timestamp}_{bag_name}_attitude_px4.npy'
+        self.vel_measurements_file = f'data/{timestamp}_{bag_name}_vel_measurements.npy'
+        self.pos_measurements_file = f'data/{timestamp}_{bag_name}_pos_measurements.npy'
 
     def state_callback(self, msg):
         timestamp = msg.header.stamp
@@ -73,6 +89,26 @@ class StateSubscriber(Node):
         if self.attitude_px4_counter % 30 == 0:  # save every nth messages
             self.save_data('attitude_px4')
 
+    def callback_vel_measurements(self, msg):
+        timestamp = msg.header.stamp
+        unix_timestamp = timestamp.sec + timestamp.nanosec * 1e-9
+        self.vel_measurements.append(unix_timestamp)
+        self.vel_measurements.extend(
+            [msg.twist.linear.x, msg.twist.linear.y, msg.twist.linear.z])
+        self.vel_measurements_counter += 1
+        if self.vel_measurements_counter % 100 == 0:
+            self.save_data('vel_measurements')
+
+    def callback_pos_measurements(self, msg):
+        timestamp = msg.header.stamp
+        unix_timestamp = timestamp.sec + timestamp.nanosec * 1e-9
+        self.pos_measurements.append(unix_timestamp)
+        self.pos_measurements.extend(
+            [msg.point.x, msg.point.y, msg.point.z])
+        self.pos_measurements_counter += 1
+        if self.pos_measurements_counter % 100 == 0:
+            self.save_data('pos_measurements')
+
     def save_data(self, which='state'):
         if which == 'state':
             data_buff = self.state_data
@@ -83,6 +119,12 @@ class StateSubscriber(Node):
         elif which == 'attitude_px4':
             data_buff = self.attitude_px4_data
             data_file = self.attitude_px4_file
+        elif which == 'vel_measurements':
+            data_buff = self.vel_measurements
+            data_file = self.vel_measurements_file
+        elif which == 'pos_measurements':
+            data_buff = self.pos_measurements
+            data_file = self.pos_measurements_file
         else:
             raise ValueError(
                 'which must be one of state, attitude_est or attitude_px4')
@@ -101,6 +143,10 @@ class StateSubscriber(Node):
             self.attitude_est_data = []
         elif which == 'attitude_px4':
             self.attitude_px4_data = []
+        elif which == 'vel_measurements':
+            self.vel_measurements = []
+        elif which == 'pos_measurements':
+            self.pos_measurements = []
 
 
 def main():

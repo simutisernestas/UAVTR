@@ -110,6 +110,14 @@ binary_sight = target_in_sight > 0
 
 # %%
 
+# gt_data["drone_vel"]
+plt.plot(gt_data["drone_vel"][:, 0], label='drone n')
+plt.plot(gt_data["drone_vel"][:, 1], label='drone e')
+plt.plot(gt_data["drone_vel"][:, 2], label='drone d')
+plt.legend()
+
+# %%
+
 
 def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, est_label, gt_label, axis_label, bns=None):
     fig, axs = plt.subplots(3, 1, figsize=(10, 10), dpi=200)

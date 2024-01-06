@@ -42,7 +42,7 @@ def read_bag(path, clear_cache=False) -> (np.array, np.array):
     if os.path.isfile(bag_cache):
         print(f"Loading from cache {path.split('/')[-1]}")
         npzfile = np.load(bag_cache)
-        return (npzfile['time'], npzfile['position'])
+        return (npzfile['time'], npzfile['position'], npzfile['velocity'])
 
     storage_options, converter_options = get_rosbag_options(bag_path)
 
@@ -71,6 +71,8 @@ def read_bag(path, clear_cache=False) -> (np.array, np.array):
         if not isinstance(msg, px4_msgs.msg.SensorGps):
             return msg
 
+        velocity = np.array([msg.vel_n_m_s, msg.vel_e_m_s, msg.vel_d_m_s])
+
         lat = msg.lat * 1e-7
         lon = msg.lon * 1e-7
         alt = msg.alt * 1e-3
@@ -78,7 +80,7 @@ def read_bag(path, clear_cache=False) -> (np.array, np.array):
             time_utc = msg.time_utc_usec / 1e6
         else:
             time_utc = msg.timestamp / 1e6
-        return (lat, lon, alt, time_utc)
+        return (lat, lon, alt, time_utc, velocity)
 
     (lat0, lon0, alt0) = None, None, None
     if PRINT_STATIC_ZERO:
@@ -92,6 +94,7 @@ def read_bag(path, clear_cache=False) -> (np.array, np.array):
 
     buff = []
     timestamps = []
+    velocities = []
     # latest_stamp = 0
     while True:
         out = None
@@ -104,15 +107,16 @@ def read_bag(path, clear_cache=False) -> (np.array, np.array):
             # latest_stamp = (out.timestamp - out.observed_offset) / 1e6
             continue
 
-        (lat, lon, alt, tutc) = out
+        (lat, lon, alt, tutc, vel) = out
         enu_xyz = pm.geodetic2enu(lat, lon, alt, lat0, lon0, alt0)
         buff.append(enu_xyz)
         timestamps.append(tutc)
+        velocities.append(vel)
 
     # cache
-    np.savez(bag_cache, time=timestamps, position=buff)
+    np.savez(bag_cache, time=timestamps, position=buff, velocity=velocities)
 
-    return (np.array(timestamps), np.array(buff))
+    return (np.array(timestamps), np.array(buff), np.array(velocities).reshape(-1, 3))
 
 
 if __name__ == '__main__':
@@ -125,15 +129,14 @@ if __name__ == '__main__':
     else:
         bag_path = f"{root_dir}/bags/latest_flight/rosbag2_2023_10_18-16_22_16"
 
-    (timestamps, buff) = read_bag(bag_path, clear_cache=False)
+    (timestamps, buff, vel) = read_bag(bag_path, clear_cache=True)
 
     if WHICH == 0:
         bag_path = f"{root_dir}/bags/18_0/rosbag2_2023_10_18-12_15_37"
     else:
         bag_path = f"{root_dir}/bags/latest_flight/rosbag2_2023_08_21-23_15_45"
 
-    (timestamps_boat, buff_boat) = read_bag(bag_path, clear_cache=False)
-
+    (timestamps_boat, buff_boat, _) = read_bag(bag_path, clear_cache=True)
 
     if SAVE:
         save_file = scripts_dir + f"/data/{bag_path.split('/')[-2]}_gt.npz"
@@ -143,7 +146,8 @@ if __name__ == '__main__':
                  drone_time=timestamps,
                  boat_time=timestamps_boat,
                  drone_pos=buff,
-                 boat_pos=buff_boat)
+                 boat_pos=buff_boat,
+                 drone_vel=vel)
 
     colors = cm.rainbow(np.linspace(0, 1, len(buff)))
     pobj = plt.scatter([x[0] for x in buff], [x[1] for x in buff], color='b')
