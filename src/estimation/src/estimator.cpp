@@ -29,44 +29,57 @@ Estimator::Estimator(EstimatorConfig config) : config_(config) {
   Eigen::MatrixXf A(12, 12);
   get_A(A, dt);
 
+  assert(config_.Q.size() == 9 * 9); // row major vector
   Eigen::MatrixXf Q = Eigen::MatrixXf::Zero(12, 12);
-  Eigen::Matrix3f acc_variance;
-  acc_variance << 3.182539, 0, 0,
-      0, 3.187015, 0,
-      0, 0, 1.540428;
-  auto Q33 = Eigen::MatrixXf::Identity(3, 3) * std::pow(dt, 4) / 4.0;
-  auto Q36 = Eigen::MatrixXf::Identity(3, 3) * std::pow(dt, 3) / 2.0;
-  auto Q39 = Eigen::MatrixXf::Identity(3, 3) * std::pow(dt, 2) / 2.0;
-  auto Q66 = Eigen::MatrixXf::Identity(3, 3) * std::pow(dt, 2);
-  auto Q69 = Eigen::MatrixXf::Identity(3, 3) * dt;
-  Q.block(0, 0, 3, 3) = Q33 * acc_variance;
-  Q.block(0, 3, 3, 3) = Q36 * acc_variance;
-  Q.block(3, 0, 3, 3) = Q36 * acc_variance;
-  Q.block(0, 6, 3, 3) = Q39 * acc_variance;
-  Q.block(6, 0, 3, 3) = Q39 * acc_variance;
-  Q.block(3, 3, 3, 3) = Q66 * acc_variance;
-  Q.block(3, 6, 3, 3) = Q69 * acc_variance;
-  Q.block(6, 3, 3, 3) = Q69 * acc_variance;
-  Q.block(6, 6, 3, 3) = Eigen::MatrixXf::Identity(3, 3) * acc_variance;
-  // Q *= 4;
+  for (int row = 0; row < 9; row++) {
+    for (int col = 0; col < 9; col++)
+      Q(row, col) = config_.Q[row * 9 + col];
+  }
+  std::cout << "Q:" << std::endl
+            << Q << std::endl;
 
   // relative position measurement
-  Eigen::MatrixXf C(2, 12);
+  assert(config_.R_pos.size() == 2 * 2); // row major vector
+  Eigen::MatrixXf C = Eigen::MatrixXf::Zero(2, 12);
   C << 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
       0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
-  Eigen::MatrixXf R(2, 2);
-  R = Eigen::MatrixXf::Identity(2, 2) * 5.0;
+  Eigen::MatrixXf R = Eigen::MatrixXf::Zero(2, 2);
+  for (int row = 0; row < 2; row++) {
+    for (int col = 0; col < 2; col++)
+      R(row, col) = config_.R_pos[row * 2 + col];
+  }
+  std::cout << "R_pos:" << std::endl
+            << R << std::endl;
+
+  assert(config_.R_vel.size() == 3 * 3); // row major vector
+  R_vel_ = Eigen::MatrixXf::Zero(3, 3);
+  for (int row = 0; row < 3; row++) {
+    for (int col = 0; col < 3; col++)
+      R_vel_(row, col) = config_.R_vel[row * 3 + col];
+  }
+  std::cout << "R_vel:" << std::endl
+            << R_vel_ << std::endl;
+  
+  assert(config_.R_acc.size() == 3 * 3); // row major vector
+  R_acc_ = Eigen::MatrixXf::Zero(3, 3);
+  for (int row = 0; row < 3; row++) {
+    for (int col = 0; col < 3; col++)
+      R_acc_(row, col) = config_.R_acc[row * 3 + col];
+  }
+  std::cout << "R_acc:" << std::endl
+            << R_acc_ << std::endl;
 
   Eigen::MatrixXf P(12, 12);
   P = Eigen::MatrixXf::Identity(12, 12) * 10000.0;
 
   kf_ = std::make_unique<KalmanFilter>(A, C, Q, R, P);
 
-  const std::array<float, 3> a = {1.0, -1.56101808, 0.64135154};
-  const std::array<float, 3> b = {0.02008337, 0.04016673, 0.02008337};
-  // Create a low pass filter objects.
-  for (int i = 0; i < 3; i++)
-    lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<float, 3>>(b, a);
+  // TODO: delete
+  // const std::array<float, 3> a = {1.0, -1.56101808, 0.64135154};
+  // const std::array<float, 3> b = {0.02008337, 0.04016673, 0.02008337};
+  // // Create a low pass filter objects.
+  // for (int i = 0; i < 3; i++)
+  //   lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<float, 3>>(b, a);
 
   optflow_ = cv::DISOpticalFlow::create(2);
 }
@@ -163,9 +176,7 @@ void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double time) {
   C_accel << 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0;
-  static Eigen::MatrixXf R_accel(3, 3);
-  R_accel << Eigen::Matrix3f::Identity() * 5;
-  kf_->update(accel, C_accel, R_accel);
+  kf_->update(accel, C_accel, R_acc_);
 
   Eigen::MatrixXf A(12, 12);
   get_A(A, dt);
@@ -382,10 +393,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time,
     C_vel << 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0;
-    static Eigen::MatrixXf R_vel(3, 3);
-    R_vel = Eigen::MatrixXf::Identity(3, 3) * 2.0;
-
-    kf_->update(v_enu, C_vel, R_vel);
+    kf_->update(v_enu, C_vel, R_vel_);
 
     record_state_update(__FUNCTION__);
   }

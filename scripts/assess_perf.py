@@ -75,7 +75,7 @@ if BAG_NAME != '18_0':
     state_time -= 105
 
 # Define a tolerance level
-tolerance = 0.1
+tolerance = 0.09
 # Calculate the absolute difference between all pairs of timestamps
 diffs = np.abs(drone_time[:, None] - boat_time)
 # Find where the difference is less than the tolerance

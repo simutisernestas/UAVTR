@@ -47,6 +47,8 @@ vel_measurements_data = load_latest("vel_measurements", 4)
 vel_measurements_time = vel_measurements_data[:, 0]
 pos_measurements_data = load_latest("pos_measurements", 4)
 pos_measurements_time = pos_measurements_data[:, 0]
+imu_data = load_latest("imu_data", 4)
+imu_time = imu_data[:, 0]
 
 GT_NAME = BAG_NAME if "mode" not in BAG_NAME else "_".join(
     BAG_NAME.split('_')[:-1])
@@ -110,6 +112,35 @@ binary_sight = target_in_sight > 0
 
 # %%
 
+
+def take_diff(t, pos, interp_time=None):
+    # smooth position
+    if interp_time is None:
+        interp_time = t
+        interpolated_pos = pos
+    else:
+        interp_F = interpolate.interp1d(
+            t, pos, kind='linear', fill_value="extrapolate")
+        interpolated_pos = interp_F(interp_time)
+    delta_time = np.diff(interp_time)
+    delta_pose = np.diff(interpolated_pos)
+    deriv = delta_pose / delta_time
+    # deriv = savgol_filter(deriv, 10, 3)
+    return deriv
+
+
+# acc will be in NED, but i need -ENU
+gt_acc_x = take_diff(drone_time, -drone_vel[:, 1], imu_time)
+gt_acc_y = take_diff(drone_time, -drone_vel[:, 0], imu_time)
+gt_acc_z = take_diff(drone_time, drone_vel[:, 2], imu_time)
+gt_acc = np.vstack((gt_acc_x, gt_acc_y, gt_acc_z)).T
+gt_acc.shape
+# plt.plot(imu_time[:-1], gt_acc_x, label='gt acc x')
+# plt.plot(imu_time, imu_data[:, 1], label='gt vel x', alpha=0.1)
+# plt.legend()
+
+# %%
+
 t0_idx = np.argmin(np.abs(drone_time - vel_measurements_time[0]))
 t1_idx = np.argmin(np.abs(drone_time - vel_measurements_time[-1]))
 
@@ -141,70 +172,87 @@ t1_idx = np.argmin(np.abs(drone_time - pos_measurements_time[-1]))
 plt.figure(figsize=(10, 5))
 plt.plot(drone_time[t0_idx:t1_idx],
          relative_pos_gt[t0_idx:t1_idx, 0], label='drone n')
-plt.plot(pos_measurements_time, pos_measurements_data[:, 1], label='vel n')
+plt.plot(pos_measurements_time, pos_measurements_data[:, 1], label='pos n')
 plt.figure(figsize=(10, 5))
 plt.plot(drone_time[t0_idx:t1_idx],
          relative_pos_gt[t0_idx:t1_idx, 1], label='drone e')
-plt.plot(pos_measurements_time, pos_measurements_data[:, 2], label='vel e')
+plt.plot(pos_measurements_time, pos_measurements_data[:, 2], label='pos e')
 plt.figure(figsize=(10, 5))
 plt.plot(drone_time[t0_idx:t1_idx],
          relative_pos_gt[t0_idx:t1_idx, 2], label='drone d')
-plt.plot(pos_measurements_time, pos_measurements_data[:, 3], label='vel d')
-plt.legend()
-
+plt.plot(pos_measurements_time, pos_measurements_data[:, 3], label='pos d')
 
 # %%
+
 
 def interp_3d(time, data, interp_time):
     interp_data = np.zeros((interp_time.shape[0], 3))
     for i in range(3):
         interp_F = interpolate.interp1d(
             time, data[:, i],
-            kind='cubic',
+            kind='linear',
             fill_value="extrapolate")
         interp_data[:, i] = interp_F(interp_time)
     return interp_data
 
 
-t0_idx = np.argmin(np.abs(drone_time - pos_measurements_time[0])) + 1
-t1_idx = np.argmin(np.abs(drone_time - pos_measurements_time[-1]))
-t1_idx = np.argmin(np.abs(drone_time - 417.0))
+t0_idx = np.argmin(np.abs(imu_time - pos_measurements_time[0])) + 1
+t1_idx = np.argmin(np.abs(imu_time - pos_measurements_time[-1]))
+# t1_idx = np.argmin(np.abs(imu_time - 417.0))
 
 pos_meas = interp_3d(pos_measurements_time,
-                     pos_measurements_data[:, 1:], drone_time[t0_idx:t1_idx])
+                     pos_measurements_data[:, 1:],
+                     imu_time[t0_idx:t1_idx])
+pos_gt = interp_3d(drone_time,
+                   relative_pos_gt,
+                   imu_time[t0_idx:t1_idx])
 
-plt.plot(drone_time[t0_idx:t1_idx], pos_meas[:, 0], label='n')
-plt.plot(drone_time[t0_idx:t1_idx], pos_meas[:, 1], label='e')
-plt.plot(drone_time[t0_idx:t1_idx], pos_meas[:, 2], label='d')
-plt.plot(drone_time[t0_idx:t1_idx],
-         relative_pos_gt[t0_idx:t1_idx, 0], label='n gt')
-plt.plot(drone_time[t0_idx:t1_idx],
-         relative_pos_gt[t0_idx:t1_idx, 1], label='e gt')
-plt.plot(drone_time[t0_idx:t1_idx],
-         relative_pos_gt[t0_idx:t1_idx, 2], label='d gt')
+plt.plot(imu_time[t0_idx:t1_idx], pos_meas[:, 0], label='n')
+plt.plot(imu_time[t0_idx:t1_idx], pos_meas[:, 1], label='e')
+plt.plot(imu_time[t0_idx:t1_idx], pos_meas[:, 2], label='d')
+plt.plot(imu_time[t0_idx:t1_idx], pos_gt[:, 0], label='n gt')
+plt.plot(imu_time[t0_idx:t1_idx], pos_gt[:, 1], label='e gt')
+plt.plot(imu_time[t0_idx:t1_idx], pos_gt[:, 2], label='d gt')
 plt.legend()
 
-# t0_idx = np.argmin(np.abs(drone_time - vel_measurements_time[0]))
-# t1_idx = np.argmin(np.abs(drone_time - vel_measurements_time[-1]))
+# %%
+
+# t0_idx = np.argmin(np.abs(imu_time - vel_measurements_time[0]))
+# t1_idx = np.argmin(np.abs(imu_time - vel_measurements_time[-1]))
 
 vel_meas = interp_3d(vel_measurements_time,
-                     vel_measurements_data[:, 1:], drone_time[t0_idx:t1_idx])
+                     vel_measurements_data[:, 1:], imu_time[t0_idx:t1_idx])
 
-drone_vel_ = drone_vel[t0_idx:t1_idx].copy()
+drone_vel_ = drone_vel.copy()
 drone_vel_[:, [0, 1]] = -drone_vel_[:, [1, 0]]
 
+vel_gt = interp_3d(drone_time,
+                   drone_vel_,
+                   imu_time[t0_idx:t1_idx])
+
 plt.figure()
-plt.plot(drone_time[t0_idx:t1_idx], vel_meas[:, 0], label='n')
-plt.plot(drone_time[t0_idx:t1_idx], vel_meas[:, 1], label='e')
-plt.plot(drone_time[t0_idx:t1_idx], vel_meas[:, 2], label='d')
-plt.plot(drone_time[t0_idx:t1_idx],
-         drone_vel_[:, 0], label='n gt')
-plt.plot(drone_time[t0_idx:t1_idx],
-         drone_vel_[:, 1], label='e gt')
-plt.plot(drone_time[t0_idx:t1_idx],
-         drone_vel_[:, 2], label='d gt')
+plt.plot(imu_time[t0_idx:t1_idx], vel_meas[:, 0], label='n')
+plt.plot(imu_time[t0_idx:t1_idx], vel_meas[:, 1], label='e')
+plt.plot(imu_time[t0_idx:t1_idx], vel_meas[:, 2], label='d')
+plt.plot(imu_time[t0_idx:t1_idx], vel_gt[:, 0], label='n gt')
+plt.plot(imu_time[t0_idx:t1_idx], vel_gt[:, 1], label='e gt')
+plt.plot(imu_time[t0_idx:t1_idx], vel_gt[:, 2], label='d gt')
 plt.ylim([-3, 3])
 plt.legend()
+
+# %%
+
+acc_gt = gt_acc[t0_idx:t1_idx, :]
+acc_meas = imu_data[t0_idx:t1_idx, 1:]
+
+# plot
+plt.figure()
+plt.plot(imu_time[t0_idx:t1_idx], acc_meas[:, 0], label='n')
+# plt.plot(imu_time[t0_idx:t1_idx], acc_meas[:, 1], label='e')
+# plt.plot(imu_time[t0_idx:t1_idx], acc_meas[:, 2], label='d')
+plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 0], label='n gt')
+# plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 1], label='e gt')
+# plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 2], label='d gt')
 
 
 # %%
@@ -213,23 +261,34 @@ plt.legend()
 # X gonna be relative_pos_gt and drone vel
 # Z gonna be pos_measurements_data and vel_measurements_data
 
+all_state = np.hstack((pos_gt, vel_gt, acc_gt), dtype=np.float64)
+all_meas = np.hstack((pos_meas, vel_meas, acc_meas), dtype=np.float64)
 
-X = [np.hstack((relative_pos_gt[t0_idx:t1_idx],
-               drone_vel_), dtype=np.float64)]
-Z = [np.hstack((pos_meas, vel_meas), dtype=np.float64)]
+X = [all_state]
+Z = [all_meas]
+# # divide into 1000 samples
+# for i in range(0, all_state.shape[0], 1000):
+#     X.append(all_state[i:i+1000, :])
+#     Z.append(all_meas[i:i+1000, :])
+
+# %%
 
 
 def get_F():
-    dt = 1.0 / 20.0
-    Ad = np.eye(6)
-    Ad[0, 3] = dt
-    Ad[1, 4] = dt
-    Ad[2, 5] = dt
+    dt = 1.0 / 128.0
+    # linear acceleration model
+    Ad = np.eye(9)
+    Ad[:3, 3:6] = np.eye(3) * dt
+    Ad[3:6, 6:9] = np.eye(3) * dt
+    dt2 = dt**2
+    Ad[:3, 6:9] = np.eye(3) * dt2 / 2
+    Ad[:3, 6:9] = np.eye(3) * dt2 / 2
     return torch.tensor(Ad, dtype=torch.double)
 
 
 def get_H():
-    C = np.eye(6)
+    C = np.eye(9)
+    C[6:, 6:] *= -1
     return torch.tensor(C, dtype=torch.double)
 
 
@@ -243,14 +302,16 @@ def loss_fun():
 
 def model_args():
     return dict(
-        dim_x=6,
-        dim_z=6,
+        dim_x=9,
+        dim_z=9,
         init_z2x=initial_observation_to_state,
         F=get_F(),
         H=get_H(),
         loss_fun=loss_fun(),
     )
 
+
+get_F()
 
 # %%
 
@@ -259,38 +320,29 @@ okf_model_args = model_args()
 print('---------------\nModel arguments:\n', okf_model_args)
 model = okf.OKF(**okf_model_args, optimize=True, model_name='OKF_REAL')
 
-
 # %%
 
-res, _ = okf.train(model, Z, X, verbose=1, n_epochs=100,
+res, _ = okf.train(model, Z, X, verbose=1, n_epochs=1000,
                    batch_size=1, to_save=False)
 
 # TODO: i think i have to include the acceleration! for process noise matrix to be correct
 
 # %%
 
-model.get_Q(), model.get_R()
-# print_for_copy(model.get_Q(), "Q")
-# print_for_copy(model.get_R(), "R")
+print(f"Q = {list(model.get_Q().reshape(-1))}")
+# list(model.get_R().reshape(-1))
 
+# np.set_printoptions(precision=8, suppress=True)
+# print(model.get_R())
+
+pos_R = model.get_R()[:2, :2]
+vel_R = model.get_R()[3:6, 3:6]
+acc_R = model.get_R()[6:, 6:]
+
+pos_R, vel_R, acc_R
+
+print(f"pos_R = {list(pos_R.reshape(-1))}")
+print(f"vel_R = {list(vel_R.reshape(-1))}")
+print(f"acc_R = {list(acc_R.reshape(-1))}")
 
 # %%
-# def take_diff(t, pos, interp_time=None):
-#     # smooth position
-#     if interp_time is None:
-#         interp_time = t
-#         interpolated_pos = pos
-#     else:
-#         interp_F = interpolate.interp1d(
-#             t, pos, kind='cubic', fill_value="extrapolate")
-#         interpolated_pos = interp_F(interp_time)
-#     delta_time = np.diff(interp_time)
-#     delta_pose = np.diff(interpolated_pos)
-#     vel = delta_pose / delta_time
-#     vel = savgol_filter(vel, 10, 3)
-#     return vel
-# gt_acc_x = take_diff(drone_time, drone_vel[:, 0], drone_time)
-# plt.plot(drone_time[:-1], gt_acc_x, label='gt acc x')
-# plt.figure()
-# plt.plot(drone_time, drone_vel[:, 0], label='gt vel x')
-# plt.legend()

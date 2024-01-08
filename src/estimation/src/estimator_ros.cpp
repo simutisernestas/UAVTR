@@ -72,6 +72,31 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
   EstimatorConfig config{
       .spatial_vel_flow_error = static_cast<float>(get_parameter("spatial_vel_flow_error").as_double()),
       .flow_vel_rejection_perc = static_cast<float>(get_parameter("flow_vel_rejection_perc").as_double()) / 100.0f};
+
+  std::vector<double> Q;
+  Q.resize(9 * 9);
+  declare_parameter<std::vector<double>>("process_covariance", std::vector<double>());
+  Q = get_parameter("process_covariance").as_double_array();
+  config.Q = Q;
+
+  std::vector<double> R_pos;
+  R_pos.resize(2 * 2);
+  declare_parameter<std::vector<double>>("pos_R", std::vector<double>());
+  R_pos = get_parameter("pos_R").as_double_array();
+  config.R_pos = R_pos;
+
+  std::vector<double> R_vel;
+  R_vel.resize(3 * 3);
+  declare_parameter<std::vector<double>>("vel_R", std::vector<double>());
+  R_vel = get_parameter("vel_R").as_double_array();
+  config.R_vel = R_vel;
+
+  std::vector<double> R_acc;
+  R_acc.resize(3 * 3);
+  declare_parameter<std::vector<double>>("acc_R", std::vector<double>());
+  R_acc = get_parameter("acc_R").as_double_array();
+  config.R_acc = R_acc;
+
   estimator_ = std::make_unique<Estimator>(config);
 
   declare_parameter<bool>("simulation", false);
@@ -138,7 +163,6 @@ void StateEstimationNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr ms
       d2f(msg->linear_acceleration.z);
 
   estimator_->update_imu_accel(accel, time.seconds());
-  
 #if LATENCY_MEASUREMENT
   auto t1 = Clock::now();
   RCLCPP_INFO(this->get_logger(), "imu callback took %f ms", std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count() / 1000.0f);

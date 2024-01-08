@@ -31,7 +31,7 @@ private:
 
   void cam_imu_callback(sensor_msgs::msg::Imu::SharedPtr msg);
 
-  inline bool is_K_received() { return K_(0, 0) != 0; }
+  inline bool is_K_received() { return cam_info_sub_ == nullptr; }
 
   void air_data_callback(px4_msgs::msg::VehicleAirData::SharedPtr msg);
 

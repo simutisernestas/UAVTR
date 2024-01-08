@@ -9,6 +9,10 @@
 struct EstimatorConfig {
   float spatial_vel_flow_error;  // px L1 norm
   float flow_vel_rejection_perc; // %%%
+  std::vector<double> Q;
+  std::vector<double> R_pos;
+  std::vector<double> R_vel;
+  std::vector<double> R_acc;
 };
 
 typedef Eigen::Transform<float, 3, Eigen::Affine> EigenAffine;
@@ -81,4 +85,7 @@ private:
   std::shared_ptr<cv::Mat> prev_frame_{nullptr};
   EigenAffine prev_cam_T_enu_;
   double pre_frame_time_{-1};
+
+  Eigen::MatrixXf R_vel_;
+  Eigen::MatrixXf R_acc_;
 };

@@ -32,6 +32,13 @@ class StateSubscriber(Node):
             '/imu/euler_px4',
             self.callback_imu_px4,
             1000)
+        self.imu_data = []
+        self.imu_counter = 0
+        self.subscription_imu = self.create_subscription(
+            Imu,
+            '/imu/data_raw',
+            self.callback_imu_raw,
+            1000)
         self.vel_measurements = []
         self.vel_measurements_counter = 0
         self.subscription_vel_measurements = self.create_subscription(
@@ -53,6 +60,7 @@ class StateSubscriber(Node):
         self.attitude_px4_file = f'data/{timestamp}_{bag_name}_attitude_px4.npy'
         self.vel_measurements_file = f'data/{timestamp}_{bag_name}_vel_measurements.npy'
         self.pos_measurements_file = f'data/{timestamp}_{bag_name}_pos_measurements.npy'
+        self.imu_data_file = f'data/{timestamp}_{bag_name}_imu_data.npy'
 
     def state_callback(self, msg):
         timestamp = msg.header.stamp
@@ -68,6 +76,16 @@ class StateSubscriber(Node):
         self.state_counter += 1
         if self.state_counter % 100 == 0:  # save every nth messages
             self.save_data('state')
+
+    def callback_imu_raw(self, msg):
+        timestamp = msg.header.stamp
+        unix_timestamp = timestamp.sec + timestamp.nanosec * 1e-9
+        self.imu_data.append(unix_timestamp)
+        self.imu_data.extend(
+            [msg.linear_acceleration.x, msg.linear_acceleration.y, msg.linear_acceleration.z])
+        self.imu_counter += 1
+        if self.imu_counter % 100 == 0:
+            self.save_data('imu')
 
     def callback_imu(self, msg):
         timestamp = msg.header.stamp
@@ -125,6 +143,9 @@ class StateSubscriber(Node):
         elif which == 'pos_measurements':
             data_buff = self.pos_measurements
             data_file = self.pos_measurements_file
+        elif which == 'imu':
+            data_buff = self.imu_data
+            data_file = self.imu_data_file
         else:
             raise ValueError(
                 'which must be one of state, attitude_est or attitude_px4')
@@ -147,6 +168,8 @@ class StateSubscriber(Node):
             self.vel_measurements = []
         elif which == 'pos_measurements':
             self.pos_measurements = []
+        elif which == 'imu':
+            self.imu_data = []
 
 
 def main():
