@@ -150,7 +150,7 @@ void Estimator::update_height(const float height) {
   static Eigen::MatrixXf C_height(1, 12);
   C_height << 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
   static Eigen::MatrixXf R(1, 1);
-  R << 3.3224130e+00; // height measurement noise
+  R << 1.6386561575131104; // 3.3224130e+00; // height measurement noise
 
   Eigen::VectorXf h(1);
   h << -height;

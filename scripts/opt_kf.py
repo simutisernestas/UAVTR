@@ -322,9 +322,8 @@ model = okf.OKF(**okf_model_args, optimize=True, model_name='OKF_REAL')
 
 # %%
 
-res, _ = okf.train(model, Z, X, verbose=1, n_epochs=1000,
-                   batch_size=1, to_save=False)
-
+res, _ = okf.train(model, Z, X, verbose=1, n_epochs=2000,
+                   batch_size=1, to_save=False, lr_decay_freq=100)
 # TODO: i think i have to include the acceleration! for process noise matrix to be correct
 
 # %%
@@ -344,5 +343,6 @@ pos_R, vel_R, acc_R
 print(f"pos_R = {list(pos_R.reshape(-1))}")
 print(f"vel_R = {list(vel_R.reshape(-1))}")
 print(f"acc_R = {list(acc_R.reshape(-1))}")
+print(f"Heigh variance: {model.get_R()[2,2]}")
 
 # %%
