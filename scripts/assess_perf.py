@@ -120,7 +120,7 @@ plt.legend()
 
 
 def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, est_label, gt_label, axis_label, bns=None):
-    fig, axs = plt.subplots(3, 1, figsize=(10, 10), dpi=200)
+    fig, axs = plt.subplots(3, 1, figsize=(10, 7), dpi=200)
     for i, (state_idx, pos_idx, est_lbl, gt_lbl, axis_lbl) in enumerate(zip(state_index, pos_index, est_label, gt_label, axis_label)):
         axs[i].scatter(t0_data, state_data[:, state_idx],
                        label=est_lbl, s=1, marker='*')

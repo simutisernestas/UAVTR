@@ -59,7 +59,7 @@ Estimator::Estimator(EstimatorConfig config) : config_(config) {
   }
   std::cout << "R_vel:" << std::endl
             << R_vel_ << std::endl;
-  
+
   assert(config_.R_acc.size() == 3 * 3); // row major vector
   R_acc_ = Eigen::MatrixXf::Zero(3, 3);
   for (int row = 0; row < 3; row++) {
@@ -382,11 +382,10 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time,
   height = get_height();
 #endif
 
-  cv::Mat flow;
-  optflow_->calc(*prev_frame_, frame, flow);
+  optflow_->calc(*prev_frame_, frame, prev_flow_);
 
   Eigen::Vector3f v_enu = computeCameraVelocity(
-      flow, K, prev_cam_T_enu_.rotation(), get_height(), dt);
+      prev_flow_, K, prev_cam_T_enu_.rotation(), get_height(), dt);
 
   if (kf_->is_initialized()) {
     static Eigen::MatrixXf C_vel(3, 12);
@@ -413,15 +412,23 @@ float Estimator::get_pixel_z_in_camera_frame(
   return Pt[2];
 }
 
+// function to compute pixel 3D position in ENU frame
+// by assumption that the target is on the ground plane
 Eigen::Vector3f Estimator::target_position(const Eigen::Vector2f &pixel,
                                            const EigenAffine &cam_T_enu,
                                            const Eigen::Matrix3f &K, float height) const {
   Eigen::Matrix<float, 3, 3> Kinv = K.inverse();
+  // vector pointing downwards
   Eigen::Vector3f lr{0, 0, -1};
+  // pixel in homogenous coordinates
   Eigen::Vector3f Puv_hom{pixel[0], pixel[1], 1};
+  // back-project pixel to camera frame; homogenous coordinate
   Eigen::Vector3f Pc = Kinv * Puv_hom;
+  // rotate to ENU frame and normalize
   Eigen::Vector3f ls = cam_T_enu * (Pc / Pc.norm());
+  // compute depth from height information
   float d = height / (lr.transpose() * ls);
+  // scale unit vector by pixel depth
   Eigen::Vector3f Pt = ls * d;
   return Pt;
 }
@@ -458,8 +465,6 @@ Eigen::VectorXf Estimator::computeCameraVelocity(
 
   Eigen::VectorXf vel_omega = // 6D twist vector
       Jac.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(flows);
-  // Eigen::VectorXf vel_omega = // 6D twist vector
-  //     ridge(Jac, flows, 1.0);
 
   Eigen::VectorXf v_enu = R * vel_omega.segment(0, 3);
   return v_enu;

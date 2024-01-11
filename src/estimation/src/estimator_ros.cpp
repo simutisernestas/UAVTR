@@ -234,6 +234,16 @@ void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::Sha
   auto base_T_odom = tf_msg_to_affine(base_link_enu);
   auto img_T_base = tf_msg_to_affine(*image_tf_);
 
+  Eigen::Vector2f t_px{};
+
+#define CENTER_BOTTOM 1
+#ifdef CENTER_BOTTOM
+  auto rect_point = cam_model_.rectifyPoint(
+      cv::Point2d(bbox->bbox.center.position.x,
+                  bbox->bbox.center.position.y + bbox->bbox.size_y / 2));
+  t_px[0] = d2f(rect_point.x);
+  t_px[1] = d2f(rect_point.y);
+#else
   Eigen::Vector2f avg_target_pixel{d2f(bbox->bbox.center.position.x),
                                    d2f(bbox->bbox.center.position.y)};
   Eigen::Vector2f c1, c2, c3, c4; // corners
@@ -249,12 +259,13 @@ void StateEstimationNode::bbox_callback(const vision_msgs::msg::Detection2D::Sha
   avg_target_pixel /= 5;
   auto rect_point = cam_model_.rectifyPoint(cv::Point2d(avg_target_pixel[0],
                                                         avg_target_pixel[1]));
-  avg_target_pixel[0] = d2f(rect_point.x);
-  avg_target_pixel[1] = d2f(rect_point.y);
+  t_px[0] = d2f(rect_point.x);
+  t_px[1] = d2f(rect_point.y);
+#endif
 
   auto cam_T_enu = base_T_odom * img_T_base;
   Eigen::Vector3f Pt = estimator_->update_target_position(
-      avg_target_pixel, cam_T_enu, K_, img_T_base.translation());
+      t_px, cam_T_enu, K_, img_T_base.translation());
   target_in_sight_.store(true);
 
   geometry_msgs::msg::PointStamped target_pt_msg;

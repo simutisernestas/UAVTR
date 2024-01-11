@@ -85,6 +85,7 @@ private:
   std::shared_ptr<cv::Mat> prev_frame_{nullptr};
   EigenAffine prev_cam_T_enu_;
   double pre_frame_time_{-1};
+  cv::Mat prev_flow_;
 
   Eigen::MatrixXf R_vel_;
   Eigen::MatrixXf R_acc_;
