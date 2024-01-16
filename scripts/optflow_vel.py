@@ -303,7 +303,7 @@ bound_errors = []
 RANGE = range(5, 50, 5)
 for bound in RANGE:
     SIZE = 10
-    gt = np.array([vel]*3 + [0]*3).reshape(-1, 1)
+    gt = np.concatenate([vvec, np.ones(3)*w]).reshape(-1, 1)
     errors = np.zeros((SIZE,))
     for i in range(SIZE):
         res = simulation(depth_assumption=False, lower_bound=bound)

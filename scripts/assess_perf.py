@@ -25,7 +25,7 @@ os.makedirs(PLOT_DIR, exist_ok=True)
 if not LIVE:
     BAG_NAME = BAGS_LIST[int(sys.argv[1])]
 else:
-    BAG_NAME = BAGS_LIST[0]
+    BAG_NAME = BAGS_LIST[2]
 
 latest_state_file = sorted([f for f in os.listdir(
     SAVE_DIR) if f'{BAG_NAME}_state_data' in f])[-NTH_FROM_BACK]
@@ -98,23 +98,33 @@ if BAG_NAME == BAGS_LIST[0]:
     boat_pos_var = np.var(boat_pos[t0:, :], axis=0)
     boat_pos_std = np.sqrt(boat_pos_var)
     groundtruth_3std = boat_pos_std*3*2
-    static_boat_pos = np.mean(boat_pos[t0:, :], axis=0)
     print("3 std: ", groundtruth_3std)
+    static_boat_pos = np.mean(boat_pos[t0:, :], axis=0)
     relative_pos_gt = static_boat_pos - drone_pos[:boat_pos.shape[0], :]
+elif BAG_NAME == BAGS_LIST[1]:
+    time = 1697639181.199643 + 200
+    t0 = np.argmin(np.abs(time - boat_time))
+    t1 = np.argmin(np.abs(time + 100 - boat_time))
+    boat_pos_var = np.var(boat_pos[t0:t1, :], axis=0)
+    boat_pos_std = np.sqrt(boat_pos_var)
+    groundtruth_3std = boat_pos_std*3*2
+    print("3 std: ", groundtruth_3std)
+    # static_boat_pos = np.mean(boat_pos[t0:t1, :], axis=0)
+    relative_pos_gt = boat_pos - drone_pos
 else:
-    raise NotImplementedError("TODO:")
+    # time = 1697639391.400244 + 200
+    # t0 = np.argmin(np.abs(time - boat_time))
+    # t1 = np.argmin(np.abs(time + 100 - boat_time))
+    # boat_pos_var = np.var(boat_pos[t0:t1, :], axis=0)
+    # boat_pos_std = np.sqrt(boat_pos_var)
+    # groundtruth_3std = boat_pos_std*3*2
+    groundtruth_3std = np.array([2.9305771, 2.84174148, 1.16107856])
+    print("3 std: ", groundtruth_3std)
+    relative_pos_gt = boat_pos - drone_pos
 
 # binary signal indicating whether the target is in sight or not
 target_in_sight = state_data[:, STATE_TARGET_IN_SIGHT_COLUMN]
 binary_sight = target_in_sight > 0
-
-# %%
-
-# gt_data["drone_vel"]
-plt.plot(gt_data["drone_vel"][:, 0], label='drone n')
-plt.plot(gt_data["drone_vel"][:, 1], label='drone e')
-plt.plot(gt_data["drone_vel"][:, 2], label='drone d')
-plt.legend()
 
 # %%
 

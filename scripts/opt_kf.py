@@ -7,6 +7,7 @@ import os
 import sys
 import torch
 import okf
+os.makedirs('models', exist_ok=True)
 
 STATE_TIME_COLUMN = 0
 STATE_TARGET_IN_SIGHT_COLUMN = 13
@@ -20,7 +21,7 @@ BAGS_LIST = [
     'latest_flight_mode1',
     'latest_flight_mode2',
 ]
-NTH_FROM_BACK = 1
+NTH_FROM_BACK = 2
 LIVE = len(sys.argv) == 1 or not sys.argv[1].isdigit()
 PLOT_DIR = os.path.dirname(os.path.abspath(__file__)) + '/plots'
 os.makedirs(PLOT_DIR, exist_ok=True)
@@ -217,9 +218,6 @@ plt.legend()
 
 # %%
 
-# t0_idx = np.argmin(np.abs(imu_time - vel_measurements_time[0]))
-# t1_idx = np.argmin(np.abs(imu_time - vel_measurements_time[-1]))
-
 vel_meas = interp_3d(vel_measurements_time,
                      vel_measurements_data[:, 1:], imu_time[t0_idx:t1_idx])
 
@@ -257,16 +255,11 @@ plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 0], label='n gt')
 
 # %%
 
-# basically i need X and Z meaning ground truth and measurements stacked
-# X gonna be relative_pos_gt and drone vel
-# Z gonna be pos_measurements_data and vel_measurements_data
-
 all_state = np.hstack((pos_gt, vel_gt, acc_gt), dtype=np.float64)
 all_meas = np.hstack((pos_meas, vel_meas, acc_meas), dtype=np.float64)
-
 X = [all_state]
 Z = [all_meas]
-# # divide into 1000 samples
+# # divide into 100 samples
 # for i in range(0, all_state.shape[0], 1000):
 #     X.append(all_state[i:i+1000, :])
 #     Z.append(all_meas[i:i+1000, :])
@@ -310,39 +303,33 @@ def model_args():
         loss_fun=loss_fun(),
     )
 
-
-get_F()
-
 # %%
+
 
 # Define model
 okf_model_args = model_args()
 print('---------------\nModel arguments:\n', okf_model_args)
 model = okf.OKF(**okf_model_args, optimize=True, model_name='OKF_REAL')
+model.load_model(fname='OKF_REAL.m', base_path='models')
 
 # %%
 
-res, _ = okf.train(model, Z, X, verbose=1, n_epochs=2000,
-                   batch_size=1, to_save=False, lr_decay_freq=100)
-# TODO: i think i have to include the acceleration! for process noise matrix to be correct
+res, _ = okf.train(model, Z, X, verbose=1, n_epochs=100, lr=1e-2,
+                   batch_size=1, to_save=True, lr_decay_freq=100,
+                   noise_estimation_initialization=False,
+                   reset_model=False)
 
 # %%
 
+np.set_printoptions(precision=8, suppress=True)
 print(f"Q = {list(model.get_Q().reshape(-1))}")
-# list(model.get_R().reshape(-1))
 
-# np.set_printoptions(precision=8, suppress=True)
-# print(model.get_R())
-
-pos_R = model.get_R()[:2, :2]
-vel_R = model.get_R()[3:6, 3:6]
-acc_R = model.get_R()[6:, 6:]
-
-pos_R, vel_R, acc_R
+R = np.diag(np.diag(model.get_R()))
+pos_R = R[:2, :2]
+vel_R = R[3:6, 3:6]
+acc_R = R[6:, 6:]
 
 print(f"pos_R = {list(pos_R.reshape(-1))}")
 print(f"vel_R = {list(vel_R.reshape(-1))}")
 print(f"acc_R = {list(acc_R.reshape(-1))}")
-print(f"Heigh variance: {model.get_R()[2,2]}")
-
-# %%
+print(f"Heigh variance: {R[2,2]}")

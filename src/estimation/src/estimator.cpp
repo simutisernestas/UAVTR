@@ -102,7 +102,7 @@ Estimator::~Estimator() {
 void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
   A.setZero();
   auto ddt2 = static_cast<float>(dt * dt * .5);
-  float mult = 1.0;
+  float mult = 1.0f;
   assert(dt > 0 && dt < 1);
   A << 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2 * mult, 0, 0,
       0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2 * mult, 0,
@@ -150,7 +150,7 @@ void Estimator::update_height(const float height) {
   static Eigen::MatrixXf C_height(1, 12);
   C_height << 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
   static Eigen::MatrixXf R(1, 1);
-  R << 1.6386561575131104; // 3.3224130e+00; // height measurement noise
+  R << 4.0214828812072465; // 3.3224130e+00; // height measurement noise
 
   Eigen::VectorXf h(1);
   h << -height;
@@ -351,7 +351,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time,
   EigenAffine cam_T_enu = base_T_odom * img_T_base;
   const double dt = time - pre_frame_time_;
   assert(dt > 0);
-  if (!prev_frame_ || dt > .2) {
+  if (!prev_frame_ || dt > .2 || !kf_->is_initialized()) {
     store_flow_state(frame, time, cam_T_enu);
     return {0, 0, 0};
   }

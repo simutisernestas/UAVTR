@@ -15,7 +15,7 @@ VARIATIONS = [
 ]
 DURATION = 150.0
 
-for i in range(4):
+for i in range(2, 4):
     process = Popen(BASE + VARIATIONS[i], text=True)
     sleep(DURATION)
 
