@@ -1,4 +1,5 @@
 #include <opencv2/tracking.hpp>
+#include <opencv2/tracking/tracking_legacy.hpp>
 #include <opencv2/dnn/dnn.hpp>
 #include <atomic>
 #include <thread>
@@ -494,7 +495,7 @@ public:
     void hard_reset_bbox(const cv::Rect &bbox);
 
 private:
-    cv::Ptr<cv::Tracker> _tracker = nullptr;
+    cv::Ptr<cv::legacy::Tracker> _tracker = nullptr;
     std::unique_ptr<ObjDetertor> _detector = nullptr;
     // this is ~30 MB of data in memory
     boost::lockfree::spsc_queue<cv::Mat, boost::lockfree::capacity<100>> _frames;
@@ -531,25 +532,30 @@ bool Tracker::process(const cv::Mat &frame, cv::Rect &bbox) {
 
     if (_tracker == nullptr)
         return false;
+    
+    cv::Rect2d bbox2d;
 
     _allowed_to_swap = false;
-    bool located = _tracker->update(frame, bbox);
+    bool located = _tracker->update(frame, bbox2d);
     if (!located)
         ++failure_count_;
-    if (failure_count_ > 10) {
+    if (failure_count_ > 3) {
         _tracker.reset();
         failure_count_ = 0;
     }
     _allowed_to_swap = true;
+    
+    bbox = bbox2d;
 
     return located;
 }
 
 // not safe, use with caution : )
 void Tracker::hard_reset_bbox(const cv::Rect &bbox) {
-    auto params = cv::TrackerKCF::Params();
-    params.resize = true;
-    auto local_tracker = cv::TrackerKCF::create(params);
+    // auto params = cv::TrackerMOSSE::Params();
+    // params.resize = true;
+
+    auto local_tracker = cv::legacy::TrackerMOSSE::create();
     local_tracker->init(_frames.front(), bbox);
     while (true) {
         if (_allowed_to_swap) {
@@ -563,15 +569,17 @@ void Tracker::catchup_reinit() {
     cv::Rect bbox;
     _detector->get_latest_bbox(bbox);
 
-    auto params = cv::TrackerKCF::Params();
-    params.resize = true;
-    auto local_tracker = cv::TrackerKCF::create(params);
-    local_tracker->init(_frames.front(), bbox);
+    cv::Rect2d bbox2d = bbox;
+
+    // auto params = cv::TrackerMOSSE::Params();
+    // params.resize = true;
+    auto local_tracker = cv::legacy::TrackerMOSSE::create();
+    local_tracker->init(_frames.front(), bbox2d);
     _frames.pop();
     bool got_track = false;
     while (_frames.read_available() > 1) {
         // might recover from frame by frame failure
-        got_track = local_tracker->update(_frames.front(), bbox);
+        got_track = local_tracker->update(_frames.front(), bbox2d);
         _frames.pop();
     }
     if (!got_track)
