@@ -63,7 +63,7 @@ public:
   void update_cam_imu_accel(const Eigen::Vector3f &accel, const Eigen::Vector3f &omega,
                             const Eigen::Matrix3f &imu_R_enu, const Eigen::Vector3f &arm);
 
-  bool RANSAC_vel_regression(const Eigen::MatrixXf &J,
+  bool RANSACRegression(const Eigen::MatrixXf &J,
                              const Eigen::VectorXf &flow_vectors,
                              Eigen::VectorXf &cam_vel_est);
 

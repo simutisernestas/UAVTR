@@ -15,13 +15,13 @@ VARIATIONS = [
 ]
 DURATION = 150.0
 
-for i in range(2, 4):
+for i in range(0, 4):
     process = Popen(BASE + VARIATIONS[i], text=True)
     sleep(DURATION)
 
-    for _ in range(5):
+    for _ in range(10):
         process.send_signal(SIGINT)
-        sleep(.1)
+        sleep(.05)
 
     for proc in psutil.process_iter():
         if "republish" in proc.name():
@@ -32,7 +32,8 @@ for i in range(2, 4):
 
     root_dir = os.path.dirname(os.path.dirname(
         os.path.realpath(__file__)))
-    plot_proc = Popen(["python3", root_dir + "/scripts/assess_perf.py", str(i)])
+    plot_proc = Popen(
+        ["python3", root_dir + "/scripts/assess_perf.py", str(i)])
     return_code = plot_proc.wait(timeout=10)
     print(f"return_code: {return_code}")
 

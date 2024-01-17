@@ -13,6 +13,9 @@ struct StateUpdateFreq {
 };
 auto state_update_freq_map = std::map<std::string, StateUpdateFreq>{};
 
+#define KF_STATE_DIM 14
+#define KF_MEAS_DIM 9
+
 void record_state_update(const std::string &name) {
   auto time = std::chrono::duration_cast<std::chrono::milliseconds>(
                   std::chrono::system_clock::now().time_since_epoch())
@@ -26,60 +29,60 @@ void record_state_update(const std::string &name) {
 
 Estimator::Estimator(EstimatorConfig config) : config_(config) {
   const double dt = 1.0 / 128.0;
-  Eigen::MatrixXf A(12, 12);
+  Eigen::MatrixXf A(KF_STATE_DIM, KF_STATE_DIM);
   get_A(A, dt);
 
-  assert(config_.Q.size() == 9 * 9); // row major vector
-  Eigen::MatrixXf Q = Eigen::MatrixXf::Zero(12, 12);
-  for (int row = 0; row < 9; row++) {
-    for (int col = 0; col < 9; col++)
-      Q(row, col) = config_.Q[row * 9 + col];
+#define Q_DIM 11
+  assert(config_.Q.size() == Q_DIM * Q_DIM); // row major vector
+  Eigen::MatrixXf Q = Eigen::MatrixXf::Zero(KF_STATE_DIM, KF_STATE_DIM);
+  for (int row = 0; row < Q_DIM; row++) {
+    for (int col = 0; col < Q_DIM; col++)
+      Q(row, col) = config_.Q[row * Q_DIM + col];
   }
   std::cout << "Q:" << std::endl
             << Q << std::endl;
+#undef Q_DIM
 
+#define R_POS_DIM 2
   // relative position measurement
-  assert(config_.R_pos.size() == 2 * 2); // row major vector
-  Eigen::MatrixXf C = Eigen::MatrixXf::Zero(2, 12);
-  C << 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-      0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0;
-  Eigen::MatrixXf R = Eigen::MatrixXf::Zero(2, 2);
-  for (int row = 0; row < 2; row++) {
-    for (int col = 0; col < 2; col++)
-      R(row, col) = config_.R_pos[row * 2 + col];
+  assert(config_.R_pos.size() == R_POS_DIM * R_POS_DIM); // row major vector
+  Eigen::MatrixXf C = Eigen::MatrixXf::Zero(R_POS_DIM, KF_STATE_DIM);
+  C.block(0, 0, R_POS_DIM, R_POS_DIM) =
+      Eigen::MatrixXf::Identity(R_POS_DIM, R_POS_DIM);
+  Eigen::MatrixXf R = Eigen::MatrixXf::Zero(R_POS_DIM, R_POS_DIM);
+  for (int row = 0; row < R_POS_DIM; row++) {
+    for (int col = 0; col < R_POS_DIM; col++)
+      R(row, col) = config_.R_pos[row * R_POS_DIM + col];
   }
   std::cout << "R_pos:" << std::endl
             << R << std::endl;
+#undef R_POS_DIM
 
-  assert(config_.R_vel.size() == 3 * 3); // row major vector
-  R_vel_ = Eigen::MatrixXf::Zero(3, 3);
-  for (int row = 0; row < 3; row++) {
-    for (int col = 0; col < 3; col++)
-      R_vel_(row, col) = config_.R_vel[row * 3 + col];
+#define R_VEL_DIM 3
+  assert(config_.R_vel.size() == R_VEL_DIM * R_VEL_DIM); // row major vector
+  R_vel_ = Eigen::MatrixXf::Zero(R_VEL_DIM, R_VEL_DIM);
+  for (int row = 0; row < R_VEL_DIM; row++) {
+    for (int col = 0; col < R_VEL_DIM; col++)
+      R_vel_(row, col) = config_.R_vel[row * R_VEL_DIM + col];
   }
   std::cout << "R_vel:" << std::endl
             << R_vel_ << std::endl;
+#undef R_VEL_DIM
 
-  assert(config_.R_acc.size() == 3 * 3); // row major vector
-  R_acc_ = Eigen::MatrixXf::Zero(3, 3);
-  for (int row = 0; row < 3; row++) {
-    for (int col = 0; col < 3; col++)
-      R_acc_(row, col) = config_.R_acc[row * 3 + col];
+#define R_ACC_DIM 3
+  assert(config_.R_acc.size() == R_ACC_DIM * R_ACC_DIM); // row major vector
+  R_acc_ = Eigen::MatrixXf::Zero(R_ACC_DIM, R_ACC_DIM);
+  for (int row = 0; row < R_ACC_DIM; row++) {
+    for (int col = 0; col < R_ACC_DIM; col++)
+      R_acc_(row, col) = config_.R_acc[row * R_ACC_DIM + col];
   }
   std::cout << "R_acc:" << std::endl
             << R_acc_ << std::endl;
+#undef R_ACC_DIM
 
-  Eigen::MatrixXf P(12, 12);
-  P = Eigen::MatrixXf::Identity(12, 12) * 10000.0;
-
+  Eigen::MatrixXf P =
+      Eigen::MatrixXf::Identity(KF_STATE_DIM, KF_STATE_DIM) * 10000.0;
   kf_ = std::make_unique<KalmanFilter>(A, C, Q, R, P);
-
-  // TODO: delete
-  // const std::array<float, 3> a = {1.0, -1.56101808, 0.64135154};
-  // const std::array<float, 3> b = {0.02008337, 0.04016673, 0.02008337};
-  // // Create a low pass filter objects.
-  // for (int i = 0; i < 3; i++)
-  //   lp_acc_filter_arr_[i] = std::make_unique<LowPassFilter<float, 3>>(b, a);
 
   optflow_ = cv::DISOpticalFlow::create(2);
 }
@@ -100,22 +103,16 @@ Estimator::~Estimator() {
 }
 
 void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
-  A.setZero();
   auto ddt2 = static_cast<float>(dt * dt * .5);
-  float mult = 1.0f;
   assert(dt > 0 && dt < 1);
-  A << 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2 * mult, 0, 0,
-      0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2 * mult, 0,
-      0, 0, 1, 0, 0, dt, 0, 0, ddt2, 0, 0, -ddt2 * mult,
-      0, 0, 0, 1, 0, 0, dt, 0, 0, -dt * mult, 0, 0,
-      0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt * mult, 0,
-      0, 0, 0, 0, 0, 1, 0, 0, dt, 0, 0, -dt * mult,
-      0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1;
+
+  A = Eigen::MatrixXf::Identity(KF_STATE_DIM, KF_STATE_DIM);
+  A.block(0, 3, 3, 3) = Eigen::Matrix3f::Identity() * -dt;
+  A.block(0, 6, 2, 2) = Eigen::Matrix2f::Identity() * dt;
+  A.block(0, 8, 3, 3) = Eigen::Matrix3f::Identity() * -ddt2;
+  A.block(0, 11, 3, 3) = Eigen::Matrix3f::Identity() * ddt2;
+  A.block(3, 8, 3, 3) = Eigen::Matrix3f::Identity() * dt;
+  A.block(3, 11, 3, 3) = Eigen::Matrix3f::Identity() * -dt;
 }
 
 Eigen::Vector3f Estimator::update_target_position(
@@ -133,8 +130,9 @@ Eigen::Vector3f Estimator::update_target_position(
     kf_->update(xy_meas);
     record_state_update(__FUNCTION__);
   } else {
-    Eigen::VectorXf x0(12);
-    x0 << Pt[0], Pt[1], Pt[2], 0, 0, 0, 0, 0, 0, 0, 0, 0;
+    Eigen::VectorXf x0 = Eigen::VectorXf::Zero(KF_STATE_DIM);
+    for (int i = 0; i < 3; i++)
+      x0[i] = Pt[i];
     kf_->init(x0);
   }
 
@@ -147,11 +145,12 @@ void Estimator::update_height(const float height) {
   if (!kf_->is_initialized())
     return;
 
-  static Eigen::MatrixXf C_height(1, 12);
-  C_height << 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0;
-  static Eigen::MatrixXf R(1, 1);
-  R << 4.0214828812072465; // 3.3224130e+00; // height measurement noise
+  Eigen::MatrixXf C_height = Eigen::MatrixXf::Zero(1, KF_STATE_DIM);
+  C_height(0, 2) = 1.0;
+  Eigen::MatrixXf R = Eigen::MatrixXf::Identity(1, 1);
+  R *= 2.0;
 
+  // TODO: this might need flipping
   Eigen::VectorXf h(1);
   h << -height;
   // the relative height is negative
@@ -172,13 +171,11 @@ void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double time) {
   assert(dt < 1.0);
   pre_imu_time_ = time;
 
-  static Eigen::MatrixXf C_accel(3, 12);
-  C_accel << 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0,
-      0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0;
+  Eigen::MatrixXf C_accel = Eigen::MatrixXf::Zero(3, KF_STATE_DIM);
+  C_accel.block(0, 8, 3, 3) = Eigen::Matrix3f::Identity();
   kf_->update(accel, C_accel, R_acc_);
 
-  Eigen::MatrixXf A(12, 12);
+  Eigen::MatrixXf A(KF_STATE_DIM, KF_STATE_DIM);
   get_A(A, dt);
   kf_->predict(A);
 
@@ -187,7 +184,7 @@ void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double time) {
 
 void Estimator::update_cam_imu_accel(const Eigen::Vector3f &accel, const Eigen::Vector3f &omega,
                                      const Eigen::Matrix3f &imu_R_enu, const Eigen::Vector3f &arm) {
-  return;
+  return; // TODO:
   if (!kf_->is_initialized())
     return;
 
@@ -198,11 +195,11 @@ void Estimator::update_cam_imu_accel(const Eigen::Vector3f &accel, const Eigen::
 
   Eigen::Vector3f accel_body = accel_enu - omega_enu.cross(omega_enu.cross(arm));
 
-  static Eigen::MatrixXf C_accel(3, 12);
+  Eigen::MatrixXf C_accel(3, KF_STATE_DIM);
   C_accel << 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0, 0,
       0, 0, 0, 0, 0, 0, 0, 0, -1, 0, 0, 0;
-  static Eigen::MatrixXf R_accel(3, 3);
+  Eigen::MatrixXf R_accel(3, 3);
   R_accel << Eigen::Matrix3f::Identity() * 4;
   kf_->update(accel_body, C_accel, R_accel);
 }
@@ -237,29 +234,14 @@ void Estimator::visjac_p(const Eigen::MatrixXf &uv,
   }
 }
 
-void solve_sampled(const Eigen::MatrixXf &J,
-                   const Eigen::VectorXf &flow_vectors,
-                   Eigen::VectorXf &cam_vel_est) {
-  // solve for velocity
-  cam_vel_est = (J.transpose() * J).ldlt().solve(J.transpose() * flow_vectors);
-}
-
-bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
-                                      const Eigen::VectorXf &flow_vectors,
-                                      Eigen::VectorXf &cam_vel_est) {
-
-  // J.templatebdcSvd<Eigen::ComputeThinU | Eigen::ComputeThinV>().solve(b)
-
-  cam_vel_est = J.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(flow_vectors);
-
-  // cam_vel_est = (J.transpose() * J).ldlt().solve(J.transpose() * flow_vectors);
-  return true;
-
+bool Estimator::RANSACRegression(const Eigen::MatrixXf &J,
+                                 const Eigen::VectorXf &flow_vectors,
+                                 Eigen::VectorXf &cam_vel_est) {
   // https://rpg.ifi.uzh.ch/docs/Visual_Odometry_Tutorial.pdf slide 68
   // >> outlier_percentage = .75
   // >>> np.log(1 - 0.999) / np.log(1 - (1 - outlier_percentage) ** n_samples)
   // 438.63339476983924
-  const size_t n_iterations = 2000;
+  const size_t n_iterations = 438.63339476983924;
   const size_t n_samples{3}; // minimum required to fit model
   const size_t n_points = flow_vectors.rows() / 2;
 
@@ -284,7 +266,7 @@ bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
       flow_samples.segment(i * 2, 2) = flow_vectors.segment(idx * 2, 2);
     }
     // solve for velocity
-    x_est = (J_samples.transpose() * J_samples).ldlt().solve(J_samples.transpose() * flow_samples);
+    x_est = J_samples.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(flow_samples);
 
     Eigen::VectorXf error = J * x_est - flow_vectors;
 
@@ -302,9 +284,7 @@ bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
       }
     }
 
-    // bool is_omega_zero = x_est.segment(3, 3).norm() < 1e-1;
-    bool is_omega_zero = true;
-    if (best_inliers.size() < inlier_idxs.size() && is_omega_zero) {
+    if (best_inliers.size() < inlier_idxs.size()) {
       best_inliers = inlier_idxs;
     }
 
@@ -320,18 +300,14 @@ bool Estimator::RANSAC_vel_regression(const Eigen::MatrixXf &J,
     return false;
   }
 
-  cam_vel_est = x_est;
-  return true;
-
   J_samples.resize(best_inliers.size() * 2, J.cols());
   flow_samples.resize(best_inliers.size() * 2);
-
   // solve for best inliers
   for (size_t i{0}; i < best_inliers.size(); ++i) {
     J_samples.block(i * 2, 0, 2, J.cols()) = J.block(best_inliers[i] * 2, 0, 2, J.cols());
     flow_samples.segment(i * 2, 2) = flow_vectors.segment(best_inliers[i] * 2, 2);
   }
-  cam_vel_est = (J_samples.transpose() * J_samples).ldlt().solve(J_samples.transpose() * flow_samples);
+  cam_vel_est = J_samples.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(flow_samples);
   return true;
 }
 
@@ -387,11 +363,10 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time,
   Eigen::Vector3f v_enu = computeCameraVelocity(
       prev_flow_, K, prev_cam_T_enu_.rotation(), get_height(), dt);
 
-  if (kf_->is_initialized()) {
-    static Eigen::MatrixXf C_vel(3, 12);
-    C_vel << 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, -1, 0, 0, 0, 0, 0, 0;
+  bool failed = v_enu.isZero(1e-6);
+  if (kf_->is_initialized() && !failed) {
+    Eigen::MatrixXf C_vel = Eigen::MatrixXf::Zero(3, KF_STATE_DIM);
+    C_vel.block(0, 3, 3, 3) = Eigen::Matrix3f::Identity();
     kf_->update(v_enu, C_vel, R_vel_);
 
     record_state_update(__FUNCTION__);
@@ -463,8 +438,10 @@ Eigen::VectorXf Estimator::computeCameraVelocity(
   Eigen::MatrixXf Jac;
   visjac_p(pixels, depths, K, Jac);
 
-  Eigen::VectorXf vel_omega = // 6D twist vector
-      Jac.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV).solve(flows);
+  Eigen::VectorXf vel_omega = Eigen::VectorXf::Zero(6);
+  bool success = RANSACRegression(Jac, flows, vel_omega);
+  if (!success)
+    return Eigen::VectorXf::Zero(3);
 
   Eigen::VectorXf v_enu = R * vel_omega.segment(0, 3);
   return v_enu;

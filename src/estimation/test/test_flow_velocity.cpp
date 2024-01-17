@@ -223,7 +223,7 @@ TEST(TestFlowVelocityParts, ImageJacobianGivesCorrectResult) {
 //   Eigen::VectorXf flow(6);
 //   flow << 9.00558, 8.6159, 8.6786, 8.94149, 9.13649, 8.10185;
 //   Eigen::VectorXf vel;
-//   // estimator.RANSAC_vel_regression(J, flow, Eigen::Matrix3f::Identity(), vel);
+//   // estimator.RANSACRegression(J, flow, Eigen::Matrix3f::Identity(), vel);
 
 //   // Eigen::VectorXf veltrue(6);
 //   // veltrue << -1, -1, -1, 0.0, 0.0, 0.0;
@@ -325,7 +325,7 @@ TEST(TestFlowVelocityParts, ImageJacobianGivesCorrectResult) {
 
 //   for (int i = 0; i < 5; i++) {
 //     Eigen::VectorXf vel;
-//     bool success = estimator.RANSAC_vel_regression(J, flow, vel);
+//     bool success = estimator.RANSACRegression(J, flow, vel);
 //     EXPECT_TRUE(success);
 //     EXPECT_TRUE(vel.isApprox(veltrue, 1e-3)) << "vel: " << vel << std::endl
 //                                              << "veltrue: " << veltrue << std::endl;
@@ -495,8 +495,8 @@ TEST(TestFlowVelocityParts, ImageJacobianGivesCorrectResult) {
 // //   // flow_eigen(i) -= Jv.dot(drone_omega.cross(r));
 // // }
 // Eigen::VectorXf cam_vel_est;
-// // bool success = RANSAC_vel_regression(J.block(0, 0, J.rows(), 3), flow_eigen, cam_vel_est);
-// bool success = RANSAC_vel_regression(J, flow_eigen, cam_vel_est);
+// // bool success = RANSACRegression(J.block(0, 0, J.rows(), 3), flow_eigen, cam_vel_est);
+// bool success = RANSACRegression(J, flow_eigen, cam_vel_est);
 
 // // const Eigen::Vector3f v_base = img_T_base.rotation() * cam_vel_est.segment(0, 3)
 // //     - drone_omega.cross(img_T_base.translation());
