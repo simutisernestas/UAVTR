@@ -74,25 +74,21 @@ StateEstimationNode::StateEstimationNode() : Node("state_estimation_node") {
       .flow_vel_rejection_perc = static_cast<float>(get_parameter("flow_vel_rejection_perc").as_double()) / 100.0f};
 
   std::vector<double> Q;
-  Q.resize(9 * 9);
   declare_parameter<std::vector<double>>("process_covariance", std::vector<double>());
   Q = get_parameter("process_covariance").as_double_array();
   config.Q = Q;
 
   std::vector<double> R_pos;
-  R_pos.resize(2 * 2);
   declare_parameter<std::vector<double>>("pos_R", std::vector<double>());
   R_pos = get_parameter("pos_R").as_double_array();
   config.R_pos = R_pos;
 
   std::vector<double> R_vel;
-  R_vel.resize(3 * 3);
   declare_parameter<std::vector<double>>("vel_R", std::vector<double>());
   R_vel = get_parameter("vel_R").as_double_array();
   config.R_vel = R_vel;
 
   std::vector<double> R_acc;
-  R_acc.resize(3 * 3);
   declare_parameter<std::vector<double>>("acc_R", std::vector<double>());
   R_acc = get_parameter("acc_R").as_double_array();
   config.R_acc = R_acc;
@@ -430,27 +426,43 @@ void StateEstimationNode::img_callback(const sensor_msgs::msg::Image::SharedPtr 
 
 void StateEstimationNode::state_pub_callback() {
   // publish state
-  Eigen::VectorXf state = estimator_->state();
-  Eigen::MatrixXf cov = estimator_->covariance();
+  Eigen::VectorXf state = estimator_->state();    // 14
+  Eigen::MatrixXf cov = estimator_->covariance(); // 14x14
   geometry_msgs::msg::PoseArray state_msg;
   state_msg.header.stamp = rclcpp::Time(time_.load());
   state_msg.header.frame_id = "odom";
-  state_msg.poses.resize(4);
-  for (long i = 0; i < 4; i++) {
-    state_msg.poses[i].position.x = state(i * 3);
-    state_msg.poses[i].position.y = state(i * 3 + 1);
-    state_msg.poses[i].position.z = state(i * 3 + 2);
+  state_msg.poses.resize(5); // 5x3 = 15
 
-    if (i > 0) {
-      // compute eigen values of 3x3 covariance matrix of position
-      Eigen::Matrix3f cov_pos = cov.block<3, 3>(0, 0, 3, 3);
-      Eigen::EigenSolver<Eigen::Matrix3f> es(cov_pos);
-      Eigen::Vector3f eigenvalues = es.eigenvalues().real();
-      // store position covariance
+  state_msg.poses[0].position.x = state(0);
+  state_msg.poses[0].position.y = state(1);
+  state_msg.poses[0].position.z = state(2);
+  state_msg.poses[1].position.x = state(3);
+  state_msg.poses[1].position.y = state(4);
+  state_msg.poses[1].position.z = state(5);
+  state_msg.poses[2].position.x = state(6);
+  state_msg.poses[2].position.y = state(7);
+  state_msg.poses[3].position.x = state(8);
+  state_msg.poses[3].position.y = state(9);
+  state_msg.poses[3].position.z = state(10);
+  state_msg.poses[4].position.x = state(11);
+  state_msg.poses[4].position.y = state(12);
+  state_msg.poses[4].position.z = state(13);
+  {
+    // pos
+    Eigen::Matrix3f cov_pos = cov.block<3, 3>(0, 0, 3, 3);
+    Eigen::EigenSolver<Eigen::Matrix3f> es_pos(cov_pos);
+    Eigen::Vector3f eig_pos = es_pos.eigenvalues().real();
+    // vel
+    Eigen::Matrix3f cov_vel = cov.block<3, 3>(3, 3, 3, 3);
+    Eigen::EigenSolver<Eigen::Matrix3f> es_vel(cov_vel);
+    Eigen::Vector3f eig_vel = es_vel.eigenvalues().real();
+    for (long i = 1; i < 4; i++) {
       long cov_idx = (i - 1);
-      state_msg.poses[i].orientation.x = eigenvalues(cov_idx);
+      state_msg.poses[i].orientation.x = eig_pos(cov_idx);
+      state_msg.poses[i].orientation.y = eig_vel(cov_idx);
     }
   }
+
   if (target_in_sight_.load()) {
     state_msg.poses[0].orientation.x = 1.0;
     target_in_sight_.store(false);

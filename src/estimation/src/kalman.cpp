@@ -8,8 +8,8 @@
  * 
  */
 
-#include <stdexcept>
 #include <mutex>
+#include <stdexcept>
 
 #include "kalman.hpp"
 
@@ -81,4 +81,10 @@ Eigen::MatrixXf KalmanFilter::covariance() {
   return P;
 }
 
-
+void KalmanFilter::reset_boat_velocity() {
+  std::scoped_lock lock(mtx_);
+  x_hat[6] = 0;
+  x_hat[7] = 0;
+  P(6, 6) = 1;
+  P(7, 7) = 1;
+}

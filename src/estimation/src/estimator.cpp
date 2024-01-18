@@ -31,17 +31,17 @@ Estimator::Estimator(EstimatorConfig config) : config_(config) {
   const double dt = 1.0 / 128.0;
   Eigen::MatrixXf A(KF_STATE_DIM, KF_STATE_DIM);
   get_A(A, dt);
+  std::cout << "A:" << std::endl
+            << A << std::endl;
 
-#define Q_DIM 11
-  assert(config_.Q.size() == Q_DIM * Q_DIM); // row major vector
+  assert(config_.Q.size() == KF_STATE_DIM * KF_STATE_DIM); // row major vector
   Eigen::MatrixXf Q = Eigen::MatrixXf::Zero(KF_STATE_DIM, KF_STATE_DIM);
-  for (int row = 0; row < Q_DIM; row++) {
-    for (int col = 0; col < Q_DIM; col++)
-      Q(row, col) = config_.Q[row * Q_DIM + col];
+  for (int row = 0; row < KF_STATE_DIM; row++) {
+    for (int col = 0; col < KF_STATE_DIM; col++)
+      Q(row, col) = config_.Q[row * KF_STATE_DIM + col];
   }
   std::cout << "Q:" << std::endl
             << Q << std::endl;
-#undef Q_DIM
 
 #define R_POS_DIM 2
   // relative position measurement
@@ -110,9 +110,7 @@ void Estimator::get_A(Eigen::MatrixXf &A, double dt) {
   A.block(0, 3, 3, 3) = Eigen::Matrix3f::Identity() * -dt;
   A.block(0, 6, 2, 2) = Eigen::Matrix2f::Identity() * dt;
   A.block(0, 8, 3, 3) = Eigen::Matrix3f::Identity() * -ddt2;
-  A.block(0, 11, 3, 3) = Eigen::Matrix3f::Identity() * ddt2;
   A.block(3, 8, 3, 3) = Eigen::Matrix3f::Identity() * dt;
-  A.block(3, 11, 3, 3) = Eigen::Matrix3f::Identity() * -dt;
 }
 
 Eigen::Vector3f Estimator::update_target_position(
@@ -136,6 +134,9 @@ Eigen::Vector3f Estimator::update_target_position(
     kf_->init(x0);
   }
 
+  target_last_seen_ = std::chrono::duration_cast<std::chrono::milliseconds>(
+                          std::chrono::system_clock::now().time_since_epoch())
+                          .count();
   return Pt;
 }
 
@@ -173,11 +174,19 @@ void Estimator::update_imu_accel(const Eigen::Vector3f &accel, double time) {
 
   Eigen::MatrixXf C_accel = Eigen::MatrixXf::Zero(3, KF_STATE_DIM);
   C_accel.block(0, 8, 3, 3) = Eigen::Matrix3f::Identity();
+  C_accel.block(0, 11, 3, 3) = Eigen::Matrix3f::Identity();
   kf_->update(accel, C_accel, R_acc_);
 
   Eigen::MatrixXf A(KF_STATE_DIM, KF_STATE_DIM);
   get_A(A, dt);
   kf_->predict(A);
+
+  int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch())
+                    .count();
+  if (now - target_last_seen_ > 1000) {
+    kf_->reset_boat_velocity();
+  }
 
   record_state_update(__FUNCTION__);
 }

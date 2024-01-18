@@ -64,8 +64,8 @@ public:
                             const Eigen::Matrix3f &imu_R_enu, const Eigen::Vector3f &arm);
 
   bool RANSACRegression(const Eigen::MatrixXf &J,
-                             const Eigen::VectorXf &flow_vectors,
-                             Eigen::VectorXf &cam_vel_est);
+                        const Eigen::VectorXf &flow_vectors,
+                        Eigen::VectorXf &cam_vel_est);
 
   Eigen::VectorXf computeCameraVelocity(
       const cv::Mat &flow, const Eigen::Matrix3f &K,
@@ -89,4 +89,5 @@ private:
 
   Eigen::MatrixXf R_vel_;
   Eigen::MatrixXf R_acc_;
+  int64_t target_last_seen_{-1};
 };

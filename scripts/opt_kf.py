@@ -7,6 +7,7 @@ import os
 import sys
 import torch
 import okf
+import scipy
 os.makedirs('models', exist_ok=True)
 
 STATE_TIME_COLUMN = 0
@@ -255,38 +256,49 @@ plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 0], label='n gt')
 
 # %%
 
-all_state = np.hstack((pos_gt, vel_gt, acc_gt), dtype=np.float64)
+vel_boat_gt = np.zeros((vel_gt.shape[0], 2))
+acc_bias_gt = np.zeros((acc_gt.shape[0], 3))
+all_state = np.hstack((pos_gt, vel_gt, vel_boat_gt,
+                      acc_gt, acc_bias_gt), dtype=np.float64)
 all_meas = np.hstack((pos_meas, vel_meas, acc_meas), dtype=np.float64)
 X = [all_state]
 Z = [all_meas]
-# # divide into 100 samples
-# for i in range(0, all_state.shape[0], 1000):
-#     X.append(all_state[i:i+1000, :])
-#     Z.append(all_meas[i:i+1000, :])
+# X = []
+# Z = []
+# # divide into 200 samples
+# for i in range(0, all_state.shape[0], 200):
+#     X.append(all_state[i:i+200, :])
+#     Z.append(all_meas[i:i+200, :])
 
 # %%
 
+N_STATES = 14
 
 def get_F():
-    dt = 1.0 / 128.0
-    # linear acceleration model
-    Ad = np.eye(9)
-    Ad[:3, 3:6] = np.eye(3) * dt
-    Ad[3:6, 6:9] = np.eye(3) * dt
-    dt2 = dt**2
-    Ad[:3, 6:9] = np.eye(3) * dt2 / 2
-    Ad[:3, 6:9] = np.eye(3) * dt2 / 2
-    return torch.tensor(Ad, dtype=torch.double)
+    A = np.zeros((N_STATES, N_STATES))
+    A[0:3, 3:6] = -np.eye(3)
+    A[0:2, 6:8] = np.eye(2)
+    A[3:6, 8:11] = np.eye(3)
+    dt = 1.0/128.0
+    F = scipy.linalg.expm(A*dt)
+    return torch.tensor(F, dtype=torch.double)
 
 
 def get_H():
-    C = np.eye(9)
-    C[6:, 6:] *= -1
+    C = np.zeros((9, N_STATES))
+    C[:3, :3] = np.eye(3)
+    C[3:6, 3:6] = np.eye(3)
+    C[6:9, 8:11] = np.eye(3)
+    C[6:9, 11:14] = np.eye(3)
     return torch.tensor(C, dtype=torch.double)
 
 
 def initial_observation_to_state(z):
-    return get_H() @ z
+    x = torch.zeros((N_STATES,), dtype=torch.double)
+    x[:3] = z[:3]
+    x[3:6] = z[3:6]
+    x[8:11] = z[6:9]
+    return x
 
 
 def loss_fun():
@@ -295,7 +307,7 @@ def loss_fun():
 
 def model_args():
     return dict(
-        dim_x=9,
+        dim_x=N_STATES,
         dim_z=9,
         init_z2x=initial_observation_to_state,
         F=get_F(),
@@ -310,12 +322,12 @@ def model_args():
 okf_model_args = model_args()
 print('---------------\nModel arguments:\n', okf_model_args)
 model = okf.OKF(**okf_model_args, optimize=True, model_name='OKF_REAL')
-model.load_model(fname='OKF_REAL.m', base_path='models')
+# model.load_model(fname='OKF_REAL.m', base_path='models')
 
 # %%
 
-res, _ = okf.train(model, Z, X, verbose=1, n_epochs=100, lr=1e-2,
-                   batch_size=1, to_save=True, lr_decay_freq=100,
+res, _ = okf.train(model, Z, X, verbose=1, n_epochs=300, lr=1e-2,
+                   batch_size=1, to_save=True, lr_decay_freq=200,
                    noise_estimation_initialization=False,
                    reset_model=False)
 
@@ -333,3 +345,7 @@ print(f"pos_R = {list(pos_R.reshape(-1))}")
 print(f"vel_R = {list(vel_R.reshape(-1))}")
 print(f"acc_R = {list(acc_R.reshape(-1))}")
 print(f"Heigh variance: {R[2,2]}")
+
+
+R = np.diag(np.diag(model.get_R()))
+R

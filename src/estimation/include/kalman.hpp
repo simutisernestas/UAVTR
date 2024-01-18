@@ -57,6 +57,8 @@ public:
    */
   Eigen::MatrixXf covariance();
 
+  void reset_boat_velocity();
+
 private:
   // Matrices for computation
   Eigen::MatrixXf A, B, C, Q, R, P, K, P0;
