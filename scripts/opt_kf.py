@@ -11,10 +11,6 @@ import scipy
 os.makedirs('models', exist_ok=True)
 
 STATE_TIME_COLUMN = 0
-STATE_TARGET_IN_SIGHT_COLUMN = 13
-STATE_COV_X_COLUMN = 14
-STATE_COV_Y_COLUMN = 15
-STATE_COV_Z_COLUMN = 16
 SAVE_DIR = os.path.dirname(os.path.abspath(__file__)) + '/data'
 BAGS_LIST = [
     '18_0',
@@ -22,7 +18,7 @@ BAGS_LIST = [
     'latest_flight_mode1',
     'latest_flight_mode2',
 ]
-NTH_FROM_BACK = 2
+NTH_FROM_BACK = 3
 LIVE = len(sys.argv) == 1 or not sys.argv[1].isdigit()
 PLOT_DIR = os.path.dirname(os.path.abspath(__file__)) + '/plots'
 os.makedirs(PLOT_DIR, exist_ok=True)
@@ -40,7 +36,7 @@ def load_latest(name, shape):
     return np.load(f'{SAVE_DIR}/{latest_file}').reshape(-1, shape)
 
 
-state_data = load_latest("state_data", 17)
+state_data = load_latest("state_data", 17+3)
 attitude_state_data = load_latest("attitude_state", 4)
 attitude_state_time = attitude_state_data[:, 0]
 attitude_px4_data = load_latest("attitude_px4", 4)
@@ -108,10 +104,6 @@ if BAG_NAME == BAGS_LIST[0]:
 else:
     raise NotImplementedError("TODO:")
 
-# binary signal indicating whether the target is in sight or not
-target_in_sight = state_data[:, STATE_TARGET_IN_SIGHT_COLUMN]
-binary_sight = target_in_sight > 0
-
 # %%
 
 
@@ -131,9 +123,9 @@ def take_diff(t, pos, interp_time=None):
     return deriv
 
 
-# acc will be in NED, but i need -ENU
-gt_acc_x = take_diff(drone_time, -drone_vel[:, 1], imu_time)
-gt_acc_y = take_diff(drone_time, -drone_vel[:, 0], imu_time)
+# acc will be in NED, but i need ENU
+gt_acc_x = take_diff(drone_time, drone_vel[:, 1], imu_time)
+gt_acc_y = take_diff(drone_time, drone_vel[:, 0], imu_time)
 gt_acc_z = take_diff(drone_time, drone_vel[:, 2], imu_time)
 gt_acc = np.vstack((gt_acc_x, gt_acc_y, gt_acc_z)).T
 gt_acc.shape
@@ -236,12 +228,20 @@ plt.plot(imu_time[t0_idx:t1_idx], vel_meas[:, 2], label='d')
 plt.plot(imu_time[t0_idx:t1_idx], vel_gt[:, 0], label='n gt')
 plt.plot(imu_time[t0_idx:t1_idx], vel_gt[:, 1], label='e gt')
 plt.plot(imu_time[t0_idx:t1_idx], vel_gt[:, 2], label='d gt')
-plt.ylim([-3, 3])
+plt.ylim([-2, 2])
 plt.legend()
 
 # %%
 
-acc_gt = gt_acc[t0_idx:t1_idx, :]
+gt_acc_x = take_diff(imu_time[t0_idx:t1_idx],
+                     vel_gt[:, 0], imu_time[t0_idx:t1_idx+1])
+gt_acc_y = take_diff(imu_time[t0_idx:t1_idx],
+                     vel_gt[:, 1], imu_time[t0_idx:t1_idx+1])
+gt_acc_z = take_diff(imu_time[t0_idx:t1_idx],
+                     vel_gt[:, 2], imu_time[t0_idx:t1_idx+1])
+gt_acc = -np.vstack((gt_acc_x, gt_acc_y, gt_acc_z)).T
+
+acc_gt = gt_acc[:]
 acc_meas = imu_data[t0_idx:t1_idx, 1:]
 
 # plot
@@ -252,7 +252,8 @@ plt.plot(imu_time[t0_idx:t1_idx], acc_meas[:, 0], label='n')
 plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 0], label='n gt')
 # plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 1], label='e gt')
 # plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 2], label='d gt')
-
+plt.legend()
+# plt.ylim([-4, 4])
 
 # %%
 
@@ -273,6 +274,7 @@ Z = [all_meas]
 # %%
 
 N_STATES = 14
+
 
 def get_F():
     A = np.zeros((N_STATES, N_STATES))
@@ -322,21 +324,23 @@ def model_args():
 okf_model_args = model_args()
 print('---------------\nModel arguments:\n', okf_model_args)
 model = okf.OKF(**okf_model_args, optimize=True, model_name='OKF_REAL')
-# model.load_model(fname='OKF_REAL.m', base_path='models')
+RESET = False
+if not RESET:
+    model.load_model(fname='OKF_REAL.m', base_path='models')
 
 # %%
 
-res, _ = okf.train(model, Z, X, verbose=1, n_epochs=300, lr=1e-2,
+res, _ = okf.train(model, Z, X, verbose=1, n_epochs=500, lr=1e-2,
                    batch_size=1, to_save=True, lr_decay_freq=200,
-                   noise_estimation_initialization=False,
-                   reset_model=False)
+                   noise_estimation_initialization=RESET,
+                   reset_model=RESET)
 
 # %%
 
 np.set_printoptions(precision=8, suppress=True)
 print(f"Q = {list(model.get_Q().reshape(-1))}")
 
-R = np.diag(np.diag(model.get_R()))
+R = model.get_R()
 pos_R = R[:2, :2]
 vel_R = R[3:6, 3:6]
 acc_R = R[6:, 6:]
@@ -346,6 +350,4 @@ print(f"vel_R = {list(vel_R.reshape(-1))}")
 print(f"acc_R = {list(acc_R.reshape(-1))}")
 print(f"Heigh variance: {R[2,2]}")
 
-
-R = np.diag(np.diag(model.get_R()))
-R
+np.diag(model.get_Q())

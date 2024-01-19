@@ -5,11 +5,12 @@ import matplotlib.pyplot as plt
 import os
 import sys
 
+STATE_RECORD_SIZE = 17 + 3 + 3
 STATE_TIME_COLUMN = 0
-STATE_TARGET_IN_SIGHT_COLUMN = 13
-STATE_COV_X_COLUMN = 14
-STATE_COV_Y_COLUMN = 15
-STATE_COV_Z_COLUMN = 16
+STATE_TARGET_IN_SIGHT_COLUMN = 13 + 3
+STATE_COV_X_COLUMN = 14 + 3
+STATE_COV_Y_COLUMN = 15 + 3
+STATE_COV_Z_COLUMN = 16 + 3
 SAVE_DIR = os.path.dirname(os.path.abspath(__file__)) + '/data'
 BAGS_LIST = [
     '18_0',
@@ -25,7 +26,7 @@ os.makedirs(PLOT_DIR, exist_ok=True)
 if not LIVE:
     BAG_NAME = BAGS_LIST[int(sys.argv[1])]
 else:
-    BAG_NAME = BAGS_LIST[2]
+    BAG_NAME = BAGS_LIST[0]
 
 latest_state_file = sorted([f for f in os.listdir(
     SAVE_DIR) if f'{BAG_NAME}_state_data' in f])[-NTH_FROM_BACK]
@@ -36,7 +37,7 @@ GT_NAME = BAG_NAME if "mode" not in BAG_NAME else "_".join(
     BAG_NAME.split('_')[:-1])
 gt_data = np.load(f'{SAVE_DIR}/{GT_NAME}_gt.npz')
 # load state estimation data from state_data.npy
-state_data = np.load(f'{SAVE_DIR}/{latest_state_file}').reshape(-1, 17)
+state_data = np.load(f'{SAVE_DIR}/{latest_state_file}').reshape(-1, STATE_RECORD_SIZE)
 
 # load attitude estimation data from timstamp_bag_attitude_state.npy
 latest_attitude_state_file = sorted([f for f in os.listdir(

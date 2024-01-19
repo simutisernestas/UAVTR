@@ -69,10 +69,13 @@ class StateSubscriber(Node):
         for pose in msg.poses:
             self.state_data.extend(
                 [pose.position.x, pose.position.y, pose.position.z])
-        self.state_data.append(msg.poses[0].orientation.x)  # target in sight?
-        self.state_data.append(msg.poses[1].orientation.x)  # Cov X
-        self.state_data.append(msg.poses[2].orientation.x)  # Cov Y
-        self.state_data.append(msg.poses[3].orientation.x)  # Cov Z
+        self.state_data.append(msg.poses[0].orientation.x)  # Target in sight?
+        self.state_data.append(msg.poses[1].orientation.x)  # Pos Cov X
+        self.state_data.append(msg.poses[2].orientation.x)  # Pos Cov Y
+        self.state_data.append(msg.poses[3].orientation.x)  # Pos Cov Z
+        self.state_data.append(msg.poses[1].orientation.y)  # Vel Boat Cov X
+        self.state_data.append(msg.poses[2].orientation.y)  # Vel Boat Cov Y
+        self.state_data.append(msg.poses[3].orientation.y)  # Vel Boat Cov Z
         self.state_counter += 1
         if self.state_counter % 100 == 0:  # save every nth messages
             self.save_data('state')

@@ -85,6 +85,10 @@ void KalmanFilter::reset_boat_velocity() {
   std::scoped_lock lock(mtx_);
   x_hat[6] = 0;
   x_hat[7] = 0;
-  P(6, 6) = 1;
-  P(7, 7) = 1;
+  // zero out 6th and 7th rows
+  // and columns of P (14x14)
+  P.row(6).setZero();
+  P.col(6).setZero();
+  P.row(7).setZero();
+  P.col(7).setZero();
 }

@@ -369,20 +369,36 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time,
 
   optflow_->calc(*prev_frame_, frame, prev_flow_);
 
-  Eigen::Vector3f v_enu = computeCameraVelocity(
+  // now this is in camera
+  Eigen::VectorXf vw_enu = computeCameraVelocity(
       prev_flow_, K, prev_cam_T_enu_.rotation(), get_height(), dt);
 
-  bool failed = v_enu.isZero(1e-6);
+  // build 6x6 twist transform matrix from camera2base transform
+  Eigen::MatrixXf twist_tf2body(6, 6);
+  twist_tf2body.setZero();
+  twist_tf2body.block(0, 0, 3, 3) = img_T_base.rotation();
+  Eigen::Vector3f r = img_T_base.translation();
+  // skew symmetric matrix of img_T_base translation
+  Eigen::Matrix3f skew;
+  skew << 0, -r[2], r[1],
+      r[2], 0, -r[0],
+      -r[1], r[0], 0;
+  twist_tf2body.block(0, 3, 3, 3) = skew * img_T_base.rotation();
+  twist_tf2body.block(3, 3, 3, 3) = img_T_base.rotation();
+  Eigen::VectorXf vw_body = twist_tf2body * vw_enu;
+  Eigen::Vector3f vel_final = base_T_odom.rotation() * vw_body.segment(0, 3);
+
+  bool failed = vw_enu.segment(0, 3).isZero(1e-6);
   if (kf_->is_initialized() && !failed) {
     Eigen::MatrixXf C_vel = Eigen::MatrixXf::Zero(3, KF_STATE_DIM);
     C_vel.block(0, 3, 3, 3) = Eigen::Matrix3f::Identity();
-    kf_->update(v_enu, C_vel, R_vel_);
+    kf_->update(vel_final, C_vel, R_vel_);
 
     record_state_update(__FUNCTION__);
   }
 
   store_flow_state(frame, time, cam_T_enu);
-  return -v_enu;
+  return -vel_final;
 }
 
 float Estimator::get_pixel_z_in_camera_frame(
@@ -452,8 +468,9 @@ Eigen::VectorXf Estimator::computeCameraVelocity(
   if (!success)
     return Eigen::VectorXf::Zero(3);
 
-  Eigen::VectorXf v_enu = R * vel_omega.segment(0, 3);
-  return v_enu;
+  // Eigen::VectorXf v_enu = R * vel_omega.segment(0, 3);
+  // return v_enu;
+  return vel_omega;
 }
 
 void draw_flow() {
