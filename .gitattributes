@@ -3,3 +3,5 @@
 *.sh linguist-detectable=false
 Dockerfile linguist-detectable=false
 Makefile linguist-detectable=false
+scripts/** linguist-vendored
+launch/** linguist-vendored
