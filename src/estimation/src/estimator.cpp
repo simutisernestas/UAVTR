@@ -2,6 +2,7 @@
 #include "eigen_ridge.hpp"
 #include <cassert>
 #include <chrono>
+#include <cmath>
 #include <fstream>
 #include <random>
 #include <vector>
@@ -250,8 +251,10 @@ bool Estimator::RANSACRegression(const Eigen::MatrixXf &J,
   // >> outlier_percentage = .75
   // >>> np.log(1 - 0.999) / np.log(1 - (1 - outlier_percentage) ** n_samples)
   // 438.63339476983924
-  const size_t n_iterations = 438.63339476983924;
   const size_t n_samples{3}; // minimum required to fit model
+  const size_t n_iterations = static_cast<size_t>(
+      std::log(1 - 0.999) / std::log(1 - std::pow((1 - .5), n_samples)));
+  assert(n_iterations > 0 && "n_iterations must be positive");
   const size_t n_points = flow_vectors.rows() / 2;
 
   std::random_device rd;                                  // obtain a random number from hardware
@@ -398,7 +401,7 @@ Eigen::Vector3f Estimator::update_flow_velocity(cv::Mat &frame, double time,
   }
 
   store_flow_state(frame, time, cam_T_enu);
-  return -vel_final;
+  return vel_final;
 }
 
 float Estimator::get_pixel_z_in_camera_frame(
