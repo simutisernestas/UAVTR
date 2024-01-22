@@ -13,7 +13,7 @@ VARIATIONS = [
     ["which:=1", "mode:=1"],
     ["which:=1", "mode:=2"]
 ]
-DURATION = 150.0
+DURATION = 200.0
 
 for i in range(0, 4):
     process = Popen(BASE + VARIATIONS[i], text=True)
@@ -37,4 +37,4 @@ for i in range(0, 4):
     return_code = plot_proc.wait(timeout=10)
     print(f"return_code: {return_code}")
 
-    exit()  # stop on first for now
+    # exit()  # stop on first for now

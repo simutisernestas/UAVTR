@@ -12,7 +12,7 @@ import mplcursors
 
 storage_id = 'sqlite3'
 SAVE = True
-WHICH = 0  # 0 or 1
+WHICH = 1  # 0 or 1
 PRINT_STATIC_ZERO = False
 
 

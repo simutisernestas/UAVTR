@@ -18,7 +18,7 @@ BAGS_LIST = [
     'latest_flight_mode1',
     'latest_flight_mode2',
 ]
-NTH_FROM_BACK = 3
+NTH_FROM_BACK = 1
 LIVE = len(sys.argv) == 1 or not sys.argv[1].isdigit()
 PLOT_DIR = os.path.dirname(os.path.abspath(__file__)) + '/plots'
 os.makedirs(PLOT_DIR, exist_ok=True)
@@ -249,8 +249,8 @@ plt.figure()
 plt.plot(imu_time[t0_idx:t1_idx], acc_meas[:, 0], label='n')
 # plt.plot(imu_time[t0_idx:t1_idx], acc_meas[:, 1], label='e')
 # plt.plot(imu_time[t0_idx:t1_idx], acc_meas[:, 2], label='d')
-plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 0], label='n gt')
-# plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 1], label='e gt')
+# plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 0], label='n gt')
+plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 1], label='e gt')
 # plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 2], label='d gt')
 plt.legend()
 # plt.ylim([-4, 4])

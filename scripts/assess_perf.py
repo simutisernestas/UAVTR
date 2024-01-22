@@ -5,12 +5,24 @@ import matplotlib.pyplot as plt
 import os
 import sys
 
+COLOR1 = 'royalblue'
+COLOR2 = 'firebrick'
+COLOR3 = 'darkorange'
+
+# time state target_in_sight cov_p cov_v
+# 1 + 5 * 3 + 1 + 3 + 3 = 23
 STATE_RECORD_SIZE = 17 + 3 + 3
 STATE_TIME_COLUMN = 0
 STATE_TARGET_IN_SIGHT_COLUMN = 13 + 3
 STATE_COV_X_COLUMN = 14 + 3
 STATE_COV_Y_COLUMN = 15 + 3
 STATE_COV_Z_COLUMN = 16 + 3
+VEL_COV_X_COLUMN = 17 + 3
+VEL_COV_Y_COLUMN = 18 + 3
+VEL_COV_Z_COLUMN = 19 + 3
+STATE_DRONE_VEL_X_COLUMN = 4
+STATE_DRONE_VEL_Y_COLUMN = 5
+STATE_DRONE_VEL_Z_COLUMN = 6
 SAVE_DIR = os.path.dirname(os.path.abspath(__file__)) + '/data'
 BAGS_LIST = [
     '18_0',
@@ -26,7 +38,18 @@ os.makedirs(PLOT_DIR, exist_ok=True)
 if not LIVE:
     BAG_NAME = BAGS_LIST[int(sys.argv[1])]
 else:
-    BAG_NAME = BAGS_LIST[0]
+    BAG_NAME = BAGS_LIST[1]
+
+
+def load_latest(name, shape):
+    latest_file = sorted([f for f in os.listdir(
+        SAVE_DIR) if f'{BAG_NAME}_{name}' in f])[-NTH_FROM_BACK]
+    print(f'latest {name} file: ', latest_file)
+    return np.load(f'{SAVE_DIR}/{latest_file}').reshape(-1, shape)
+
+
+vel_measurements_data = load_latest("vel_measurements", 4)
+vel_measurements_time = vel_measurements_data[:, 0]
 
 latest_state_file = sorted([f for f in os.listdir(
     SAVE_DIR) if f'{BAG_NAME}_state_data' in f])[-NTH_FROM_BACK]
@@ -37,7 +60,8 @@ GT_NAME = BAG_NAME if "mode" not in BAG_NAME else "_".join(
     BAG_NAME.split('_')[:-1])
 gt_data = np.load(f'{SAVE_DIR}/{GT_NAME}_gt.npz')
 # load state estimation data from state_data.npy
-state_data = np.load(f'{SAVE_DIR}/{latest_state_file}').reshape(-1, STATE_RECORD_SIZE)
+state_data = np.load(
+    f'{SAVE_DIR}/{latest_state_file}').reshape(-1, STATE_RECORD_SIZE)
 
 # load attitude estimation data from timstamp_bag_attitude_state.npy
 latest_attitude_state_file = sorted([f for f in os.listdir(
@@ -59,6 +83,7 @@ drone_time = gt_data['drone_time']
 boat_time = gt_data['boat_time']
 drone_pos = gt_data['drone_pos']
 boat_pos = gt_data['boat_pos']
+drone_vel = gt_data['drone_vel']
 
 # cap boat data to match drone data
 boat_data_start = np.argmin(np.abs(boat_time - drone_time[0]))
@@ -74,6 +99,8 @@ state_data = state_data[state_non_zero, :]
 state_time = state_time[state_non_zero]
 if BAG_NAME != '18_0':
     state_time -= 105
+    attitude_state_time -= 105
+    attitude_px4_time -= 105
 
 # Define a tolerance level
 tolerance = 0.09
@@ -87,12 +114,14 @@ drone_time = drone_time[matching_indices[0]]
 boat_time = boat_time[matching_indices[1]]
 drone_pos = drone_pos[matching_indices[0], :]
 boat_pos = boat_pos[matching_indices[1], :]
+drone_vel = drone_vel[matching_indices[0], :]
 
 print('drone_time.shape: ', drone_time.shape)
 print('boat_time.shape: ', boat_time.shape)
 print('drone_pos.shape: ', drone_pos.shape)
 print('boat_pos.shape: ', boat_pos.shape)
 print('state_data.shape: ', state_data.shape)
+print('drone_vel.shape: ', drone_vel.shape)
 
 if BAG_NAME == BAGS_LIST[0]:
     t0 = np.argmin(np.abs(500 - boat_time))
@@ -134,8 +163,9 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
     fig, axs = plt.subplots(3, 1, figsize=(10, 7), dpi=200)
     for i, (state_idx, pos_idx, est_lbl, gt_lbl, axis_lbl) in enumerate(zip(state_index, pos_index, est_label, gt_label, axis_label)):
         axs[i].scatter(t0_data, state_data[:, state_idx],
-                       label=est_lbl, s=1, marker='*')
-        axs[i].scatter(t1_data, pos_data[:, pos_idx], label=gt_lbl, s=1)
+                       label=est_lbl, s=1, marker='*', c=COLOR1)
+        axs[i].scatter(t1_data, pos_data[:, pos_idx],
+                       label=gt_lbl, s=1, c=COLOR2)
 
         pos_index_at_t00 = np.argmin(np.abs(t0_data[0] - t1_data))
         pos_index_at_t01 = np.argmin(np.abs(t0_data[-1] - t1_data))
@@ -152,11 +182,11 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
             std = 3*np.sqrt(state_data[:, state_idx + STATE_COV_X_COLUMN - 1])
             axs[i].fill_between(t0_data, state_data[:, state_idx] -
                                 std, state_data[:, state_idx] + std,
-                                alpha=0.1, color='blue')
+                                alpha=0.1, color=COLOR1)
             axs[i].fill_between(
                 t1_data, pos_data[:, pos_idx] - groundtruth_3std[pos_idx],
                 pos_data[:, pos_idx] + groundtruth_3std[pos_idx],
-                alpha=0.1, color='red')
+                alpha=0.1, color=COLOR2)
 
         axs[i].legend(markerscale=5)
         axs[i].grid(True, linestyle='-', linewidth=0.5)
@@ -237,3 +267,79 @@ if LIVE:
     plt.show()
 else:
     plt.savefig(f'{PLOT_DIR}/{state_timestamp}_{BAG_NAME}_interp_mae.png')
+
+# %%
+
+# create subfigure for each axis
+fig, axs = plt.subplots(3, 1, figsize=(10, 7), dpi=200)
+state_vel_order = [STATE_DRONE_VEL_Y_COLUMN,
+                   STATE_DRONE_VEL_X_COLUMN, STATE_DRONE_VEL_Z_COLUMN]
+state_vel_cov_order = [VEL_COV_Y_COLUMN,
+                       VEL_COV_X_COLUMN, VEL_COV_Z_COLUMN]
+state_labels = ['Estimation X', 'Estimation Y', 'Estimation Z']
+gt_labels = ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z']
+axis_lbl_x = 'Time (s)'
+axis_lbl_y = 'Velocity (m/s)'
+for i in range(3):
+    mult = -1 if i == 2 else 1
+    axs[i].plot(drone_time, mult * drone_vel[:, i],
+                label=gt_labels[i], c=COLOR1)
+    axs[i].plot(state_time, state_data[:, state_vel_order[i]],
+                label=state_labels[i], c=COLOR2)
+
+    std = 3*np.sqrt(state_data[:, state_vel_cov_order[i]])
+
+    axs[i].fill_between(state_time,
+                        state_data[:, state_vel_order[i]] - std,
+                        state_data[:, state_vel_order[i]] + std,
+                        alpha=0.1, color=COLOR2)
+
+    axs[i].set_xlim([state_time[0], state_time[-1]])
+    axs[i].set_ylim([-3, 3])
+
+    axs[i].legend(markerscale=5)
+    axs[i].grid(True, linestyle='-', linewidth=0.5)
+    if i == 1:
+        axs[i].set_ylabel(axis_lbl_y)
+    elif i == 2:
+        axs[i].set_xlabel(axis_lbl_x)
+
+fig.align_xlabels()
+fig.align_ylabels()
+fig.tight_layout()
+if LIVE:
+    plt.show()
+else:
+    plt.savefig(f'{PLOT_DIR}/{state_timestamp}_{BAG_NAME}_drone_vel.png')
+
+# %%
+
+# # create subfigure for each axis
+# fig, axs = plt.subplots(2, 1, figsize=(10, 7), dpi=200)
+# state_vel_order = [STATE_DRONE_VEL_Y_COLUMN + 3,
+#                    STATE_DRONE_VEL_X_COLUMN + 3, STATE_DRONE_VEL_Z_COLUMN]
+# state_vel_cov_order = [VEL_COV_Y_COLUMN,
+#                        VEL_COV_X_COLUMN, VEL_COV_Z_COLUMN]
+# state_labels = ['Estimation X', 'Estimation Y', 'Estimation Z']
+# gt_labels = ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z']
+# axis_lbl_x = 'Time (s)'
+# axis_lbl_y = 'Velocity (m/s)'
+# for i in range(2):
+#     mult = -1 if i == 2 else 1
+#     axs[i].plot(drone_time, np.zeros_like(drone_vel[:, i]),
+#                 label=gt_labels[i], c=COLOR1)
+#     axs[i].plot(state_time, state_data[:, state_vel_order[i]],
+#                 label=state_labels[i], c=COLOR2)
+#     axs[i].set_xlim([state_time[0], state_time[-1]])
+#     axs[i].set_ylim([-3, 3])
+
+#     axs[i].legend(markerscale=5)
+#     axs[i].grid(True, linestyle='-', linewidth=0.5)
+#     if i == 1:
+#         axs[i].set_ylabel(axis_lbl_y)
+#     elif i == 2:
+#         axs[i].set_xlabel(axis_lbl_x)
+
+#     fig.align_xlabels()
+#     fig.align_ylabels()
+#     fig.tight_layout()

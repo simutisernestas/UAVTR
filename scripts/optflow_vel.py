@@ -200,11 +200,11 @@ def simulation(plot=False, depth_assumption=False, lower_bound=5):
     Points = np.random.uniform(-lower_bound*3/4, lower_bound*3/4, (1000, 3))
     # Points = Points[Points[:, 1].argsort()]
     Points[:, 2] = np.random.uniform(
-        lower_bound, lower_bound+0, Points.shape[0])
+        lower_bound, lower_bound+3, Points.shape[0])
     # for i in range(Points.shape[0]):
     #     Points[i, 2] += i * .005
 
-    NOISE = 10 / lower_bound
+    NOISE = .1 / lower_bound
     projected0 = project(Points.T, C0, NOISE)
     projected0_xy = Kinv @ e2h(projected0)
     projected1 = project(Points.T, C1, NOISE)
@@ -214,9 +214,9 @@ def simulation(plot=False, depth_assumption=False, lower_bound=5):
     flows_xy = (projected0_xy[:2, :] - projected1_xy[:2, :]).T
 
     # flip sign of random flows; RANSAC should handle..
-    for i in range(flows.shape[1]):
-        if np.random.rand() > .8:
-            flows_xy[i] *= -1
+    # for i in range(flows.shape[1]):
+    #     if np.random.rand() > .8:
+    #         flows_xy[i] *= -1
 
     if plot:
         plt.scatter(projected0[0, :], projected0[1, :], c='r', s=1)
@@ -258,8 +258,8 @@ def simulation(plot=False, depth_assumption=False, lower_bound=5):
 
 
 SIZE = 100
-gt = np.concatenate([vvec, np.ones(3)*w]).reshape(-1, 1)
-print(gt.T)
+gt = np.concatenate([vvec, -np.ones(3)*w]).reshape(-1, 1)
+# print(gt.T)
 errors = np.zeros((SIZE, 6))
 for i in range(SIZE):
     res = simulation(lower_bound=20,
@@ -267,7 +267,7 @@ for i in range(SIZE):
                      depth_assumption=False)
     if res.shape[0] == 3:
         res = np.append(res, np.zeros((3, 1)), axis=0)
-    print(res)
+    # print(res)
     errors[i] = np.linalg.norm(res - gt, axis=1, ord=1)
 
 # make statistics of error along every dimension
@@ -275,15 +275,17 @@ plt.figure(dpi=300)
 plt.boxplot(errors[:, :3])
 plt.xticks(np.arange(1, 4), ['vx', 'vy', 'vz'])
 plt.ylabel('error (m/s)')
+plt.savefig('vel_error.png')
 plt.figure(dpi=300)
 plt.boxplot(errors[:, 3:])
 plt.xticks(np.arange(1, 4), ['wx', 'wy', 'wz'])
 plt.ylabel('error (rad/s)')
+plt.savefig('ang_error.png')
 
 # %%
 
 SIZE = 10
-gt = np.array([vel]*3 + [0]*3).reshape(-1, 1)
+gt = np.concatenate([vvec, -np.ones(3)*w]).reshape(-1, 1)
 errors = np.zeros((SIZE, 6))
 for i in range(SIZE):
     res = simulation(depth_assumption=True)
@@ -301,36 +303,36 @@ plt.ylabel('error (m/s)')
 
 bound_errors = []
 RANGE = range(5, 50, 5)
+gt = np.concatenate([vvec, np.ones(3)*w]).reshape(-1, 1)
 for bound in RANGE:
     SIZE = 10
-    gt = np.concatenate([vvec, np.ones(3)*w]).reshape(-1, 1)
     errors = np.zeros((SIZE,))
     for i in range(SIZE):
         res = simulation(depth_assumption=False, lower_bound=bound)
         if res.shape[0] == 3:
             res = np.append(res, np.zeros((3, 1)), axis=0)
-        errors[i] = np.linalg.norm(res - gt, ord=1)
+        errors[i] = np.linalg.norm(res - gt, ord=2)
 
-    gt = np.array([vel]*3 + [0]*3).reshape(-1, 1)
     errors2 = np.zeros((SIZE,))
     for i in range(SIZE):
         res = simulation(depth_assumption=True, lower_bound=bound)
         if res.shape[0] == 3:
             res = np.append(res, np.zeros((3, 1)), axis=0)
-        errors2[i] = np.linalg.norm(res - gt, ord=1)
+        errors2[i] = np.linalg.norm(res - gt, ord=2)
 
     bound_errors.append([np.mean(errors), np.mean(errors2)])
 
 # plot
 plt.figure(dpi=300)
+# add squares on data points
 plt.plot(RANGE, np.array(bound_errors)
-         [:, 0], label='no depth assumption')
+         [:, 0], label='No Z assumption', marker='s')
 plt.plot(RANGE, np.array(
-    bound_errors)[:, 1], label='depth assumption')
-plt.xlabel('lower bound of depth')
-plt.ylabel('average error (m/s)')
+    bound_errors)[:, 1], label='With Z assumption', marker='s')
+plt.xlabel('Lower bound of Z')
+plt.ylabel('MSE')
 plt.legend()
-
+plt.savefig('bound_error.png')
 
 # %%
 
