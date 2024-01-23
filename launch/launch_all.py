@@ -37,4 +37,4 @@ for i in range(0, 4):
     return_code = plot_proc.wait(timeout=10)
     print(f"return_code: {return_code}")
 
-    # exit()  # stop on first for now
+    exit()  # stop on first for now

@@ -36,7 +36,7 @@ def load_latest(name, shape):
     return np.load(f'{SAVE_DIR}/{latest_file}').reshape(-1, shape)
 
 
-state_data = load_latest("state_data", 17+3)
+state_data = load_latest("state_data", 17+3+3)
 attitude_state_data = load_latest("attitude_state", 4)
 attitude_state_time = attitude_state_data[:, 0]
 attitude_px4_data = load_latest("attitude_px4", 4)
@@ -104,9 +104,6 @@ if BAG_NAME == BAGS_LIST[0]:
 else:
     raise NotImplementedError("TODO:")
 
-# %%
-
-
 def take_diff(t, pos, interp_time=None):
     # smooth position
     if interp_time is None:
@@ -123,58 +120,54 @@ def take_diff(t, pos, interp_time=None):
     return deriv
 
 
-# acc will be in NED, but i need ENU
-gt_acc_x = take_diff(drone_time, drone_vel[:, 1], imu_time)
-gt_acc_y = take_diff(drone_time, drone_vel[:, 0], imu_time)
-gt_acc_z = take_diff(drone_time, drone_vel[:, 2], imu_time)
-gt_acc = np.vstack((gt_acc_x, gt_acc_y, gt_acc_z)).T
-gt_acc.shape
-# plt.plot(imu_time[:-1], gt_acc_x, label='gt acc x')
-# plt.plot(imu_time, imu_data[:, 1], label='gt vel x', alpha=0.1)
+# # acc will be in NED, but i need ENU
+# gt_acc_x = take_diff(drone_time, drone_vel[:, 1], imu_time)
+# gt_acc_y = take_diff(drone_time, drone_vel[:, 0], imu_time)
+# gt_acc_z = take_diff(drone_time, drone_vel[:, 2], imu_time)
+# gt_acc = np.vstack((gt_acc_x, gt_acc_y, gt_acc_z)).T
+# gt_acc.shape
+# # plt.plot(imu_time[:-1], gt_acc_x, label='gt acc x')
+# # plt.plot(imu_time, imu_data[:, 1], label='gt vel x', alpha=0.1)
+# # plt.legend()
+
+# t0_idx = np.argmin(np.abs(drone_time - vel_measurements_time[0]))
+# t1_idx = np.argmin(np.abs(drone_time - vel_measurements_time[-1]))
+
+# vel_measurements_data = vel_measurements_data[
+#     (vel_measurements_data[:, 1] != 0) &
+#     (vel_measurements_data[:, 2] != 0) &
+#     (vel_measurements_data[:, 3] != 0), :]
+# vel_measurements_time = vel_measurements_data[:, 0]
+
+# plt.figure(figsize=(10, 5))
+# plt.plot(drone_time[t0_idx:t1_idx],
+#          drone_vel[t0_idx:t1_idx, 0], label='drone n')
+# plt.plot(vel_measurements_time, -vel_measurements_data[:, 2], label='vel e')
+# plt.figure(figsize=(10, 5))
+# plt.plot(drone_time[t0_idx:t1_idx],
+#          drone_vel[t0_idx:t1_idx, 1], label='drone e')
+# plt.plot(vel_measurements_time, -vel_measurements_data[:, 1], label='vel n')
+# plt.figure(figsize=(10, 5))
+# plt.plot(drone_time[t0_idx:t1_idx],
+#          drone_vel[t0_idx:t1_idx, 2], label='drone d')
+# plt.plot(vel_measurements_time, vel_measurements_data[:, 3], label='vel d')
 # plt.legend()
 
-# %%
+# t0_idx = np.argmin(np.abs(drone_time - pos_measurements_time[0]))
+# t1_idx = np.argmin(np.abs(drone_time - pos_measurements_time[-1]))
 
-t0_idx = np.argmin(np.abs(drone_time - vel_measurements_time[0]))
-t1_idx = np.argmin(np.abs(drone_time - vel_measurements_time[-1]))
-
-vel_measurements_data = vel_measurements_data[
-    (vel_measurements_data[:, 1] != 0) &
-    (vel_measurements_data[:, 2] != 0) &
-    (vel_measurements_data[:, 3] != 0), :]
-vel_measurements_time = vel_measurements_data[:, 0]
-
-plt.figure(figsize=(10, 5))
-plt.plot(drone_time[t0_idx:t1_idx],
-         drone_vel[t0_idx:t1_idx, 0], label='drone n')
-plt.plot(vel_measurements_time, -vel_measurements_data[:, 2], label='vel e')
-plt.figure(figsize=(10, 5))
-plt.plot(drone_time[t0_idx:t1_idx],
-         drone_vel[t0_idx:t1_idx, 1], label='drone e')
-plt.plot(vel_measurements_time, -vel_measurements_data[:, 1], label='vel n')
-plt.figure(figsize=(10, 5))
-plt.plot(drone_time[t0_idx:t1_idx],
-         drone_vel[t0_idx:t1_idx, 2], label='drone d')
-plt.plot(vel_measurements_time, vel_measurements_data[:, 3], label='vel d')
-plt.legend()
-
-# %%
-
-t0_idx = np.argmin(np.abs(drone_time - pos_measurements_time[0]))
-t1_idx = np.argmin(np.abs(drone_time - pos_measurements_time[-1]))
-
-plt.figure(figsize=(10, 5))
-plt.plot(drone_time[t0_idx:t1_idx],
-         relative_pos_gt[t0_idx:t1_idx, 0], label='drone n')
-plt.plot(pos_measurements_time, pos_measurements_data[:, 1], label='pos n')
-plt.figure(figsize=(10, 5))
-plt.plot(drone_time[t0_idx:t1_idx],
-         relative_pos_gt[t0_idx:t1_idx, 1], label='drone e')
-plt.plot(pos_measurements_time, pos_measurements_data[:, 2], label='pos e')
-plt.figure(figsize=(10, 5))
-plt.plot(drone_time[t0_idx:t1_idx],
-         relative_pos_gt[t0_idx:t1_idx, 2], label='drone d')
-plt.plot(pos_measurements_time, pos_measurements_data[:, 3], label='pos d')
+# plt.figure(figsize=(10, 5))
+# plt.plot(drone_time[t0_idx:t1_idx],
+#          relative_pos_gt[t0_idx:t1_idx, 0], label='drone n')
+# plt.plot(pos_measurements_time, pos_measurements_data[:, 1], label='pos n')
+# plt.figure(figsize=(10, 5))
+# plt.plot(drone_time[t0_idx:t1_idx],
+#          relative_pos_gt[t0_idx:t1_idx, 1], label='drone e')
+# plt.plot(pos_measurements_time, pos_measurements_data[:, 2], label='pos e')
+# plt.figure(figsize=(10, 5))
+# plt.plot(drone_time[t0_idx:t1_idx],
+#          relative_pos_gt[t0_idx:t1_idx, 2], label='drone d')
+# plt.plot(pos_measurements_time, pos_measurements_data[:, 3], label='pos d')
 
 # %%
 
@@ -191,7 +184,7 @@ def interp_3d(time, data, interp_time):
 
 
 t0_idx = np.argmin(np.abs(imu_time - pos_measurements_time[0])) + 1
-t1_idx = np.argmin(np.abs(imu_time - pos_measurements_time[-1]))
+t1_idx = np.argmin(np.abs(imu_time - 500))
 # t1_idx = np.argmin(np.abs(imu_time - 417.0))
 
 pos_meas = interp_3d(pos_measurements_time,
@@ -215,7 +208,7 @@ vel_meas = interp_3d(vel_measurements_time,
                      vel_measurements_data[:, 1:], imu_time[t0_idx:t1_idx])
 
 drone_vel_ = drone_vel.copy()
-drone_vel_[:, [0, 1]] = -drone_vel_[:, [1, 0]]
+drone_vel_[:, [0, 1]] = drone_vel_[:, [1, 0]]
 
 vel_gt = interp_3d(drone_time,
                    drone_vel_,
@@ -239,7 +232,7 @@ gt_acc_y = take_diff(imu_time[t0_idx:t1_idx],
                      vel_gt[:, 1], imu_time[t0_idx:t1_idx+1])
 gt_acc_z = take_diff(imu_time[t0_idx:t1_idx],
                      vel_gt[:, 2], imu_time[t0_idx:t1_idx+1])
-gt_acc = -np.vstack((gt_acc_x, gt_acc_y, gt_acc_z)).T
+gt_acc = np.vstack((gt_acc_x, gt_acc_y, gt_acc_z)).T
 
 acc_gt = gt_acc[:]
 acc_meas = imu_data[t0_idx:t1_idx, 1:]
@@ -247,9 +240,9 @@ acc_meas = imu_data[t0_idx:t1_idx, 1:]
 # plot
 plt.figure()
 plt.plot(imu_time[t0_idx:t1_idx], acc_meas[:, 0], label='n')
-# plt.plot(imu_time[t0_idx:t1_idx], acc_meas[:, 1], label='e')
+plt.plot(imu_time[t0_idx:t1_idx], acc_meas[:, 1], label='e')
 # plt.plot(imu_time[t0_idx:t1_idx], acc_meas[:, 2], label='d')
-# plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 0], label='n gt')
+plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 0], label='n gt')
 plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 1], label='e gt')
 # plt.plot(imu_time[t0_idx:t1_idx], acc_gt[:, 2], label='d gt')
 plt.legend()
@@ -330,7 +323,7 @@ if not RESET:
 
 # %%
 
-res, _ = okf.train(model, Z, X, verbose=1, n_epochs=500, lr=1e-2,
+res, _ = okf.train(model, Z, X, verbose=1, n_epochs=500, lr=1e-3,
                    batch_size=1, to_save=True, lr_decay_freq=200,
                    noise_estimation_initialization=RESET,
                    reset_model=RESET)

@@ -30,15 +30,14 @@ BAGS_LIST = [
     'latest_flight_mode1',
     'latest_flight_mode2',
 ]
+CUTOFF_TIMES = [-35, -45, 0, -85]
 NTH_FROM_BACK = 1
 LIVE = len(sys.argv) == 1 or not sys.argv[1].isdigit()
 PLOT_DIR = os.path.dirname(os.path.abspath(__file__)) + '/plots'
 os.makedirs(PLOT_DIR, exist_ok=True)
 
-if not LIVE:
-    BAG_NAME = BAGS_LIST[int(sys.argv[1])]
-else:
-    BAG_NAME = BAGS_LIST[1]
+WHICH = int(sys.argv[1]) if not LIVE else 1
+BAG_NAME = BAGS_LIST[WHICH]
 
 
 def load_latest(name, shape):
@@ -84,6 +83,7 @@ boat_time = gt_data['boat_time']
 drone_pos = gt_data['drone_pos']
 boat_pos = gt_data['boat_pos']
 drone_vel = gt_data['drone_vel']
+boat_vel = gt_data['boat_vel']
 
 # cap boat data to match drone data
 boat_data_start = np.argmin(np.abs(boat_time - drone_time[0]))
@@ -98,9 +98,9 @@ state_non_zero = np.abs(state_data[:, 1]) > 0
 state_data = state_data[state_non_zero, :]
 state_time = state_time[state_non_zero]
 if BAG_NAME != '18_0':
-    state_time -= 105
-    attitude_state_time -= 105
-    attitude_px4_time -= 105
+    state_time -= 104
+    attitude_state_time -= 104
+    attitude_px4_time -= 104
 
 # Define a tolerance level
 tolerance = 0.09
@@ -115,6 +115,7 @@ boat_time = boat_time[matching_indices[1]]
 drone_pos = drone_pos[matching_indices[0], :]
 boat_pos = boat_pos[matching_indices[1], :]
 drone_vel = drone_vel[matching_indices[0], :]
+boat_vel = boat_vel[matching_indices[1], :]
 
 print('drone_time.shape: ', drone_time.shape)
 print('boat_time.shape: ', boat_time.shape)
@@ -168,13 +169,20 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
                        label=gt_lbl, s=1, c=COLOR2)
 
         pos_index_at_t00 = np.argmin(np.abs(t0_data[0] - t1_data))
-        pos_index_at_t01 = np.argmin(np.abs(t0_data[-1] - t1_data))
-        min_y = np.min([np.min(state_data[:, state_idx]), np.min(
-            pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])])
-        max_y = np.max([np.max(state_data[:, state_idx]),
-                       np.max(pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])])
+        pos_index_at_t01 = np.argmin(
+            np.abs(t0_data[-1] + CUTOFF_TIMES[WHICH] - t1_data))
+        if WHICH == 0:
+            min_y = np.min(
+                pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])
+            max_y = np.max(
+                pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])
+        else:
+            min_y = np.min([np.min(state_data[:, state_idx]), np.min(
+                pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])])
+            max_y = np.max([np.max(state_data[:, state_idx]),
+                            np.max(pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])])
         axs[i].set_ylim([min_y - 5.0, max_y + 5.0])
-        axs[i].set_xlim([t0_data[0], t0_data[-1]])
+        axs[i].set_xlim([t0_data[0], t0_data[-1] + CUTOFF_TIMES[WHICH]])
 
         if bns is not None:
             axs[i].scatter(t0_data[bns], np.ones_like(t0_data)[
@@ -228,45 +236,45 @@ else:
 
 # %%
 
-f = interpolate.interp1d(
-    attitude_px4_time, attitude_px4_data[:, 1], kind='linear', fill_value="extrapolate")
-px4_yaw_interp = f(attitude_state_time)
-yaw_diff = np.abs(px4_yaw_interp - attitude_state_data[:, 3])
-yaw_diff_idx = np.argmax(yaw_diff < 5)
+# f = interpolate.interp1d(
+#     attitude_px4_time, attitude_px4_data[:, 1], kind='linear', fill_value="extrapolate")
+# px4_yaw_interp = f(attitude_state_time)
+# yaw_diff = np.abs(px4_yaw_interp - attitude_state_data[:, 3])
+# yaw_diff_idx = np.argmax(yaw_diff < 5)
 
-# interpolate relative position data to match state estimation data timestamps
-f_x = interpolate.interp1d(
-    boat_time, relative_pos_gt[:, 0], kind='linear', fill_value="extrapolate")
-f_y = interpolate.interp1d(
-    boat_time, relative_pos_gt[:, 1], kind='linear', fill_value="extrapolate")
-f_z = interpolate.interp1d(
-    boat_time, relative_pos_gt[:, 2], kind='linear', fill_value="extrapolate")
+# # interpolate relative position data to match state estimation data timestamps
+# f_x = interpolate.interp1d(
+#     boat_time, relative_pos_gt[:, 0], kind='linear', fill_value="extrapolate")
+# f_y = interpolate.interp1d(
+#     boat_time, relative_pos_gt[:, 1], kind='linear', fill_value="extrapolate")
+# f_z = interpolate.interp1d(
+#     boat_time, relative_pos_gt[:, 2], kind='linear', fill_value="extrapolate")
 
-data_frac = state_data[yaw_diff_idx:, 1:4]
-time_frac = state_time[yaw_diff_idx:]
+# data_frac = state_data[yaw_diff_idx:, 1:4]
+# time_frac = state_time[yaw_diff_idx:]
 
-relative_pos_gt_interp = np.zeros_like(data_frac)
-relative_pos_gt_interp[:, 0] = f_x(time_frac)
-relative_pos_gt_interp[:, 1] = f_y(time_frac)
-relative_pos_gt_interp[:, 2] = f_z(time_frac)
+# relative_pos_gt_interp = np.zeros_like(data_frac)
+# relative_pos_gt_interp[:, 0] = f_x(time_frac)
+# relative_pos_gt_interp[:, 1] = f_y(time_frac)
+# relative_pos_gt_interp[:, 2] = f_z(time_frac)
 
-# calculate mean absolute error
-MAE = np.mean(
-    np.abs((data_frac - relative_pos_gt_interp[:])), axis=0)
-print('MAE: ', MAE)
+# # calculate mean absolute error
+# MAE = np.mean(
+#     np.abs((data_frac - relative_pos_gt_interp[:])), axis=0)
+# print('MAE: ', MAE)
 
-fig = plot_data(time_frac, time_frac,
-                state_data[yaw_diff_idx:, :], [1, 2, 3],
-                relative_pos_gt_interp, [0, 1, 2],
-                ['Estimation X', 'Estimation Y', 'Estimation Z'],
-                ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z'],
-                ['Distance (m)', 'Distance (m)', 'Time (s)'],
-                bns=binary_sight[yaw_diff_idx:])
+# fig = plot_data(time_frac, time_frac,
+#                 state_data[yaw_diff_idx:, :], [1, 2, 3],
+#                 relative_pos_gt_interp, [0, 1, 2],
+#                 ['Estimation X', 'Estimation Y', 'Estimation Z'],
+#                 ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z'],
+#                 ['Distance (m)', 'Distance (m)', 'Time (s)'],
+#                 bns=binary_sight[yaw_diff_idx:])
 
-if LIVE:
-    plt.show()
-else:
-    plt.savefig(f'{PLOT_DIR}/{state_timestamp}_{BAG_NAME}_interp_mae.png')
+# if LIVE:
+#     plt.show()
+# else:
+#     plt.savefig(f'{PLOT_DIR}/{state_timestamp}_{BAG_NAME}_interp_mae.png')
 
 # %%
 
@@ -294,8 +302,11 @@ for i in range(3):
                         state_data[:, state_vel_order[i]] + std,
                         alpha=0.1, color=COLOR2)
 
-    axs[i].set_xlim([state_time[0], state_time[-1]])
-    axs[i].set_ylim([-3, 3])
+    axs[i].set_xlim([state_time[0], state_time[-1] + CUTOFF_TIMES[WHICH]])
+    offset = 1
+    y_min = np.min(mult * drone_vel[:, i]) - offset
+    y_max = np.max(mult * drone_vel[:, i]) + offset
+    axs[i].set_ylim([y_min, y_max])
 
     axs[i].legend(markerscale=5)
     axs[i].grid(True, linestyle='-', linewidth=0.5)
@@ -314,32 +325,44 @@ else:
 
 # %%
 
-# # create subfigure for each axis
-# fig, axs = plt.subplots(2, 1, figsize=(10, 7), dpi=200)
-# state_vel_order = [STATE_DRONE_VEL_Y_COLUMN + 3,
-#                    STATE_DRONE_VEL_X_COLUMN + 3, STATE_DRONE_VEL_Z_COLUMN]
-# state_vel_cov_order = [VEL_COV_Y_COLUMN,
-#                        VEL_COV_X_COLUMN, VEL_COV_Z_COLUMN]
-# state_labels = ['Estimation X', 'Estimation Y', 'Estimation Z']
-# gt_labels = ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z']
-# axis_lbl_x = 'Time (s)'
-# axis_lbl_y = 'Velocity (m/s)'
-# for i in range(2):
-#     mult = -1 if i == 2 else 1
-#     axs[i].plot(drone_time, np.zeros_like(drone_vel[:, i]),
-#                 label=gt_labels[i], c=COLOR1)
-#     axs[i].plot(state_time, state_data[:, state_vel_order[i]],
-#                 label=state_labels[i], c=COLOR2)
-#     axs[i].set_xlim([state_time[0], state_time[-1]])
-#     axs[i].set_ylim([-3, 3])
+# create subfigure for each axis
+fig, axs = plt.subplots(2, 1, figsize=(10, 7), dpi=200)
+state_vel_order = [STATE_DRONE_VEL_Y_COLUMN + 3,
+                   STATE_DRONE_VEL_X_COLUMN + 3, STATE_DRONE_VEL_Z_COLUMN]
+state_vel_cov_order = [VEL_COV_Y_COLUMN,
+                       VEL_COV_X_COLUMN, VEL_COV_Z_COLUMN]
+state_labels = ['Estimation X', 'Estimation Y', 'Estimation Z']
+gt_labels = ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z']
+axis_lbl_x = 'Time (s)'
+axis_lbl_y = 'Velocity (m/s)'
+for i in range(2):
+    mult = -1 if i == 2 else 1
+    axs[i].plot(boat_time, boat_vel[:, i],
+                label=gt_labels[i], c=COLOR1)
+    axs[i].plot(state_time, state_data[:, state_vel_order[i]],
+                label=state_labels[i], c=COLOR2)
+    axs[i].set_xlim([state_time[0], state_time[-1] + CUTOFF_TIMES[WHICH]])
 
-#     axs[i].legend(markerscale=5)
-#     axs[i].grid(True, linestyle='-', linewidth=0.5)
-#     if i == 1:
-#         axs[i].set_ylabel(axis_lbl_y)
-#     elif i == 2:
-#         axs[i].set_xlabel(axis_lbl_x)
+    if WHICH == 0:
+        axs[i].set_ylim([-1, 1])
+    else:
+        offset = .3
+        y_min = np.min(boat_vel[:, i]) - offset
+        y_max = np.max(boat_vel[:, i]) + offset
+        axs[i].set_ylim([y_min, y_max])
 
-#     fig.align_xlabels()
-#     fig.align_ylabels()
-#     fig.tight_layout()
+    axs[i].legend(markerscale=5)
+    axs[i].grid(True, linestyle='-', linewidth=0.5)
+    axs[i].set_ylabel(axis_lbl_y)
+    if i == 1:
+        axs[i].set_xlabel(axis_lbl_x)
+
+fig.align_xlabels()
+fig.align_ylabels()
+fig.tight_layout()
+if LIVE:
+    plt.show()
+else:
+    plt.savefig(f'{PLOT_DIR}/{state_timestamp}_{BAG_NAME}_boat_vel.png')
+
+# %%

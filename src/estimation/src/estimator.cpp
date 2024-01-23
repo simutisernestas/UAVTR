@@ -150,7 +150,7 @@ void Estimator::update_height(const float height) {
   Eigen::MatrixXf C_height = Eigen::MatrixXf::Zero(1, KF_STATE_DIM);
   C_height(0, 2) = 1.0;
   Eigen::MatrixXf R = Eigen::MatrixXf::Identity(1, 1);
-  R *= 2.0;
+  R *= 0.7766413661993445;
 
   // TODO: this might need flipping
   Eigen::VectorXf h(1);
