@@ -73,9 +73,11 @@ class StateSubscriber(Node):
         self.state_data.append(msg.poses[1].orientation.x)  # Pos Cov X
         self.state_data.append(msg.poses[2].orientation.x)  # Pos Cov Y
         self.state_data.append(msg.poses[3].orientation.x)  # Pos Cov Z
-        self.state_data.append(msg.poses[1].orientation.y)  # Vel Boat Cov X
-        self.state_data.append(msg.poses[2].orientation.y)  # Vel Boat Cov Y
-        self.state_data.append(msg.poses[3].orientation.y)  # Vel Boat Cov Z
+        self.state_data.append(msg.poses[1].orientation.y)  # Vel Drone Cov X
+        self.state_data.append(msg.poses[2].orientation.y)  # Vel Drone Cov Y
+        self.state_data.append(msg.poses[3].orientation.y)  # Vel Drone Cov Z
+        self.state_data.append(msg.poses[1].orientation.z)  # Vel Boat Cov X
+        self.state_data.append(msg.poses[2].orientation.z)  # Vel Boat Cov Y
         self.state_counter += 1
         if self.state_counter % 100 == 0:  # save every nth messages
             self.save_data('state')

@@ -135,6 +135,13 @@ Eigen::Vector3f Estimator::update_target_position(
     kf_->init(x0);
   }
 
+  int64_t now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::system_clock::now().time_since_epoch())
+                    .count();
+  if (now - target_last_seen_ > 1000) {
+    kf_->inflate_boat_vel_cov();
+  }
+
   target_last_seen_ = std::chrono::duration_cast<std::chrono::milliseconds>(
                           std::chrono::system_clock::now().time_since_epoch())
                           .count();
@@ -152,10 +159,9 @@ void Estimator::update_height(const float height) {
   Eigen::MatrixXf R = Eigen::MatrixXf::Identity(1, 1);
   R *= 0.7766413661993445;
 
-  // TODO: this might need flipping
   Eigen::VectorXf h(1);
-  h << -height;
   // the relative height is negative
+  h << -height;
   kf_->update(h, C_height, R);
 
   record_state_update(__FUNCTION__);

@@ -11,7 +11,7 @@ COLOR3 = 'darkorange'
 
 # time state target_in_sight cov_p cov_v
 # 1 + 5 * 3 + 1 + 3 + 3 = 23
-STATE_RECORD_SIZE = 17 + 3 + 3
+STATE_RECORD_SIZE = 17 + 3 + 3 + 2
 STATE_TIME_COLUMN = 0
 STATE_TARGET_IN_SIGHT_COLUMN = 13 + 3
 STATE_COV_X_COLUMN = 14 + 3
@@ -35,10 +35,8 @@ NTH_FROM_BACK = 1
 LIVE = len(sys.argv) == 1 or not sys.argv[1].isdigit()
 PLOT_DIR = os.path.dirname(os.path.abspath(__file__)) + '/plots'
 os.makedirs(PLOT_DIR, exist_ok=True)
-
 WHICH = int(sys.argv[1]) if not LIVE else 1
 BAG_NAME = BAGS_LIST[WHICH]
-
 
 def load_latest(name, shape):
     latest_file = sorted([f for f in os.listdir(
@@ -171,7 +169,7 @@ def plot_data(t0_data, t1_data, state_data, state_index, pos_data, pos_index, es
         pos_index_at_t00 = np.argmin(np.abs(t0_data[0] - t1_data))
         pos_index_at_t01 = np.argmin(
             np.abs(t0_data[-1] + CUTOFF_TIMES[WHICH] - t1_data))
-        if WHICH == 0:
+        if WHICH == 10:
             min_y = np.min(
                 pos_data[pos_index_at_t00:pos_index_at_t01, pos_idx])
             max_y = np.max(
@@ -290,10 +288,10 @@ axis_lbl_x = 'Time (s)'
 axis_lbl_y = 'Velocity (m/s)'
 for i in range(3):
     mult = -1 if i == 2 else 1
-    axs[i].plot(drone_time, mult * drone_vel[:, i],
-                label=gt_labels[i], c=COLOR1)
-    axs[i].plot(state_time, state_data[:, state_vel_order[i]],
-                label=state_labels[i], c=COLOR2)
+    axs[i].scatter(drone_time, mult * drone_vel[:, i],
+                   label=gt_labels[i], s=1, c=COLOR1)
+    axs[i].scatter(state_time, state_data[:, state_vel_order[i]],
+                   label=state_labels[i], s=1, c=COLOR2)
 
     std = 3*np.sqrt(state_data[:, state_vel_cov_order[i]])
 
@@ -325,23 +323,29 @@ else:
 
 # %%
 
-# create subfigure for each axis
+# boat velocity estimation
 fig, axs = plt.subplots(2, 1, figsize=(10, 7), dpi=200)
 state_vel_order = [STATE_DRONE_VEL_Y_COLUMN + 3,
-                   STATE_DRONE_VEL_X_COLUMN + 3, STATE_DRONE_VEL_Z_COLUMN]
-state_vel_cov_order = [VEL_COV_Y_COLUMN,
-                       VEL_COV_X_COLUMN, VEL_COV_Z_COLUMN]
+                   STATE_DRONE_VEL_X_COLUMN + 3]
+state_vel_cov_order = [-2, -1]
 state_labels = ['Estimation X', 'Estimation Y', 'Estimation Z']
 gt_labels = ['Groundtruth X', 'Groundtruth Y', 'Groundtruth Z']
 axis_lbl_x = 'Time (s)'
 axis_lbl_y = 'Velocity (m/s)'
+boat_time -= 70
 for i in range(2):
     mult = -1 if i == 2 else 1
-    axs[i].plot(boat_time, boat_vel[:, i],
-                label=gt_labels[i], c=COLOR1)
-    axs[i].plot(state_time, state_data[:, state_vel_order[i]],
-                label=state_labels[i], c=COLOR2)
+    axs[i].scatter(boat_time, boat_vel[:, i],
+                   label=gt_labels[i], s=1, c=COLOR1)
+    axs[i].scatter(state_time, state_data[:, state_vel_order[i]],
+                   label=state_labels[i], s=1, c=COLOR2)
     axs[i].set_xlim([state_time[0], state_time[-1] + CUTOFF_TIMES[WHICH]])
+
+    std = 3*np.sqrt(state_data[:, state_vel_cov_order[i]])
+    axs[i].fill_between(state_time,
+                        state_data[:, state_vel_order[i]] - std,
+                        state_data[:, state_vel_order[i]] + std,
+                        alpha=0.1, color=COLOR2)
 
     if WHICH == 0:
         axs[i].set_ylim([-1, 1])

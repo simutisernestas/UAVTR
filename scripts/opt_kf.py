@@ -104,6 +104,7 @@ if BAG_NAME == BAGS_LIST[0]:
 else:
     raise NotImplementedError("TODO:")
 
+
 def take_diff(t, pos, interp_time=None):
     # smooth position
     if interp_time is None:
@@ -252,8 +253,7 @@ plt.legend()
 
 vel_boat_gt = np.zeros((vel_gt.shape[0], 2))
 acc_bias_gt = np.zeros((acc_gt.shape[0], 3))
-all_state = np.hstack((pos_gt, vel_gt, vel_boat_gt,
-                      acc_gt, acc_bias_gt), dtype=np.float64)
+all_state = np.hstack((pos_gt, vel_gt, acc_gt), dtype=np.float64)
 all_meas = np.hstack((pos_meas, vel_meas, acc_meas), dtype=np.float64)
 X = [all_state]
 Z = [all_meas]
@@ -266,14 +266,14 @@ Z = [all_meas]
 
 # %%
 
-N_STATES = 14
+N_STATES = 14 - 5
 
 
 def get_F():
     A = np.zeros((N_STATES, N_STATES))
     A[0:3, 3:6] = -np.eye(3)
-    A[0:2, 6:8] = np.eye(2)
-    A[3:6, 8:11] = np.eye(3)
+    # A[0:2, 6:8] = np.eye(2)
+    A[3:6, 8-2:11-2] = np.eye(3)
     dt = 1.0/128.0
     F = scipy.linalg.expm(A*dt)
     return torch.tensor(F, dtype=torch.double)
@@ -283,8 +283,8 @@ def get_H():
     C = np.zeros((9, N_STATES))
     C[:3, :3] = np.eye(3)
     C[3:6, 3:6] = np.eye(3)
-    C[6:9, 8:11] = np.eye(3)
-    C[6:9, 11:14] = np.eye(3)
+    C[6:9, 8-2:11-2] = np.eye(3)
+    # C[6:9, 11:14] = np.eye(3)
     return torch.tensor(C, dtype=torch.double)
 
 
@@ -292,7 +292,7 @@ def initial_observation_to_state(z):
     x = torch.zeros((N_STATES,), dtype=torch.double)
     x[:3] = z[:3]
     x[3:6] = z[3:6]
-    x[8:11] = z[6:9]
+    x[8-2:11-2] = z[6:9]
     return x
 
 
@@ -323,7 +323,7 @@ if not RESET:
 
 # %%
 
-res, _ = okf.train(model, Z, X, verbose=1, n_epochs=500, lr=1e-3,
+res, _ = okf.train(model, Z, X, verbose=1, n_epochs=500, lr=1e-2,
                    batch_size=1, to_save=True, lr_decay_freq=200,
                    noise_estimation_initialization=RESET,
                    reset_model=RESET)

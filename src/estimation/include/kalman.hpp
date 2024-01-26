@@ -58,6 +58,7 @@ public:
   Eigen::MatrixXf covariance();
 
   void reset_boat_velocity();
+  void inflate_boat_vel_cov();
 
 private:
   // Matrices for computation

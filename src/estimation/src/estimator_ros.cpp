@@ -456,10 +456,16 @@ void StateEstimationNode::state_pub_callback() {
     Eigen::Matrix3f cov_vel = cov.block<3, 3>(3, 3, 3, 3);
     Eigen::EigenSolver<Eigen::Matrix3f> es_vel(cov_vel);
     Eigen::Vector3f eig_vel = es_vel.eigenvalues().real();
+    // boat vel is next two state variables after vel
+    Eigen::Matrix2f cov_boat_vel = cov.block<2, 2>(6, 6, 2, 2);
+    Eigen::EigenSolver<Eigen::Matrix2f> es_boat_vel(cov_boat_vel);
+    Eigen::Vector2f eig_boat_vel = es_boat_vel.eigenvalues().real();
     for (long i = 1; i < 4; i++) {
       long cov_idx = (i - 1);
       state_msg.poses[i].orientation.x = eig_pos(cov_idx);
       state_msg.poses[i].orientation.y = eig_vel(cov_idx);
+      if (i < 3)
+        state_msg.poses[i].orientation.z = eig_boat_vel(cov_idx);
     }
   }
 
