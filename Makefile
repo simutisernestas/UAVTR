@@ -25,12 +25,26 @@ estimation: fusion
 	$(call build_target,estimation)
 
 configure:
+# download onnxruntime lib
+ifeq (,$(wildcard src/detection/onnxruntime))
+	echo "onnxruntime not found, downloading..."
 	wget https://github.com/microsoft/onnxruntime/releases/download/v1.15.1/onnxruntime-training-linux-x64-1.15.1.tgz
 	tar -xf onnxruntime-training-linux-x64-1.15.1.tgz
 	mv onnxruntime-training-linux-x64-1.15.1 src/detection/onnxruntime
 	rm onnxruntime-training-linux-x64-1.15.1.tgz
+endif
+# donwload yolov7-marine model weights
+ifeq (,$(wildcard src/detection/weights/best3.onnx))
+	echo "yolov7-marine model weights not found, downloading..."
+	git clone https://huggingface.co/ernielov/yolov7-marine
+	mv yolov7-marine/best3.onnx src/detection/weights/
+	rm -rf yolov7-marine
+endif
 	$(call configure_target,detection)
+# download Fusion submodule
+ifeq (,$(wildcard src/Fusion))
 	git clone https://github.com/xioTechnologies/Fusion --branch=main src/Fusion
+endif
 	$(call configure_target,Fusion)
 	$(call configure_target,estimation)
 
