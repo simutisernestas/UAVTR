@@ -28,7 +28,7 @@ Code depends on:
 Configure & Build:
 ```bash
 make configure
-make build
+make
 ```
 
 ## Data
